@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>TFT リーダーボード ｜ マウンテンチョンク校</title>
+<meta name="description" content="ログイン式TFT大会リーダーボード presented by Mo10C/もと">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
+  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
+  --pink:#D94E97;--pink-deep:#B83C7E;--pink-soft:#F4B7D6;
+  --cyan:#1FA3B4;--cyan-deep:#188A99;--cyan-soft:#A6E1E8;--danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 16px 36px -22px rgba(70,50,110,.35);--shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
+  --hexline:rgba(120,90,170,.16);
+}
+:root[data-theme="dark"]{
+  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
+  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
+  --pink:#F26DB0;--pink-deep:#F58CC2;--pink-soft:#7A3560;
+  --cyan:#4FD2DF;--cyan-deep:#7BE0E9;--cyan-soft:#1E5A64;--danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 18px 40px -22px rgba(0,0,0,.7);--shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
+  --hexline:rgba(180,150,230,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
+  background:radial-gradient(900px 480px at 88% -8%,color-mix(in srgb,var(--pink) 14%,transparent),transparent 60%),
+    radial-gradient(820px 460px at -8% 6%,color-mix(in srgb,var(--cyan) 13%,transparent),transparent 58%),var(--bg);
+  color:var(--ink);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding:clamp(14px,3vw,30px) clamp(14px,3vw,36px) 84px}
+
+/* header */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .hex{width:38px;height:38px;background:var(--grad);clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);
+  display:grid;place-items:center;color:#fff;font-weight:900;font-size:14px;flex:none}
+.brand h1{font-size:15.5px;font-weight:900;letter-spacing:.03em}
+.brand .sub{font-size:10.5px;color:var(--muted)}
+.badge{font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+.badge.live{border-color:var(--ok);color:var(--ok)}
+.spacer{flex:1}
+.me{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:5px 14px 5px 6px;box-shadow:var(--shadow-soft)}
+.me img{width:32px;height:32px;border-radius:999px;object-fit:cover;border:2px solid var(--border-strong)}
+.me .mname{font-size:12.5px;font-weight:900;line-height:1.2}
+.me .mrank{font-size:10px;font-weight:900;line-height:1.2}
+.iconbtn{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--muted)}
+
+/* board settings row */
+.settings{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;padding:12px 16px;box-shadow:var(--shadow-soft);margin-bottom:14px}
+.settings label{font-size:11.5px;font-weight:700;color:var(--muted)}
+.settings input[type=number]{width:64px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:6px 9px;font-size:13px}
+.settings input[type=text]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:6px 10px;font-size:13px;min-width:170px}
+.mini{border:1px solid var(--border-strong);background:var(--surface);border-radius:9px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--ink)}
+.mini:hover{border-color:var(--cyan)}
+.mini.grad{background:var(--grad);color:#fff;border:none}
+.mini.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--border-strong))}
+
+/* role filter bar */
+.rolebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.rolebar .lbl{font-size:11.5px;font-weight:900;color:var(--muted)}
+.rchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:999px;
+  background:var(--surface);border:1.5px solid var(--border-strong);cursor:pointer;user-select:none}
+.rchip .dot{width:8px;height:8px;border-radius:999px;flex:none}
+.rchip .cnt{color:var(--muted);font-size:10.5px}
+.rchip.on{border-color:var(--pink);background:color-mix(in srgb,var(--pink) 9%,var(--surface))}
+
+/* participants */
+.pbar{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-soft);margin-bottom:14px}
+.pbar-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.pbar-head .title{font-size:12.5px;font-weight:900}
+.pops{display:flex;flex-wrap:wrap;gap:8px}
+.pop{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1.5px solid var(--border);border-radius:12px;
+  padding:6px 10px;cursor:pointer;user-select:none;transition:border-color .1s, transform .1s;max-width:230px}
+.pop:hover{border-color:var(--cyan)}
+.pop.sel{border-color:var(--pink);box-shadow:0 0 0 2px color-mix(in srgb,var(--pink) 30%,transparent)}
+.pop.off{opacity:.42}
+.pop.dim{display:none}
+.pop img{width:30px;height:30px;border-radius:999px;object-fit:cover;flex:none;border:1.5px solid var(--border-strong)}
+.pop .pn{font-size:12px;font-weight:900;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pop .pr{font-size:9.5px;font-weight:900;line-height:1.15}
+.pop .rdots{display:flex;gap:3px;margin-top:2px}
+.pop .rdots span{width:7px;height:7px;border-radius:999px}
+.pop input[type=checkbox]{accent-color:var(--pink);width:15px;height:15px;flex:none}
+.assign-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:11px;padding-top:11px;border-top:1px dashed var(--border-strong)}
+.assign-row select{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:6px 9px;font-size:12px;font-weight:700}
+.hint{font-size:10.5px;color:var(--muted)}
+
+/* match tabs */
+.mtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.mtab{border:1.5px solid var(--border-strong);background:var(--surface);border-radius:999px;padding:7px 17px;font-size:12.5px;font-weight:900;color:var(--muted)}
+.mtab.on{background:var(--grad);color:#fff;border-color:transparent}
+
+/* tables */
+.tables{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.tablecard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:13px 14px;box-shadow:var(--shadow-soft)}
+.tablecard h3{font-size:13px;font-weight:900;display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.tablecard h3 .tno{width:24px;height:24px;border-radius:8px;background:var(--grad);color:#fff;display:grid;place-items:center;font-size:12px}
+.seats{display:flex;flex-direction:column;gap:5px}
+.seat{display:flex;align-items:center;gap:8px;border:1.5px dashed var(--border-strong);border-radius:10px;padding:5px 9px;min-height:40px;cursor:pointer;transition:border-color .1s}
+.seat.filled{border-style:solid;background:var(--surface-2)}
+.seat:hover{border-color:var(--cyan)}
+.seat.target{border-color:var(--pink);background:color-mix(in srgb,var(--pink) 7%,var(--surface))}
+.seat img{width:26px;height:26px;border-radius:999px;object-fit:cover;flex:none;border:1.5px solid var(--border-strong)}
+.seat .sn{font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.seat .sr{font-size:9px;font-weight:900;flex:none}
+.seat .empty{font-size:11px;color:var(--muted)}
+.seat .rankpill{font-size:10.5px;font-weight:900;padding:1px 8px;border-radius:999px;background:var(--grad);color:#fff;flex:none}
+
+/* results */
+.results{display:grid;gap:14px}
+.rescard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:15px 17px;box-shadow:var(--shadow-soft)}
+.rescard h3{font-size:13.5px;font-weight:900;margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:10.5px;color:var(--muted);padding:5px 8px;border-bottom:1.5px solid var(--border-strong);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+td.rk{width:44px;font-weight:900}
+td.pt{width:60px;text-align:right;font-weight:900}
+td.gm{width:56px;text-align:right;color:var(--muted)}
+.cellp{display:flex;align-items:center;gap:8px}
+.cellp img{width:24px;height:24px;border-radius:999px;object-fit:cover;border:1.5px solid var(--border-strong)}
+.medal{font-size:15px}
+select.place{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:8px;padding:4px 7px;font-size:12px;font-weight:700}
+.rbadge-sm{font-size:9.5px;font-weight:900}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
+#toast.show{opacity:.96}
+.section-gap{height:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="hex">M</div>
+      <div>
+        <h1 id="boardTitle">TFT リーダーボード</h1>
+        <div class="sub">マウンテンチョンク校 ｜ <span id="boardIdLabel" class="num">default</span></div>
+      </div>
+    </div>
+    <span class="badge" id="syncBadge">— 接続中…</span>
+    <div class="spacer"></div>
+    <div class="me" id="meChip" title="ログイン中のアカウント">
+      <img id="meAvatar" alt="">
+      <div>
+        <div class="mname" id="meName">—</div>
+        <div class="mrank" id="meRank">—</div>
+      </div>
+    </div>
+    <button class="iconbtn" id="shareBtn">🔗 共有</button>
+    <a class="iconbtn" href="editor.html" id="editorLink">⚙️ 管理</a>
+    <button class="iconbtn" id="logoutBtn">ログアウト</button>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div class="settings">
+    <label>大会名</label><input type="text" id="titleInput" placeholder="（例）第3回 校内カップ">
+    <label>試合数</label><input type="number" id="matchCountInput" min="1" max="12">
+    <label>卓数</label><input type="number" id="tableCountInput" min="1" max="8">
+    <button class="mini" id="applySettings">反映</button>
+    <span class="hint" id="capHint"></span>
+  </div>
+
+  <!-- ロールフィルタ -->
+  <div class="rolebar" id="rolebar"></div>
+
+  <!-- 参加者 -->
+  <div class="pbar">
+    <div class="pbar-head">
+      <span class="title">👥 参加者（<span id="presentCount" class="num">0</span>/<span id="rosterCount" class="num">0</span>）</span>
+      <span class="hint">POPをタップ→席をタップで配置。チェック＝この試合に参加</span>
+      <div class="spacer"></div>
+      <button class="mini" id="allOn">全員 参加</button>
+      <button class="mini" id="allOff">全員 外す</button>
+      <button class="mini" id="filterOn">表示中だけ参加</button>
+    </div>
+    <div class="pops" id="pops"></div>
+    <div class="assign-row">
+      <b style="font-size:12px">🎲 自動組卓</b>
+      <select id="assignMethod">
+        <option value="random">完全ランダム</option>
+        <option value="points">pt近い順（2試合目〜）</option>
+        <option value="roleBalance">ロールを各卓に均等分散</option>
+        <option value="roleGroup">同ロールを同卓に固める</option>
+      </select>
+      <select id="assignRole" style="display:none"></select>
+      <button class="mini grad" id="assignBtn">実行</button>
+      <button class="mini" id="clearSeatsBtn">配置クリア</button>
+      <span class="hint">「均等分散」= 例）コーチロールを各卓1人ずつ配る／「固める」= 同ロール同卓</span>
+    </div>
+  </div>
+
+  <!-- 試合タブ -->
+  <div class="mtabs" id="mtabs"></div>
+
+  <!-- 卓 -->
+  <div class="tables" id="tables"></div>
+
+  <!-- 結果 -->
+  <div class="results" id="results" style="display:none"></div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script>
+(function(){
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  /* ---- ログインチェック ---- */
+  const session = C.Session.require();
+  if (!session) return;
+  const myPid = "u_" + session.discord.id;
+
+  /* ---- テーマ ---- */
+  const THEME_KEY = "mcc-portal-theme";
+  function applyTheme(t){ document.documentElement.setAttribute("data-theme", t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"; localStorage.setItem(THEME_KEY,t); applyTheme(t); };
+
+  /* ---- toast ---- */
+  let toastTimer = null;
+  function toast(msg){
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
+  }
+
+  /* ---- 自分のプロフィール表示 ---- */
+  $("meAvatar").src = session.discord.avatar || "";
+  $("meName").textContent = session.discord.name;
+  $("meRank").textContent = C.rankLabel(session.riot.rank);
+  $("meRank").style.color = C.rankColor(session.riot.rank);
+  $("logoutBtn").onclick = () => {
+    if (!confirm("ログアウトしますか？（ボード上の登録は残ります）")) return;
+    C.Session.clear();
+    location.href = "login.html" + (store.boardId !== "default" ? "?board="+encodeURIComponent(store.boardId) : "");
+  };
+
+  /* ---- UIローカル状態 ---- */
+  let curMatch = 0;          // 選択中タブ（matchCount = 結果タブ）
+  let selectedPid = null;    // 配置用に選択中の選手
+  let roleFilter = null;     // 表示フィルタ中のロールID
+
+  /* ---- Store ---- */
+  const store = C.makeStore();
+
+  store.init().then(({mode, boardId}) => {
+    $("boardIdLabel").textContent = boardId;
+    const badge = $("syncBadge");
+    if (mode === "firestore"){ badge.textContent = "● LIVE 共有中"; badge.classList.add("live"); }
+    else badge.textContent = "ローカル保存モード";
+    // 自分を選手登録（最新のランク・ロールで上書き）
+    store.upsertSelf(session);
+    // 管理リンクにboardを引き継ぐ
+    if (boardId !== "default") $("editorLink").href = "editor.html?board=" + encodeURIComponent(boardId);
+    render();
+  });
+  store.onChange(render);
+
+  $("shareBtn").onclick = async () => {
+    const url = location.origin + location.pathname.replace(/index\.html$/, "login.html") +
+      (store.boardId !== "default" ? "?board="+encodeURIComponent(store.boardId) : "");
+    try { await navigator.clipboard.writeText(url); toast("ログインページのリンクをコピーしました"); }
+    catch(e){ prompt("このリンクを共有:", url); }
+  };
+
+  /* ---- 設定 ---- */
+  $("applySettings").onclick = () => {
+    store.setBoardTitle($("titleInput").value);
+    store.setSettings({
+      matchCount: parseInt($("matchCountInput").value,10) || 1,
+      tableCount: parseInt($("tableCountInput").value,10) || 1
+    });
+    toast("設定を反映しました");
+  };
+
+  /* ---- 参加系ボタン ---- */
+  $("allOn").onclick  = () => { if (curMatch < store.state.matchCount) store.setAllPresent(curMatch, true); };
+  $("allOff").onclick = () => { if (curMatch < store.state.matchCount && confirm("この試合の参加者を全員外します。席と順位もクリアされます。")) store.setAllPresent(curMatch, false); };
+  $("filterOn").onclick = () => {
+    if (curMatch >= store.state.matchCount) return;
+    if (!roleFilter){ toast("先にロールフィルタを選択してください"); return; }
+    store.setPresentByRole(curMatch, roleFilter);
+    toast("表示中ロールの保持者だけを参加にしました");
+  };
+
+  /* ---- 自動組卓 ---- */
+  $("assignMethod").onchange = () => {
+    const m = $("assignMethod").value;
+    $("assignRole").style.display = (m === "roleBalance" || m === "roleGroup") ? "" : "none";
+  };
+  $("assignBtn").onclick = () => {
+    if (curMatch >= store.state.matchCount) return;
+    const method = $("assignMethod").value;
+    const roleId = $("assignRole").value || null;
+    if (method === "roleBalance" && !roleId){ toast("分散するロールを選択してください"); return; }
+    const r = store.autoAssign(curMatch, { method, roleId });
+    if (r) toast(`配置しました（${r.assigned}人${r.dropped ? " / 溢れ"+r.dropped+"人" : ""}）`);
+  };
+  $("clearSeatsBtn").onclick = () => {
+    if (curMatch >= store.state.matchCount) return;
+    if (confirm("この試合の全卓の配置と順位をクリアしますか？")) store.clearMatchSeats(curMatch);
+  };
+
+  /* =============================================================
+     描画
+     ============================================================= */
+  function render(){
+    const s = store.state;
+    if (curMatch > s.matchCount) curMatch = 0;
+
+    $("boardTitle").textContent = s.title || "TFT リーダーボード";
+    if (document.activeElement !== $("titleInput")) $("titleInput").value = s.title || "";
+    if (document.activeElement !== $("matchCountInput")) $("matchCountInput").value = s.matchCount;
+    if (document.activeElement !== $("tableCountInput")) $("tableCountInput").value = s.tableCount;
+    $("capHint").textContent = `定員 ${s.tableCount * C.SEATS_PER_TABLE}人（8人×${s.tableCount}卓）`;
+
+    renderRoleBar(s);
+    renderTabs(s);
+
+    const isResults = curMatch >= s.matchCount;
+    document.querySelector(".pbar").style.display = isResults ? "none" : "";
+    $("tables").style.display = isResults ? "none" : "";
+    $("results").style.display = isResults ? "" : "none";
+
+    if (isResults) renderResults(s);
+    else { renderPops(s); renderTables(s); }
+  }
+
+  /* ---- ロールバー ---- */
+  function renderRoleBar(s){
+    const bar = $("rolebar");
+    bar.innerHTML = "";
+    const roles = C.rosterRoles(s);
+    const lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.textContent = "🎭 ロール:";
+    bar.appendChild(lbl);
+
+    const allChip = mkChip("すべて", null, s.roster.length, roleFilter === null);
+    allChip.onclick = () => { roleFilter = null; render(); };
+    bar.appendChild(allChip);
+
+    roles.forEach(r => {
+      const chip = mkChip(r.name, r.color, r.count, roleFilter === r.id);
+      chip.onclick = () => { roleFilter = (roleFilter === r.id) ? null : r.id; render(); };
+      bar.appendChild(chip);
+    });
+
+    // 自動組卓のロール選択も更新
+    const sel = $("assignRole");
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">（ロールを選択）</option>' +
+      roles.map(r => `<option value="${r.id}">${escapeHtml(r.name)}（${r.count}人）</option>`).join("");
+    if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+
+    function mkChip(name, color, count, on){
+      const el = document.createElement("span");
+      el.className = "rchip" + (on ? " on" : "");
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = color != null ? C.roleColorCss(color) : "var(--grad, var(--pink))";
+      el.appendChild(dot);
+      el.appendChild(document.createTextNode(name + " "));
+      const cnt = document.createElement("span");
+      cnt.className = "cnt num";
+      cnt.textContent = count;
+      el.appendChild(cnt);
+      return el;
+    }
+  }
+
+  /* ---- タブ ---- */
+  function renderTabs(s){
+    const box = $("mtabs");
+    box.innerHTML = "";
+    for (let m = 0; m < s.matchCount; m++){
+      const b = document.createElement("button");
+      b.className = "mtab" + (curMatch === m ? " on" : "");
+      b.textContent = "第" + (m+1) + "試合";
+      b.onclick = () => { curMatch = m; selectedPid = null; render(); };
+      box.appendChild(b);
+    }
+    const r = document.createElement("button");
+    r.className = "mtab" + (curMatch >= s.matchCount ? " on" : "");
+    r.textContent = "📊 結果";
+    r.onclick = () => { curMatch = s.matchCount; selectedPid = null; render(); };
+    box.appendChild(r);
+  }
+
+  /* ---- 参加者POP ---- */
+  function renderPops(s){
+    const box = $("pops");
+    box.innerHTML = "";
+    let present = 0;
+    s.roster.forEach(p => {
+      const isOn = C.isPresent(s, curMatch, p.id);
+      if (isOn) present++;
+      const pop = document.createElement("div");
+      pop.className = "pop"
+        + (selectedPid === p.id ? " sel" : "")
+        + (isOn ? "" : " off")
+        + (roleFilter && !C.hasRole(p, roleFilter) ? " dim" : "");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = isOn;
+      cb.onclick = e => { e.stopPropagation(); store.setPresent(curMatch, p.id, cb.checked); };
+      pop.appendChild(cb);
+      const img = document.createElement("img");
+      img.src = (p.discord && p.discord.avatar) || "";
+      img.onerror = function(){ this.style.visibility = "hidden"; };
+      pop.appendChild(img);
+      const info = document.createElement("div");
+      info.style.minWidth = "0";
+      const pn = document.createElement("div");
+      pn.className = "pn";
+      pn.textContent = p.name + (p.id === myPid ? " ⭐" : "");
+      const pr = document.createElement("div");
+      pr.className = "pr";
+      pr.textContent = C.rankLabel(p.rank);
+      pr.style.color = C.rankColor(p.rank);
+      const rd = document.createElement("div");
+      rd.className = "rdots";
+      (p.roles || []).slice(0, 6).forEach(r => {
+        const d = document.createElement("span");
+        d.style.background = C.roleColorCss(r.color);
+        d.title = r.name || "";
+        rd.appendChild(d);
+      });
+      info.appendChild(pn); info.appendChild(pr); info.appendChild(rd);
+      pop.appendChild(info);
+      pop.onclick = () => {
+        if (!isOn){ toast("不参加の選手は配置できません（チェックを入れてください）"); return; }
+        selectedPid = (selectedPid === p.id) ? null : p.id;
+        render();
+      };
+      box.appendChild(pop);
+    });
+    $("presentCount").textContent = present;
+    $("rosterCount").textContent = s.roster.length;
+  }
+
+  /* ---- 卓・席 ---- */
+  function renderTables(s){
+    const box = $("tables");
+    box.innerHTML = "";
+    const mt = s.matches[curMatch];
+    if (!mt) return;
+    mt.tables.forEach((tb, t) => {
+      const card = document.createElement("div");
+      card.className = "tablecard";
+      const h = document.createElement("h3");
+      h.innerHTML = `<span class="tno num">${t+1}</span> 卓 ${t+1}`;
+      card.appendChild(h);
+      const seats = document.createElement("div");
+      seats.className = "seats";
+      tb.seats.forEach((pid, si) => {
+        const seat = document.createElement("div");
+        seat.className = "seat" + (pid ? " filled" : "") + (selectedPid && !pid ? " target" : "");
+        if (pid){
+          const p = C.playerById(s, pid);
+          const img = document.createElement("img");
+          img.src = (p && p.discord && p.discord.avatar) || "";
+          img.onerror = function(){ this.style.visibility = "hidden"; };
+          seat.appendChild(img);
+          const sn = document.createElement("div");
+          sn.className = "sn";
+          sn.textContent = p ? p.name : "—";
+          seat.appendChild(sn);
+          const sr = document.createElement("div");
+          sr.className = "sr";
+          sr.textContent = (p && p.rank && p.rank.tier) ? p.rank.tier : "";
+          sr.style.color = C.rankColor(p && p.rank);
+          seat.appendChild(sr);
+          const rk = tb.placements[pid];
+          if (rk){
+            const pill = document.createElement("span");
+            pill.className = "rankpill num";
+            pill.textContent = rk + "位";
+            seat.appendChild(pill);
+          }
+          seat.onclick = () => {
+            if (selectedPid && selectedPid !== pid){
+              store.assignSeat(curMatch, t, si, selectedPid);
+              selectedPid = null;
+            } else {
+              if (confirm((p ? p.name : "この選手") + " を席から外しますか？")) store.clearSeat(curMatch, t, si);
+            }
+          };
+        } else {
+          const em = document.createElement("span");
+          em.className = "empty";
+          em.textContent = "空席 " + (si+1);
+          seat.appendChild(em);
+          seat.onclick = () => {
+            if (!selectedPid){ toast("先に参加者POPをタップして選択してください"); return; }
+            store.assignSeat(curMatch, t, si, selectedPid);
+            selectedPid = null;
+          };
+        }
+        seats.appendChild(seat);
+      });
+      card.appendChild(seats);
+      box.appendChild(card);
+    });
+  }
+
+  /* ---- 結果 ---- */
+  function renderResults(s){
+    const box = $("results");
+    box.innerHTML = "";
+
+    /* 全体順位 */
+    {
+      const card = document.createElement("div");
+      card.className = "rescard";
+      const h = document.createElement("h3");
+      h.textContent = "🏆 全体順位（累計pt）";
+      card.appendChild(h);
+      const rows = C.overallStandings(s);
+      const tbl = document.createElement("table");
+      tbl.innerHTML = "<tr><th>順位</th><th>選手</th><th style='text-align:right'>試合数</th><th style='text-align:right'>pt</th></tr>";
+      rows.forEach((r, i) => {
+        const p = C.playerById(s, r.pid);
+        const tr = document.createElement("tr");
+        const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":"";
+        tr.innerHTML =
+          `<td class="rk num">${medal ? '<span class="medal">'+medal+'</span>' : (i+1)}</td>` +
+          `<td><div class="cellp">` +
+            `<img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'">` +
+            `<div><div style="font-weight:900">${escapeHtml(r.name)}</div>` +
+            `<div class="rbadge-sm" style="color:${C.rankColor(p && p.rank)}">${escapeHtml(C.rankLabel(p && p.rank))}</div></div>` +
+          `</div></td>` +
+          `<td class="gm num">${r.games}</td><td class="pt num">${r.points}</td>`;
+        tbl.appendChild(tr);
+      });
+      card.appendChild(tbl);
+      box.appendChild(card);
+    }
+
+    /* 各試合・各卓（順位入力＋自動取得） */
+    for (let m = 0; m < s.matchCount; m++){
+      for (let t = 0; t < s.tableCount; t++){
+        const tb = s.matches[m].tables[t];
+        if (!tb.seats.some(Boolean)) continue;
+        const card = document.createElement("div");
+        card.className = "rescard";
+        const h = document.createElement("h3");
+        h.textContent = `第${m+1}試合 ・ 卓${t+1}`;
+        const btn = document.createElement("button");
+        btn.className = "mini grad";
+        btn.textContent = "⚡ 自動取得";
+        btn.onclick = () => autoFetch(m, t, btn);
+        h.appendChild(btn);
+        card.appendChild(h);
+
+        const tbl = document.createElement("table");
+        tbl.innerHTML = "<tr><th>選手</th><th>順位</th><th style='text-align:right'>pt</th></tr>";
+        tb.seats.forEach(pid => {
+          if (!pid) return;
+          const p = C.playerById(s, pid);
+          const rk = tb.placements[pid] || "";
+          const tr = document.createElement("tr");
+          const tdP = document.createElement("td");
+          tdP.innerHTML = `<div class="cellp"><img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'"><b>${escapeHtml(p ? p.name : "—")}</b></div>`;
+          const tdR = document.createElement("td");
+          const sel = document.createElement("select");
+          sel.className = "place";
+          sel.innerHTML = '<option value="">—</option>' + [1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${rk===n?"selected":""}>${n}位</option>`).join("");
+          sel.onchange = () => store.setPlacement(m, t, pid, parseInt(sel.value,10) || 0);
+          tdR.appendChild(sel);
+          const tdPt = document.createElement("td");
+          tdPt.className = "pt num";
+          tdPt.textContent = C.pointsFor(s.mode, rk || 0);
+          tr.appendChild(tdP); tr.appendChild(tdR); tr.appendChild(tdPt);
+          tbl.appendChild(tr);
+        });
+        card.appendChild(tbl);
+        box.appendChild(card);
+      }
+    }
+  }
+
+  /* ---- 順位の自動取得 ---- */
+  async function autoFetch(m, t, btn){
+    const s = store.state;
+    const tb = s.matches[m].tables[t];
+    const players = tb.seats.filter(Boolean).map(pid => {
+      const p = C.playerById(s, pid);
+      return { pid, puuid: p ? p.puuid : "" };
+    });
+    const orig = btn.textContent;
+    btn.disabled = true;
+    try {
+      btn.textContent = "取得中…";
+      const r = await C.Riot.autoDetectTable(players, msg => { btn.textContent = "…"; });
+      if (!r){ toast("直近の履歴に該当マッチが見つかりませんでした"); return; }
+      Object.entries(r.placements).forEach(([pid, rank]) => store.setPlacement(m, t, pid, rank));
+      toast("順位を反映しました（" + r.matchId + "）");
+    } catch(e){
+      toast("自動取得に失敗: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+})();
+</script>
+</body>
+</html>

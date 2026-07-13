@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ログイン ｜ TFT リーダーボード ｜ マウンテンチョンク校</title>
+<meta name="description" content="ログイン式TFTリーダーボード presented by Mo10C/もと">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
+  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
+  --pink:#D94E97;--pink-deep:#B83C7E;--pink-soft:#F4B7D6;
+  --cyan:#1FA3B4;--cyan-deep:#188A99;--cyan-soft:#A6E1E8;--danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 16px 36px -22px rgba(70,50,110,.35);--shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
+  --hexline:rgba(120,90,170,.16);
+}
+:root[data-theme="dark"]{
+  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
+  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
+  --pink:#F26DB0;--pink-deep:#F58CC2;--pink-soft:#7A3560;
+  --cyan:#4FD2DF;--cyan-deep:#7BE0E9;--cyan-soft:#1E5A64;--danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 18px 40px -22px rgba(0,0,0,.7);--shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
+  --hexline:rgba(180,150,230,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
+  background:radial-gradient(900px 480px at 88% -8%,color-mix(in srgb,var(--pink) 14%,transparent),transparent 60%),
+    radial-gradient(820px 460px at -8% 6%,color-mix(in srgb,var(--cyan) 13%,transparent),transparent 58%),var(--bg);
+  color:var(--ink);min-height:100vh;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:760px;margin:0 auto;padding:clamp(18px,4vw,38px) clamp(16px,4vw,40px) 84px}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .hex{width:40px;height:40px;background:var(--grad);clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);
+  display:grid;place-items:center;color:#fff;font-weight:900;font-size:15px}
+.brand h1{font-size:16px;font-weight:900;letter-spacing:.04em}
+.brand .sub{font-size:11px;color:var(--muted)}
+.theme-btn{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:700;color:var(--muted)}
+
+/* hero */
+.hero{display:flex;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:20px 22px;box-shadow:var(--shadow);margin-bottom:22px;overflow:hidden;position:relative}
+.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(500px 200px at 100% 0,color-mix(in srgb,var(--cyan) 10%,transparent),transparent 65%);pointer-events:none}
+.hero img{width:92px;height:auto;flex:none}
+.hero h2{font-size:clamp(18px,3.4vw,23px);font-weight:900;letter-spacing:.02em}
+.hero h2 .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{font-size:12.5px;color:var(--muted);margin-top:4px}
+
+/* step cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:18px 20px;box-shadow:var(--shadow-soft);margin-bottom:16px;position:relative}
+.card.done{border-color:color-mix(in srgb,var(--ok) 55%,var(--border))}
+.step-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.step-num{width:30px;height:30px;border-radius:999px;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:900;font-size:14px;flex:none}
+.card.done .step-num{background:var(--ok)}
+.step-head h3{font-size:15px;font-weight:900}
+.step-head .tag{margin-left:auto;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--border-strong);color:var(--muted)}
+.card.done .step-head .tag{border-color:var(--ok);color:var(--ok)}
+.desc{font-size:12px;color:var(--muted);margin-bottom:12px}
+
+.riot-row{display:flex;gap:8px;flex-wrap:wrap}
+.riot-row input{flex:1;min-width:200px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  border-radius:12px;padding:11px 14px;font-size:14px;font-family:inherit}
+.riot-row input:focus{outline:none;border-color:var(--cyan)}
+.btn{border:none;border-radius:12px;padding:11px 20px;font-size:13.5px;font-weight:900;color:#fff;background:var(--grad);box-shadow:var(--shadow-soft);transition:transform .12s}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled{opacity:.45;cursor:default;transform:none}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--border-strong);box-shadow:none}
+.btn.discord{background:#5865F2}
+.btn.big{width:100%;padding:15px;font-size:15.5px;border-radius:14px}
+
+.profile{display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-top:12px}
+.profile img{width:46px;height:46px;border-radius:999px;border:2px solid var(--border-strong);object-fit:cover}
+.profile .pname{font-weight:900;font-size:14.5px}
+.profile .psub{font-size:11.5px;color:var(--muted)}
+.rank-badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:900;padding:3px 10px;border-radius:999px;border:1.5px solid;margin-top:3px}
+.roles{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.role-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--border-strong)}
+.role-chip .dot{width:8px;height:8px;border-radius:999px;flex:none}
+
+.msg{font-size:12px;margin-top:10px;padding:9px 12px;border-radius:10px;display:none}
+.msg.show{display:block}
+.msg.err{background:color-mix(in srgb,var(--danger) 12%,var(--surface));color:var(--danger);border:1px solid color-mix(in srgb,var(--danger) 40%,var(--border))}
+.msg.ok{background:color-mix(in srgb,var(--ok) 10%,var(--surface));color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,var(--border))}
+.msg.info{background:var(--surface-2);color:var(--muted);border:1px solid var(--border)}
+
+.enter-area{margin-top:20px}
+.note{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:999px;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="hex">M</div>
+      <div>
+        <h1>TFT リーダーボード <span style="font-weight:700;color:var(--muted)">LOGIN</span></h1>
+        <div class="sub">マウンテンチョンク校</div>
+      </div>
+    </div>
+    <button class="theme-btn" id="themeBtn">🌙 ダーク</button>
+  </div>
+
+  <div class="hero">
+    <img src="assets/moto-hero.png" alt="" onerror="this.style.display='none'">
+    <div>
+      <h2>ようこそ！ <span class="grad">ログインして参加</span>しよう</h2>
+      <p>Riot ID と Discord の2つを連携すると、自動で選手登録されてボードに入場できます。</p>
+    </div>
+  </div>
+
+  <!-- STEP 1: Riot ID -->
+  <div class="card" id="cardRiot">
+    <div class="step-head">
+      <div class="step-num">1</div>
+      <h3>Riot ID を確認</h3>
+      <span class="tag" id="riotTag">未確認</span>
+    </div>
+    <div class="desc">ゲーム内の Riot ID（例: <b>Mo10C#JP1</b>）を入力すると、サモナー情報と現在のTFTランクを取得します。</div>
+    <div class="riot-row">
+      <input id="riotInput" placeholder="Name#TAG" autocomplete="off" spellcheck="false">
+      <button class="btn" id="riotBtn">確認する</button>
+    </div>
+    <div class="profile" id="riotProfile" style="display:none">
+      <div>
+        <div class="pname num" id="riotName">—</div>
+        <div class="rank-badge" id="riotRank">—</div>
+      </div>
+    </div>
+    <div class="msg" id="riotMsg"></div>
+  </div>
+
+  <!-- STEP 2: Discord -->
+  <div class="card" id="cardDiscord">
+    <div class="step-head">
+      <div class="step-num">2</div>
+      <h3>Discord でログイン</h3>
+      <span class="tag" id="dcTag">未ログイン</span>
+    </div>
+    <div class="desc">サーバーでの表示名・アイコン・<b>ロール</b>を取得します。ロールは組卓のフィルタや振り分けに使われます。</div>
+    <button class="btn discord" id="dcBtn">🎮 Discord でログイン</button>
+    <div class="profile" id="dcProfile" style="display:none">
+      <img id="dcAvatar" alt="">
+      <div>
+        <div class="pname" id="dcName">—</div>
+        <div class="psub" id="dcSub">—</div>
+        <div class="roles" id="dcRoles"></div>
+      </div>
+    </div>
+    <div class="msg" id="dcMsg"></div>
+  </div>
+
+  <!-- 入場 -->
+  <div class="enter-area">
+    <button class="btn big" id="enterBtn" disabled>ボードに入場する →</button>
+    <div class="note" id="enterNote">STEP 1 と STEP 2 の両方を完了すると入場できます。</div>
+  </div>
+
+</div>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script>
+(function(){
+  const { Riot, DiscordAuth, Session, rankLabel, rankColor, roleColorCss } = window.LBCore;
+  const $ = id => document.getElementById(id);
+  const CFG = window.MCC_LB_CONFIG || {};
+
+  /* ---- テーマ（ポータルと共有）---- */
+  const THEME_KEY = "mcc-portal-theme";
+  function applyTheme(t){
+    document.documentElement.setAttribute("data-theme", t);
+    $("themeBtn").textContent = t === "dark" ? "☀️ ライト" : "🌙 ダーク";
+  }
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  $("themeBtn").onclick = () => {
+    const t = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, t); applyTheme(t);
+  };
+
+  /* ---- ログイン途中の下書き（OAuth往復でRiot入力を失わないため）---- */
+  const DRAFT_KEY = "mcc-lb2-draft";
+  function loadDraft(){ try{ return JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}"); }catch(e){ return {}; } }
+  function saveDraft(d){ try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); }catch(e){} }
+  let draft = loadDraft();
+
+  function boardQuery(){
+    const p = new URLSearchParams(location.search);
+    return p.get("board") ? ("?board=" + encodeURIComponent(p.get("board"))) : "";
+  }
+
+  function showMsg(el, type, text){
+    el.className = "msg show " + type;
+    el.textContent = text;
+  }
+  function hideMsg(el){ el.className = "msg"; }
+
+  /* ---- STEP1: Riot ---- */
+  function renderRiot(){
+    const r = draft.riot;
+    if (r && r.puuid){
+      $("cardRiot").classList.add("done");
+      $("riotTag").textContent = "✓ 確認済み";
+      $("riotProfile").style.display = "flex";
+      $("riotName").textContent = r.gameName + "#" + r.tagLine;
+      const b = $("riotRank");
+      b.textContent = rankLabel(r.rank);
+      b.style.borderColor = rankColor(r.rank);
+      b.style.color = rankColor(r.rank);
+      $("riotInput").value = r.gameName + "#" + r.tagLine;
+    } else {
+      $("cardRiot").classList.remove("done");
+      $("riotTag").textContent = "未確認";
+      $("riotProfile").style.display = "none";
+    }
+    renderEnter();
+  }
+  $("riotBtn").onclick = async () => {
+    const btn = $("riotBtn"), msg = $("riotMsg");
+    hideMsg(msg);
+    let riotId = $("riotInput").value.trim();
+    try { Riot.parseRiotId(riotId); }
+    catch(e){ showMsg(msg, "err", e.message); return; }
+    if (!Riot.enabled()){ showMsg(msg, "err", "Worker URL が未設定です。config.js の workerUrl を設定してください。"); return; }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>取得中…';
+    try {
+      const info = await Riot.lookup(riotId);
+      draft.riot = info;
+      saveDraft(draft);
+      showMsg(msg, "ok", "アカウントを確認しました。" + (info.rank ? "" : "（ランク情報なし＝未プレイの可能性）"));
+      renderRiot();
+    } catch(e){
+      showMsg(msg, "err", "取得に失敗: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "確認する";
+    }
+  };
+
+  /* ---- STEP2: Discord ---- */
+  function renderDiscord(){
+    const d = draft.discord;
+    if (d && d.id){
+      $("cardDiscord").classList.add("done");
+      $("dcTag").textContent = "✓ ログイン済み";
+      $("dcBtn").textContent = "🔄 別のアカウントでログインし直す";
+      $("dcProfile").style.display = "flex";
+      $("dcAvatar").src = d.avatar || "";
+      $("dcName").textContent = d.name || d.username;
+      $("dcSub").textContent = "@" + (d.username || "") + (d.inGuild ? "" : "（サーバー未参加）");
+      const wrap = $("dcRoles");
+      wrap.innerHTML = "";
+      (d.roles || []).forEach(r => {
+        const chip = document.createElement("span");
+        chip.className = "role-chip";
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.background = roleColorCss(r.color);
+        chip.appendChild(dot);
+        chip.appendChild(document.createTextNode(r.name || r.id));
+        wrap.appendChild(chip);
+      });
+      if (!(d.roles || []).length){
+        wrap.innerHTML = '<span class="role-chip">ロールなし</span>';
+      }
+    } else {
+      $("cardDiscord").classList.remove("done");
+      $("dcTag").textContent = "未ログイン";
+      $("dcBtn").textContent = "🎮 Discord でログイン";
+      $("dcProfile").style.display = "none";
+    }
+    renderEnter();
+  }
+  $("dcBtn").onclick = () => {
+    const msg = $("dcMsg");
+    hideMsg(msg);
+    if (!DiscordAuth.enabled()){ showMsg(msg, "err", "Worker URL が未設定です。config.js の workerUrl を設定してください。"); return; }
+    try { DiscordAuth.login(location.origin + location.pathname + boardQuery()); }
+    catch(e){ showMsg(msg, "err", e.message); }
+  };
+
+  // OAuthコールバック（#dc=...）を処理
+  const cb = DiscordAuth.consumeCallback();
+  if (cb){
+    if (cb.ok){
+      draft.discord = { id: cb.id, username: cb.username, name: cb.name, avatar: cb.avatar, inGuild: cb.inGuild, roles: cb.roles || [] };
+      saveDraft(draft);
+      if (!cb.inGuild){
+        const invite = (CFG.discord && CFG.discord.inviteUrl) || "";
+        showMsg($("dcMsg"), "info",
+          (CFG.discord && CFG.discord.guildName || "サーバー") + "に未参加のためロールを取得できませんでした。" +
+          (invite ? " 参加はこちら → " + invite : ""));
+      }
+    } else {
+      showMsg($("dcMsg"), "err", "Discordログイン失敗: " + (cb.error || "不明なエラー"));
+    }
+  }
+
+  /* ---- 入場 ---- */
+  function renderEnter(){
+    const ok = !!(draft.riot && draft.riot.puuid && draft.discord && draft.discord.id);
+    $("enterBtn").disabled = !ok;
+    $("enterNote").textContent = ok
+      ? "準備OK！ボードに入場すると自動で選手登録されます。"
+      : "STEP 1 と STEP 2 の両方を完了すると入場できます。";
+  }
+  $("enterBtn").onclick = () => {
+    Session.set({ riot: draft.riot, discord: draft.discord, loggedInAt: Date.now() });
+    try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+    location.href = "index.html" + boardQuery();
+  };
+
+  /* ---- 既ログインなら下書きに反映（再入場が楽）---- */
+  const s = Session.get();
+  if (s && Session.isComplete(s) && !draft.riot && !draft.discord){
+    draft = { riot: s.riot, discord: s.discord };
+  }
+
+  renderRiot();
+  renderDiscord();
+})();
+</script>
+</body>
+</html>

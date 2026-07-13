@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>管理コンソール ｜ TFT リーダーボード ｜ マウンテンチョンク校</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
+  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
+  --pink:#D94E97;--pink-deep:#B83C7E;--cyan:#1FA3B4;--danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
+}
+:root[data-theme="dark"]{
+  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
+  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
+  --pink:#F26DB0;--cyan:#4FD2DF;--danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.6}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:960px;margin:0 auto;padding:clamp(16px,3vw,32px) clamp(14px,3vw,36px) 84px}
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.top h1{font-size:17px;font-weight:900}
+.badge{font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+.badge.live{border-color:var(--ok);color:var(--ok)}
+.spacer{flex:1}
+.iconbtn{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--muted);text-decoration:none}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-soft);margin-bottom:14px}
+.card h2{font-size:13.5px;font-weight:900;margin-bottom:11px}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+label{font-size:11.5px;font-weight:700;color:var(--muted)}
+input[type=text],select{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:7px 10px;font-size:12.5px;font-family:inherit}
+.mini{border:1px solid var(--border-strong);background:var(--surface);border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--ink)}
+.mini:hover{border-color:var(--cyan)}
+.mini.grad{background:var(--grad);color:#fff;border:none}
+.mini.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--border-strong))}
+.hint{font-size:11px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:10.5px;color:var(--muted);padding:5px 8px;border-bottom:1.5px solid var(--border-strong);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.cellp{display:flex;align-items:center;gap:8px}
+.cellp img{width:26px;height:26px;border-radius:999px;object-fit:cover;border:1.5px solid var(--border-strong)}
+.role-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border-strong);margin:1px 2px 1px 0}
+.role-chip .dot{width:7px;height:7px;border-radius:999px}
+.boards{display:flex;flex-wrap:wrap;gap:8px}
+.bpop{border:1.5px solid var(--border-strong);background:var(--surface-2);border-radius:12px;padding:8px 12px;font-size:12px;cursor:pointer}
+.bpop.on{border-color:var(--pink)}
+.bpop b{display:block;font-size:12.5px}
+.bpop span{color:var(--muted);font-size:10.5px}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
+#toast.show{opacity:.96}
+textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:8px 10px;font-size:11px;font-family:"Space Grotesk",monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>⚙️ 管理コンソール</h1>
+    <span class="badge" id="syncBadge">— 接続中…</span>
+    <span class="badge">board: <span id="boardIdLabel" class="num">default</span></span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="index.html" id="boardLink">🏆 ボードへ</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <!-- Riot / Worker 設定 -->
+  <div class="card">
+    <h2>🔌 API 設定（Worker）</h2>
+    <div class="row">
+      <label>Worker URL</label>
+      <input type="text" id="workerUrl" style="min-width:300px;flex:1" placeholder="https://mcc-login-board.xxx.workers.dev">
+    </div>
+    <div class="row">
+      <label>region</label>
+      <select id="regionSel"><option>asia</option><option>americas</option><option>europe</option></select>
+      <label>platform</label>
+      <select id="platformSel"><option>jp1</option><option>kr</option><option>na1</option><option>euw1</option></select>
+      <button class="mini grad" id="saveCfg">保存</button>
+      <button class="mini" id="resetCfg">config.js の値に戻す</button>
+      <button class="mini" id="testCfg">接続テスト</button>
+    </div>
+    <div class="hint" id="cfgHint">保存はこのブラウザに記録され、本番ボードにも即反映されます。Riot APIキー / Discord Secret は Worker 側のシークレットで管理します。</div>
+  </div>
+
+  <!-- メンバー -->
+  <div class="card">
+    <h2>👥 メンバー（ログインした人が自動登録されます）</h2>
+    <div class="row">
+      <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
+      <span class="hint">名前をタップで表示名を変更できます</span>
+    </div>
+    <table id="memberTable">
+      <tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th></th></tr>
+    </table>
+  </div>
+
+  <!-- ボード管理 -->
+  <div class="card">
+    <h2>🗂 ボード（大会）管理</h2>
+    <div class="row">
+      <label>大会名</label>
+      <input type="text" id="titleInput" style="min-width:220px" placeholder="この大会の表示名">
+      <button class="mini" id="saveTitle">保存</button>
+    </div>
+    <div class="row">
+      <label>ボードIDで開く</label>
+      <input type="text" id="openBoardId" placeholder="gasshuku-2026 など">
+      <button class="mini" id="openBoardBtn">開く（無ければ新規作成）</button>
+    </div>
+    <div class="boards" id="boardList"></div>
+  </div>
+
+  <!-- データ -->
+  <div class="card">
+    <h2>💾 データ管理</h2>
+    <div class="row">
+      <button class="mini" id="exportBtn">JSONバックアップをダウンロード</button>
+      <button class="mini" id="importBtn">JSONから復元</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+    <div class="row">
+      <button class="mini danger" id="clearResultsBtn">全結果クリア（順位のみ消す）</button>
+      <button class="mini danger" id="resetBtn">ボード初期化（メンバーは残す）</button>
+    </div>
+    <div class="hint">エクスポートは現在のボードの全データ（メンバー・組卓・結果）を含みます。</div>
+  </div>
+
+  <!-- 生データ確認 -->
+  <div class="card">
+    <h2>🔍 状態（読み取り専用）</h2>
+    <textarea id="rawState" readonly></textarea>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script>
+(function(){
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  const session = C.Session.require();
+  if (!session) return;
+
+  /* テーマ */
+  const THEME_KEY = "mcc-portal-theme";
+  function applyTheme(t){ document.documentElement.setAttribute("data-theme", t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"; localStorage.setItem(THEME_KEY,t); applyTheme(t); };
+
+  let toastTimer = null;
+  function toast(msg){
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
+  }
+
+  /* 管理者ロールの案内（強制はしない：たたき台） */
+  if (!C.isAdmin(session)) {
+    toast("⚠️ 管理者ロールが設定されていないアカウントです（操作は可能ですが注意）");
+  }
+
+  const store = C.makeStore();
+  store.init().then(({mode, boardId}) => {
+    $("boardIdLabel").textContent = boardId;
+    const badge = $("syncBadge");
+    if (mode === "firestore"){ badge.textContent = "● LIVE 共有中"; badge.classList.add("live"); }
+    else badge.textContent = "ローカル保存モード";
+    if (boardId !== "default") $("boardLink").href = "index.html?board=" + encodeURIComponent(boardId);
+    render();
+    renderBoards();
+  });
+  store.onChange(render);
+
+  /* ---- API設定 ---- */
+  function fillCfg(){
+    const eff = C.RiotConfig.effective();
+    $("workerUrl").value = eff.workerUrl;
+    $("regionSel").value = eff.region;
+    $("platformSel").value = eff.platform;
+    $("cfgHint").textContent = C.RiotConfig.isOverridden()
+      ? "※ 現在 config.js を上書き中（このブラウザ設定を使用）"
+      : "保存はこのブラウザに記録され、本番ボードにも即反映されます。";
+  }
+  fillCfg();
+  $("saveCfg").onclick = () => {
+    C.RiotConfig.set({ workerUrl: $("workerUrl").value, region: $("regionSel").value, platform: $("platformSel").value });
+    fillCfg();
+    toast("API設定を保存しました");
+  };
+  $("resetCfg").onclick = () => { C.RiotConfig.clear(); fillCfg(); toast("config.js の値に戻しました"); };
+  $("testCfg").onclick = async () => {
+    const url = C.RiotConfig.effective().workerUrl;
+    if (!url){ toast("Worker URL が未設定です"); return; }
+    try {
+      const r = await fetch(url.replace(/\/$/,"") + "/health");
+      const j = await r.json();
+      toast(j.ok ? "✅ Worker に接続できました" : "⚠️ 応答はありましたが形式が不正です");
+    } catch(e){ toast("❌ 接続失敗: " + e.message); }
+  };
+
+  /* ---- メンバー ---- */
+  function render(){
+    const s = store.state;
+    if (document.activeElement !== $("titleInput")) $("titleInput").value = s.title || "";
+    const tbl = $("memberTable");
+    tbl.innerHTML = "<tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th></th></tr>";
+    s.roster.forEach(p => {
+      const tr = document.createElement("tr");
+
+      const tdP = document.createElement("td");
+      const cell = document.createElement("div");
+      cell.className = "cellp";
+      const img = document.createElement("img");
+      img.src = (p.discord && p.discord.avatar) || "";
+      img.onerror = function(){ this.style.visibility = "hidden"; };
+      const nameB = document.createElement("b");
+      nameB.textContent = p.name;
+      nameB.style.cursor = "pointer";
+      nameB.title = "タップで表示名を変更";
+      nameB.onclick = () => {
+        const nv = prompt("表示名を変更", p.name);
+        if (nv != null && nv.trim()) store.updatePlayer(p.id, { name: nv.trim() });
+      };
+      cell.appendChild(img); cell.appendChild(nameB);
+      tdP.appendChild(cell);
+
+      const tdR = document.createElement("td");
+      tdR.className = "num";
+      tdR.textContent = p.riotId || "—";
+
+      const tdRank = document.createElement("td");
+      tdRank.textContent = C.rankLabel(p.rank);
+      tdRank.style.color = C.rankColor(p.rank);
+      tdRank.style.fontWeight = "900";
+      tdRank.style.fontSize = "11px";
+
+      const tdRoles = document.createElement("td");
+      (p.roles || []).forEach(r => {
+        const chip = document.createElement("span");
+        chip.className = "role-chip";
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.background = C.roleColorCss(r.color);
+        chip.appendChild(dot);
+        chip.appendChild(document.createTextNode(r.name || r.id));
+        tdRoles.appendChild(chip);
+      });
+      if (!(p.roles || []).length) tdRoles.innerHTML = '<span class="hint">—</span>';
+
+      const tdAct = document.createElement("td");
+      tdAct.style.whiteSpace = "nowrap";
+      const del = document.createElement("button");
+      del.className = "mini danger";
+      del.textContent = "削除";
+      del.onclick = () => { if (confirm(p.name + " をボードから削除しますか？（再ログインで戻れます）")) store.removePlayer(p.id); };
+      tdAct.appendChild(del);
+
+      tr.appendChild(tdP); tr.appendChild(tdR); tr.appendChild(tdRank); tr.appendChild(tdRoles); tr.appendChild(tdAct);
+      tbl.appendChild(tr);
+    });
+    $("rawState").value = JSON.stringify(s, null, 2);
+  }
+
+  $("refreshRanks").onclick = async () => {
+    const s = store.state;
+    const targets = s.roster.filter(p => p.puuid);
+    if (!targets.length){ toast("puuid登録済みのメンバーがいません"); return; }
+    const btn = $("refreshRanks");
+    btn.disabled = true;
+    let ok = 0, ng = 0;
+    for (const p of targets){
+      try {
+        const rank = await C.Riot.rank(p.puuid);
+        store.updatePlayer(p.id, { rank });
+        ok++;
+      } catch(e){ ng++; console.warn(p.name, e); }
+      btn.textContent = `🔄 取得中 ${ok+ng}/${targets.length}`;
+      await new Promise(r => setTimeout(r, 250)); // レート制限対策の小休止
+    }
+    btn.disabled = false;
+    btn.textContent = "🔄 全員のランクを再取得";
+    toast(`ランク更新: 成功${ok} / 失敗${ng}`);
+  };
+
+  /* ---- ボード管理 ---- */
+  $("saveTitle").onclick = () => { store.setBoardTitle($("titleInput").value); toast("大会名を保存しました"); };
+  $("openBoardBtn").onclick = () => {
+    const id = ($("openBoardId").value || "").trim();
+    if (!id){ toast("ボードIDを入力してください"); return; }
+    location.href = "editor.html?board=" + encodeURIComponent(id);
+  };
+  async function renderBoards(){
+    const list = await store.listBoards();
+    const box = $("boardList");
+    box.innerHTML = "";
+    list.forEach(b => {
+      const el = document.createElement("div");
+      el.className = "bpop" + (b.id === store.boardId ? " on" : "");
+      el.innerHTML = `<b>${escapeHtml(b.title || b.id)}</b><span class="num">${b.id} ・ ${b.players || 0}人 ・ ${b.updatedAt ? new Date(b.updatedAt).toLocaleDateString("ja-JP") : ""}</span>`;
+      el.onclick = () => { if (b.id !== store.boardId) location.href = "editor.html?board=" + encodeURIComponent(b.id); };
+      box.appendChild(el);
+    });
+  }
+
+  /* ---- データ管理 ---- */
+  $("exportBtn").onclick = () => {
+    const blob = new Blob([JSON.stringify(store.state, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "mcc-lboard-" + store.boardId + "-" + new Date().toISOString().slice(0,10) + ".json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  $("importBtn").onclick = () => $("importFile").click();
+  $("importFile").onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        if (!confirm("現在のボードをこのJSONで上書きしますか？")) return;
+        store.importState(obj);
+        toast("復元しました");
+      } catch(err){ toast("JSONの読み込みに失敗: " + err.message); }
+      e.target.value = "";
+    };
+    reader.readAsText(f);
+  };
+  $("clearResultsBtn").onclick = () => { if (confirm("全試合の順位をクリアしますか？（配置は残ります）")) { store.clearAllResults(); toast("結果をクリアしました"); } };
+  $("resetBtn").onclick = () => { if (confirm("組卓・結果・設定を初期化しますか？（メンバーは残ります）")) { store.resetBoard(); toast("初期化しました"); } };
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+})();
+</script>
+</body>
+</html>

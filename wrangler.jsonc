@@ -1,0 +1,19 @@
+{
+  // ログイン式リーダーボード用 Worker（既存の tft-riot-proxy とは別デプロイ）
+  // デプロイ: npx wrangler deploy
+  "name": "mcc-login-board",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-01",
+
+  // 秘密情報はダッシュボード or CLI で設定（このファイルには書かない）:
+  //   npx wrangler secret put RIOT_API_KEY
+  //   npx wrangler secret put DISCORD_CLIENT_ID
+  //   npx wrangler secret put DISCORD_CLIENT_SECRET
+  //   npx wrangler secret put DISCORD_BOT_TOKEN
+  "vars": {
+    // マウンテンチョンク校サーバーのID（Discordの開発者モードでコピー）
+    "DISCORD_GUILD_ID": "",
+    // ログイン後の戻り先として許可するオリジン（カンマ区切り・推奨設定）
+    "RETURN_ORIGINS": "https://mo10c.github.io,http://localhost:8000"
+  }
+}
