@@ -33,11 +33,19 @@
    v2.1  /auth/login から prompt=none を削除。
          prompt=none は「すでにこのアプリを認可済みの人」しか通らないため、
          初回ログインの参加者が必ず consent_required で弾かれていた。
+   v2.2  /member を追加（Botトークンで1人のロールを引く。管理コンソールの
+         「全員のロールを再取得」用。本人の再ログインが不要になる）
+   v2.3  ★重要バグ修正: ルーティングの各 async 関数に await が無く、
+         reject が try/catch の外へ抜けて Cloudflare の Error 1101 に
+         なっていた。おかげで失敗理由（401/403/未設定など）が
+         一切見えなかった。全経路に await を追加。
+         あわせて /diag（設定の自己診断）を追加。
    ============================================================= */
 
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
 const ALLOWED_PLATFORMS = ["jp1", "kr", "na1", "euw1", "eun1", "oc1", "br1", "la1", "la2", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"];
 const DISCORD_API = "https://discord.com/api/v10";
+const WORKER_VERSION = "2.3";
 
 // ブラウザからのAPI呼び出しを許可するオリジン（"*" か "https://mo10c.github.io" 等）
 const ALLOW_ORIGIN = "*";
@@ -53,23 +61,87 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
 
     try {
+      // ★ 必ず await すること。
+      //   await を付けずに async 関数を return すると、reject が try/catch の外へ抜け、
+      //   Cloudflare の「Error 1101 Worker threw exception」になって理由が見えなくなる。
       switch (path) {
-        case "/health":        return json({ ok: true, now: Date.now() });
-        case "/account":       return riotAccount(url, env);
-        case "/rank":          return riotRank(url, env);
-        case "/matches":       return riotMatches(url, env);
-        case "/match":         return riotMatch(url, env);
-        case "/auth/login":    return authLogin(url, env);
-        case "/auth/callback": return authCallback(url, env);
-        case "/roles":         return guildRoles(env);
-        case "/member":        return guildMember(url, env);
+        case "/health":        return json({ ok: true, now: Date.now(), version: WORKER_VERSION });
+        case "/account":       return await riotAccount(url, env);
+        case "/rank":          return await riotRank(url, env);
+        case "/matches":       return await riotMatches(url, env);
+        case "/match":         return await riotMatch(url, env);
+        case "/auth/login":    return await authLogin(url, env);
+        case "/auth/callback": return await authCallback(url, env);
+        case "/roles":         return await guildRoles(env);
+        case "/member":        return await guildMember(url, env);
+        case "/diag":          return await diagnostics(env);
         default:               return json({ error: "unknown endpoint: " + path }, 404);
       }
     } catch (e) {
-      return json({ error: String(e && e.message || e) }, 502);
+      return json({
+        error: String((e && e.message) || e),
+        endpoint: path,
+        stack: (e && e.stack) ? String(e.stack).split("\n").slice(0, 3).join(" | ") : undefined
+      }, 502);
     }
   }
 };
+
+/* =============================================================
+   /diag — 設定の自己診断
+   シークレットの中身は絶対に返さない。「入っているか」と
+   「Discord に通るか」だけを返す。
+   ============================================================= */
+async function diagnostics(env) {
+  const present = k => !!(env[k] && String(env[k]).trim());
+  const out = {
+    version: WORKER_VERSION,
+    vars: {
+      RIOT_API_KEY: present("RIOT_API_KEY"),
+      DISCORD_CLIENT_ID: present("DISCORD_CLIENT_ID"),
+      DISCORD_CLIENT_SECRET: present("DISCORD_CLIENT_SECRET"),
+      DISCORD_BOT_TOKEN: present("DISCORD_BOT_TOKEN"),
+      DISCORD_GUILD_ID: present("DISCORD_GUILD_ID"),
+      RETURN_ORIGINS: present("RETURN_ORIGINS") ? env.RETURN_ORIGINS : false
+    },
+    checks: {}
+  };
+
+  // Bot トークンの形だけ確認（値は出さない）
+  if (present("DISCORD_BOT_TOKEN")) {
+    const t = String(env.DISCORD_BOT_TOKEN).trim();
+    out.checks.botTokenShape =
+      /^Bot\s/i.test(t) ? "NG: 先頭の 'Bot ' は不要です。トークンだけを登録してください"
+      : /^\d{17,20}$/.test(t) ? "NG: これは ID です。Bot トークンではありません"
+      : (t.split(".").length === 3 ? "OK（形式は正常）" : "注意: 通常とは違う形式です");
+  }
+
+  // 実際に Discord を叩いてみる
+  if (present("DISCORD_BOT_TOKEN") && present("DISCORD_GUILD_ID")) {
+    try {
+      const r = await fetch(DISCORD_API + "/guilds/" + enc(env.DISCORD_GUILD_ID) + "/roles", {
+        headers: { Authorization: "Bot " + String(env.DISCORD_BOT_TOKEN).trim() }
+      });
+      out.checks.rolesStatus = r.status;
+      out.checks.rolesMeaning =
+        r.status === 200 ? "OK: ロールを取得できます"
+        : r.status === 401 ? "Bot トークンが無効です（Reset Token して登録し直す）"
+        : r.status === 403 ? "Bot がこのサーバーに入っていません（招待URLで招待する）"
+        : r.status === 404 ? "DISCORD_GUILD_ID が違います（サーバーIDを取り直す）"
+        : "想定外のステータス";
+      if (r.status === 200) {
+        const rr = await r.json();
+        out.checks.roleCount = Array.isArray(rr) ? rr.length : 0;
+      }
+    } catch (e) {
+      out.checks.rolesError = String((e && e.message) || e);
+    }
+  } else {
+    out.checks.rolesMeaning = "DISCORD_BOT_TOKEN / DISCORD_GUILD_ID のどちらかが未設定です";
+  }
+
+  return json(out);
+}
 
 /* =============================================================
    Riot 中継
