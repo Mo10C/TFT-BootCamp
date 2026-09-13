@@ -59,6 +59,11 @@
           <div id="nbRolePick" style="display:none">
             <div class="hint" style="margin:9px 0 5px">入場を許可するロールを選択（複数可・いずれか1つ持っていれば入れます）</div>
             <div class="rolepick" id="nbRoles"></div>
+            <div class="hint" id="nbRoleNote" style="margin-top:8px;display:none"></div>
+            <div class="frow" style="margin:9px 0 0">
+              <input type="text" id="nbRoleId" class="mono" placeholder="ロールIDを貼り付けて追加（例: 123456789012345678）" spellcheck="false" autocomplete="off">
+              <button class="mini" id="nbRoleAdd" type="button">追加</button>
+            </div>
           </div>
         </div>
       </div>
@@ -164,11 +169,25 @@
   function renderRolePick(){
     const box = $("nbRoles");
     box.innerHTML = "";
+
+    // Worker から取れていない場合は、手元の情報で代替カタログを作る
+    const list = catalog.length ? catalog : C.fallbackRoleCatalog(session, picked);
+    const note = $("nbRoleNote");
     if (!catalog.length){
-      box.innerHTML = '<span class="hint">ロール一覧を取得できませんでした。Worker の DISCORD_BOT_TOKEN と、Bot がサーバーに入っているかを確認してください。</span>';
-      return;
+      note.style.display = "";
+      note.innerHTML = list.length
+        ? "⚠️ Discord からロール一覧を取得できていないため、<b>あなたが持っているロールだけ</b>を表示しています。" +
+          "他のロールは下の欄にIDを貼って追加してください。<br>" +
+          "IDの調べ方: Discord の設定 → 詳細設定 → 開発者モードをON → サーバー設定 → ロール → 対象を右クリック → IDをコピー"
+        : "⚠️ ロール一覧を取得できませんでした。下の欄にロールIDを貼って追加してください。" +
+          "（Discord の設定 → 詳細設定 → 開発者モードをON → サーバー設定 → ロール → 右クリック → IDをコピー）";
+    } else {
+      note.style.display = "none";
     }
-    catalog.forEach(r => {
+
+    if (!list.length) return;
+
+    list.forEach(r => {
       const on = picked.includes(String(r.id));
       const el = document.createElement("span");
       el.className = "rp" + (on ? " on" : "");
@@ -188,6 +207,25 @@
 
   $("nbVisAll").onchange = () => { $("nbRolePick").style.display = "none"; };
   $("nbVisRoles").onchange = () => { $("nbRolePick").style.display = ""; renderRolePick(); };
+
+  /* ロールIDの手動追加（Bot が未設定でも公開範囲を設定できるように） */
+  function addRoleId(){
+    const raw = $("nbRoleId").value.trim();
+    if (!raw){ toast("ロールIDを入力してください"); return; }
+    if (!/^\d{17,20}$/.test(raw)){
+      toast("ロールIDは17〜20桁の数字です（入力: " + raw + "）");
+      return;
+    }
+    if (picked.includes(raw)){ toast("すでに選択されています"); return; }
+    picked.push(raw);
+    $("nbRoleId").value = "";
+    renderRolePick();
+    toast("ロールを追加しました");
+  }
+  $("nbRoleAdd").onclick = addRoleId;
+  $("nbRoleId").addEventListener("keydown", e => {
+    if (e.key === "Enter"){ e.preventDefault(); addRoleId(); }
+  });
 
   /* 大会名からIDを自動生成（ID欄を手で触っていない間だけ） */
   let idTouched = false;

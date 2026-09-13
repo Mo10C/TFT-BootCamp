@@ -3,188 +3,299 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>管理コンソール ｜ TFT リーダーボード ｜ マウンテンチョンク校</title>
+<title>管理コンソール ｜ マウンテンチョンク校 TOOLS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
-:root{
-  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
-  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
-  --pink:#D94E97;--pink-deep:#B83C7E;--cyan:#1FA3B4;--danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;
-  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
-  --shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
-}
-:root[data-theme="dark"]{
-  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
-  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
-  --pink:#F26DB0;--cyan:#4FD2DF;--danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;
-  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
-  --shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.6}
-button{font-family:inherit;cursor:pointer}
-.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
-.wrap{max-width:960px;margin:0 auto;padding:clamp(16px,3vw,32px) clamp(14px,3vw,36px) 84px}
-.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-.top h1{font-size:17px;font-weight:900}
-.badge{font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
-.badge.live{border-color:var(--ok);color:var(--ok)}
-.spacer{flex:1}
-.iconbtn{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--muted);text-decoration:none}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow-soft);margin-bottom:14px}
-.card h2{font-size:13.5px;font-weight:900;margin-bottom:11px}
-.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-label{font-size:11.5px;font-weight:700;color:var(--muted)}
-input[type=text],select{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:7px 10px;font-size:12.5px;font-family:inherit}
-.mini{border:1px solid var(--border-strong);background:var(--surface);border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--ink)}
-.mini:hover{border-color:var(--cyan)}
-.mini.grad{background:var(--grad);color:#fff;border:none}
-.mini.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--border-strong))}
-.hint{font-size:11px;color:var(--muted)}
+/* 管理コンソール固有 */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px}
+.tab{border:1.5px solid var(--border-strong);background:var(--surface);border-radius:999px;
+  padding:8px 17px;font-size:12.5px;font-weight:900;color:var(--muted);white-space:nowrap}
+.tab:hover{border-color:var(--cyan);color:var(--cyan)}
+.tab.on{background:var(--grad);color:#fff;border-color:transparent}
+.panel{display:none}
+.panel.on{display:block}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:17px 19px;box-shadow:var(--shadow-soft);margin-bottom:14px}
+.card > h2{font-size:14px;font-weight:900;margin-bottom:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card > .lead{font-size:11.5px;color:var(--muted);margin-bottom:13px;line-height:1.65}
+.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.row:last-child{margin-bottom:0}
+.row > label{font-size:11.5px;font-weight:700;color:var(--muted)}
+input[type=text]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
+input[type=text]:focus{outline:none;border-color:var(--cyan)}
+select{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  border-radius:9px;padding:8px 10px;font-size:12.5px;font-family:inherit}
+textarea{width:100%;min-height:150px;border:1px solid var(--border-strong);background:var(--surface-2);
+  color:var(--ink);border-radius:9px;padding:10px 12px;font-size:11px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.6}
+
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;font-size:10.5px;color:var(--muted);padding:5px 8px;border-bottom:1.5px solid var(--border-strong);white-space:nowrap}
-td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+th{text-align:left;font-size:10.5px;color:var(--muted);padding:7px 9px;
+  border-bottom:1.5px solid var(--border-strong);white-space:nowrap;font-weight:700}
+td{padding:8px 9px;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-.cellp{display:flex;align-items:center;gap:8px}
-.cellp img{width:26px;height:26px;border-radius:999px;object-fit:cover;border:1.5px solid var(--border-strong)}
-.role-chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border-strong);margin:1px 2px 1px 0}
-.role-chip .dot{width:7px;height:7px;border-radius:999px}
-.boards{display:flex;flex-wrap:wrap;gap:8px}
-.bpop{border:1.5px solid var(--border-strong);background:var(--surface-2);border-radius:12px;padding:8px 12px;font-size:12px;cursor:pointer}
-.bpop.on{border-color:var(--pink)}
-.bpop b{display:block;font-size:12.5px}
-.bpop span{color:var(--muted);font-size:10.5px}
-#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
-  padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
-#toast.show{opacity:.96}
-textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:8px 10px;font-size:11px;font-family:"Space Grotesk",monospace}
-.badge.admin{border-color:var(--pink);color:var(--pink)}
-.badge.warn{border-color:var(--gold);color:var(--gold)}
-.lockscreen{max-width:520px;margin:14vh auto 0;background:var(--surface);border:1px solid var(--border);border-radius:20px;
-  padding:34px 30px;box-shadow:var(--shadow-soft);text-align:center}
+.tw{overflow-x:auto}
+.cellp{display:flex;align-items:center;gap:9px}
+.cellp img{width:28px;height:28px;border-radius:999px;object-fit:cover;border:1.5px solid var(--border-strong);flex:none}
+.namelock{font-size:9.5px;color:var(--muted);margin-left:5px}
+
+/* タイル編集 */
+.tile-row{display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:start;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:9px}
+.tile-row.off{opacity:.5}
+.tile-ord{display:flex;flex-direction:column;gap:3px}
+.ordbtn{border:1px solid var(--border-strong);background:var(--surface);border-radius:7px;
+  width:26px;height:22px;font-size:11px;line-height:1;color:var(--muted);padding:0}
+.ordbtn:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
+.ordbtn:disabled{opacity:.35;cursor:default}
+.tile-main{min-width:0;display:flex;flex-direction:column;gap:7px}
+.tile-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tile-line input[type=text]{flex:1;min-width:130px}
+.tile-line .w-ico{width:56px;flex:none;text-align:center;font-size:17px;padding:6px}
+.tile-line .w-url{flex:1;min-width:150px;font-family:"Space Grotesk",monospace;font-size:12px}
+.tile-act{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--muted);white-space:nowrap;cursor:pointer}
+.chk input{accent-color:var(--pink)}
+.rolefield{border-top:1px dashed var(--border-strong);padding-top:8px;margin-top:2px}
+.rolefield .lbl{font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:5px}
+
+.danger-zone{border-color:color-mix(in srgb,var(--danger) 35%,var(--border))}
+.danger-zone > h2{color:var(--danger)}
+.blist{display:flex;flex-direction:column;gap:8px}
+.brow{display:flex;align-items:center;gap:11px;flex-wrap:wrap;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:12px;padding:10px 13px}
+.brow.cur{border-color:var(--pink)}
+.brow .bn{font-size:13px;font-weight:900;min-width:0}
+.brow .bi{font-size:10.5px;color:var(--muted)}
+.sticky-save{position:sticky;bottom:14px;display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:14px;
+  padding:11px 15px;box-shadow:var(--shadow);margin-top:14px;z-index:5}
+.dirty-dot{width:8px;height:8px;border-radius:999px;background:var(--gold);display:none}
+.dirty .dirty-dot{display:inline-block}
+
+.lockscreen{max-width:520px;margin:14vh auto 0;background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:34px 30px;box-shadow:var(--shadow-soft);text-align:center}
 .lockscreen .ico{font-size:44px;line-height:1}
 .lockscreen h2{font-size:18px;font-weight:900;margin:12px 0 8px}
 .lockscreen p{font-size:12.5px;color:var(--muted);margin-bottom:6px}
-.lockscreen .who{display:inline-block;font-size:12px;font-weight:900;margin:10px 0 20px;padding:5px 14px;border-radius:999px;border:1.5px solid var(--border-strong)}
-.lockscreen a.mini{display:inline-block;text-decoration:none;margin:0 4px}
-.lock-note{font-size:11px;color:var(--muted);margin-top:18px;line-height:1.7}
-.namelock{font-size:9.5px;color:var(--muted);margin-left:5px}
+.lockscreen .who{display:inline-block;font-size:12px;font-weight:900;margin:10px 0 20px;
+  padding:5px 14px;border-radius:999px;border:1.5px solid var(--border-strong)}
 </style>
 </head>
 <body>
-<!-- 非管理者向けロック画面（権限チェック後に表示） -->
+
 <div id="lockWrap" style="display:none">
   <div class="lockscreen">
     <div class="ico">🔒</div>
     <h2>管理コンソールは管理者専用です</h2>
-    <p>このページの操作（メンバー管理・ランク一括更新・バックアップ）は<br>大会運営の管理者アカウントのみが利用できます。</p>
+    <p>メンバー管理・HOME編集・大会の削除は、運営の管理者アカウントのみが操作できます。</p>
     <div class="who" id="lockWho">—</div>
     <div>
-      <a class="mini grad" id="lockBack" href="index.html">🏆 ボードに戻る</a>
+      <a class="mini grad" id="lockBack" href="home.html">🏠 HOME に戻る</a>
       <a class="mini" id="lockLogin" href="login.html">別のアカウントでログイン</a>
     </div>
-    <div class="lock-note">管理者のはずなのにここが出る場合は、<br><code>config.js</code> の <code>admins.riotIds</code> / <code>admins.discordIds</code> にご自身が入っているか確認してください。</div>
   </div>
 </div>
 
 <div class="wrap" id="adminWrap" style="display:none">
 
   <div class="top">
-    <h1>⚙️ 管理コンソール</h1>
+    <div class="brand">
+      <div class="hex">⚙️</div>
+      <div>
+        <h1>管理コンソール</h1>
+        <div class="sub">マウンテンチョンク校 TOOLS</div>
+      </div>
+    </div>
     <span class="badge" id="syncBadge">— 接続中…</span>
     <span class="badge" id="roleBadge">—</span>
-    <span class="badge">board: <span id="boardIdLabel" class="num">default</span></span>
     <div class="spacer"></div>
     <a class="iconbtn" href="home.html">🏠 HOME</a>
-    <a class="iconbtn" href="index.html" id="boardLink">🏆 ボードへ</a>
+    <a class="iconbtn" href="boards.html">🏆 大会一覧</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
-  <!-- Riot / Worker 設定 -->
-  <div class="card">
-    <h2>🔌 API 設定（Worker）</h2>
-    <div class="row">
-      <label>Worker URL</label>
-      <input type="text" id="workerUrl" style="min-width:300px;flex:1" placeholder="https://mcc-login-board.xxx.workers.dev">
+  <nav class="tabs" id="tabs">
+    <button class="tab on" data-panel="p-home">🏠 HOME編集</button>
+    <button class="tab" data-panel="p-board">🏆 このボード</button>
+    <button class="tab" data-panel="p-boards">🗂 大会の管理</button>
+    <button class="tab" data-panel="p-members">👥 メンバー</button>
+    <button class="tab" data-panel="p-conn">🔌 接続設定</button>
+    <button class="tab" data-panel="p-data">💾 データ</button>
+  </nav>
+
+  <!-- ================= HOME編集 ================= -->
+  <div class="panel on" id="p-home">
+    <div class="card">
+      <h2>見出し</h2>
+      <div class="lead">HOME画面の一番上に出る文字です。</div>
+      <div class="row">
+        <label style="min-width:72px">タイトル</label>
+        <input type="text" id="hTitle" style="flex:1;min-width:220px" placeholder="マウンテンチョンク校 TOOLS">
+      </div>
+      <div class="row">
+        <label style="min-width:72px">サブ</label>
+        <input type="text" id="hSub" style="flex:1;min-width:220px" placeholder="Discordログイン式ホーム">
+      </div>
     </div>
-    <div class="row">
-      <label>region</label>
-      <select id="regionSel"><option>asia</option><option>americas</option><option>europe</option></select>
-      <label>platform</label>
-      <select id="platformSel"><option>jp1</option><option>kr</option><option>na1</option><option>euw1</option></select>
-      <button class="mini grad" id="saveCfg">保存</button>
-      <button class="mini" id="resetCfg">config.js の値に戻す</button>
-      <button class="mini" id="testCfg">接続テスト</button>
+
+    <div class="card">
+      <h2>メニュータイル</h2>
+      <div class="lead">
+        HOMEに並ぶPOPです。上下で並び替え、「表示」を外すと非表示、「準備中」でグレー＋バッジになります。<br>
+        ロールを指定すると、そのロールを持つ人にだけ表示されます（管理者には常に表示）。
+      </div>
+      <div id="tileList"></div>
+      <div class="row" style="margin-top:11px">
+        <button class="mini" id="tileAdd">＋ タイルを追加</button>
+        <span class="hint">リンク先は同じフォルダ内のファイル名（例: <code>members.html</code>）か、外部URL</span>
+      </div>
     </div>
-    <div class="hint" id="cfgHint">保存はこのブラウザに記録され、本番ボードにも即反映されます。Riot APIキー / Discord Secret は Worker 側のシークレットで管理します。</div>
+
+    <div class="card">
+      <h2>ツール</h2>
+      <div class="lead">HOMEの下部に並ぶリンク集です。既存のポータルや他ツールへの導線に。</div>
+      <div id="toolList"></div>
+      <div class="row" style="margin-top:11px">
+        <button class="mini" id="toolAdd">＋ ツールを追加</button>
+      </div>
+    </div>
+
+    <div class="sticky-save" id="homeSave">
+      <span class="dirty-dot"></span>
+      <button class="mini grad" id="hSaveBtn">HOME設定を保存</button>
+      <a class="mini" href="home.html" target="_blank" rel="noopener">プレビュー ↗</a>
+      <button class="mini" id="hResetBtn">初期状態に戻す</button>
+      <span class="hint" id="hSaveHint">保存すると全員のHOMEに反映されます</span>
+    </div>
   </div>
 
-  <!-- メンバー -->
-  <div class="card">
-    <h2>👥 メンバー（ログインした人が自動登録されます）</h2>
-    <div class="row">
-      <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
-      <button class="mini" id="refreshRoles">🎭 全員のロールを再取得</button>
-      <span class="hint">名前をタップで表示名を変更（空欄で保存するとロック解除＝次回ログインでDiscord名に戻ります）</span>
+  <!-- ================= このボード ================= -->
+  <div class="panel" id="p-board">
+    <div class="card">
+      <h2>大会名 <span class="badge" id="curBoardBadge">default</span></h2>
+      <div class="lead">いま開いているボードの設定です。別のボードを編集するには「大会の管理」から開き直してください。</div>
+      <div class="row">
+        <input type="text" id="titleInput" style="flex:1;min-width:220px" placeholder="この大会の表示名">
+        <button class="mini grad" id="saveTitle">保存</button>
+      </div>
     </div>
-    <table id="memberTable">
-      <tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th></th></tr>
-    </table>
+
+    <div class="card">
+      <h2>🚪 公開範囲</h2>
+      <div class="lead">ロールを指定すると、そのロールを持つ人だけが入場できます。管理者は常に入場できます。</div>
+      <div class="row">
+        <label class="chk"><input type="radio" name="visMode" id="visAll"> ログインした全員が入れる</label>
+        <label class="chk" style="margin-left:10px"><input type="radio" name="visMode" id="visRoles"> 指定ロールの保持者だけ</label>
+      </div>
+      <div id="visPicker" style="display:none">
+        <div class="rolefield" id="visField"></div>
+      </div>
+      <div class="hint" id="visHint" style="margin-top:10px"></div>
+    </div>
   </div>
 
-  <!-- ボード管理 -->
-  <div class="card">
-    <h2>🗂 ボード（大会）管理</h2>
-    <div class="row">
-      <label>大会名</label>
-      <input type="text" id="titleInput" style="min-width:220px" placeholder="この大会の表示名">
-      <button class="mini" id="saveTitle">保存</button>
+  <!-- ================= 大会の管理 ================= -->
+  <div class="panel" id="p-boards">
+    <div class="card">
+      <h2>大会（ボード）一覧</h2>
+      <div class="lead">開く＝そのボードの管理に切り替わります。新規作成は大会一覧ページから。</div>
+      <div class="blist" id="boardList"></div>
+      <div class="row" style="margin-top:12px">
+        <label>IDを指定して開く</label>
+        <input type="text" id="openBoardId" placeholder="gasshuku-2026">
+        <button class="mini" id="openBoardBtn">開く</button>
+        <a class="mini grad" href="boards.html">＋ 新しい大会を作る</a>
+      </div>
     </div>
-    <div class="row">
-      <label>ボードIDで開く</label>
-      <input type="text" id="openBoardId" placeholder="gasshuku-2026 など">
-      <button class="mini" id="openBoardBtn">開く（無ければ新規作成）</button>
+
+    <div class="card danger-zone">
+      <h2>⚠️ 大会の削除</h2>
+      <div class="lead">
+        選手・組卓・順位を含めて<b>完全に削除します。元に戻せません。</b><br>
+        削除する前に「データ」タブからJSONバックアップを取ることを強くおすすめします。
+      </div>
+      <div class="row">
+        <label>ボードID</label>
+        <input type="text" id="delBoardId" placeholder="削除するボードIDを入力" style="min-width:220px">
+        <button class="mini danger" id="delBoardBtn">このボードを削除</button>
+      </div>
+      <div class="hint">確認のため、IDを手で入力してもらう形にしています。</div>
     </div>
-    <div class="boards" id="boardList"></div>
   </div>
 
-  <!-- 公開範囲 -->
-  <div class="card">
-    <h2>🚪 このボードの公開範囲</h2>
-    <div class="row">
-      <label><input type="radio" name="visMode" value="all" id="visAll"> ログインした全員が入れる</label>
-      <label style="margin-left:14px"><input type="radio" name="visMode" value="roles" id="visRoles"> 指定ロールの保持者だけ</label>
+  <!-- ================= メンバー ================= -->
+  <div class="panel" id="p-members">
+    <div class="card">
+      <h2>メンバー <span class="hint" id="memCount"></span></h2>
+      <div class="lead">ログインした人が自動で登録されます。名前をタップすると表示名を変更でき、以降は本人が再ログインしても上書きされません（空欄で保存すると解除）。</div>
+      <div class="row">
+        <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
+        <button class="mini" id="refreshRoles">🎭 全員のロールを再取得</button>
+      </div>
+      <div class="tw">
+        <table id="memberTable"></table>
+      </div>
     </div>
-    <div id="visPicker" style="display:none">
-      <div class="hint" style="margin:8px 0 6px">入場を許可するロールを選んでください（複数可・いずれか1つ持っていれば入れます）。</div>
-      <div class="boards" id="visRoleList"></div>
-    </div>
-    <div class="hint" id="visHint" style="margin-top:10px"></div>
   </div>
 
-  <!-- データ -->
-  <div class="card">
-    <h2>💾 データ管理</h2>
-    <div class="row">
-      <button class="mini" id="exportBtn">JSONバックアップをダウンロード</button>
-      <button class="mini" id="importBtn">JSONから復元</button>
-      <input type="file" id="importFile" accept="application/json" style="display:none">
+  <!-- ================= 接続設定 ================= -->
+  <div class="panel" id="p-conn">
+    <div class="card">
+      <h2>Worker（Riot API / Discord 連携）</h2>
+      <div class="lead">ここでの変更はこのブラウザにのみ保存され、<code>config.js</code> より優先されます。動作確認用です。</div>
+      <div class="row">
+        <label>Worker URL</label>
+        <input type="text" id="workerUrl" style="min-width:300px;flex:1" placeholder="https://xxx.workers.dev">
+      </div>
+      <div class="row">
+        <label>region</label>
+        <select id="regionSel"><option>asia</option><option>americas</option><option>europe</option></select>
+        <label>platform</label>
+        <select id="platformSel"><option>jp1</option><option>kr</option><option>na1</option><option>euw1</option></select>
+      </div>
+      <div class="row">
+        <button class="mini grad" id="saveCfg">保存</button>
+        <button class="mini" id="resetCfg">config.js の値に戻す</button>
+        <button class="mini" id="testCfg">接続テスト</button>
+        <button class="mini" id="diagCfg">設定を診断</button>
+      </div>
+      <div class="hint" id="cfgHint"></div>
+      <textarea id="diagOut" style="margin-top:11px;display:none;min-height:120px" readonly></textarea>
     </div>
-    <div class="row">
-      <button class="mini danger" id="clearResultsBtn">全結果クリア（順位のみ消す）</button>
-      <button class="mini danger" id="resetBtn">ボード初期化（メンバーは残す）</button>
-    </div>
-    <div class="hint">エクスポートは現在のボードの全データ（メンバー・組卓・結果）を含みます。</div>
   </div>
 
-  <!-- 生データ確認 -->
-  <div class="card">
-    <h2>🔍 状態（読み取り専用）</h2>
-    <textarea id="rawState" readonly></textarea>
+  <!-- ================= データ ================= -->
+  <div class="panel" id="p-data">
+    <div class="card">
+      <h2>バックアップ</h2>
+      <div class="lead">現在のボードの全データ（メンバー・組卓・結果・公開範囲）を含みます。</div>
+      <div class="row">
+        <button class="mini grad" id="exportBtn">JSONをダウンロード</button>
+        <button class="mini" id="importBtn">JSONから復元</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none">
+      </div>
+    </div>
+
+    <div class="card danger-zone">
+      <h2>危険な操作</h2>
+      <div class="row">
+        <button class="mini danger" id="clearResultsBtn">全結果クリア（順位のみ消す）</button>
+        <button class="mini danger" id="resetBtn">ボード初期化（メンバーは残す）</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>生データ（読み取り専用）</h2>
+      <textarea id="rawState" readonly></textarea>
+    </div>
   </div>
 
 </div>
@@ -192,6 +303,7 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
 
 <script src="config.js"></script>
 <script src="core.js"></script>
+<script src="home-common.js"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -200,97 +312,472 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
   const session = C.Session.require();
   if (!session) return;
 
-  const THEME_KEY = "mcc-portal-theme";
-  function applyThemeAttr(t){ document.documentElement.setAttribute("data-theme", t); }
-  applyThemeAttr(localStorage.getItem(THEME_KEY) || "light");
+  try { document.documentElement.setAttribute("data-theme", localStorage.getItem("mcc-portal-theme") || "light"); } catch(e){}
 
-  /* =============================================================
-     権限ゲート : 管理者でなければ以降を一切実行しない
-     ============================================================= */
   const IS_ADMIN = C.isAdmin(session);
-  const ADMIN_SET = C.isAdminConfigured();
   const boardParam = new URLSearchParams(location.search).get("board");
   const boardQuery = boardParam ? "?board=" + encodeURIComponent(boardParam) : "";
 
   if (!IS_ADMIN){
     $("lockWrap").style.display = "";
     $("lockWho").textContent = (session.discord.name || "—") + " ／ " + C.Session.riotIdOf(session);
-    $("lockBack").href = "index.html" + boardQuery;
+    $("lockBack").href = "home.html";
     $("lockLogin").href = "login.html" + boardQuery;
     return;
   }
   $("adminWrap").style.display = "";
 
-  /* テーマ */
-  function applyTheme(t){ applyThemeAttr(t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
-  applyTheme(localStorage.getItem(THEME_KEY) || "light");
-  $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"; localStorage.setItem(THEME_KEY,t); applyTheme(t); };
+  const ctx = window.MCCHome.boot(session);
+  const toast = ctx.toast;
 
-  let toastTimer = null;
-  function toast(msg){
-    const el = $("toast");
-    el.textContent = msg;
-    el.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
+  /* ---- タブ ---- */
+  const TAB_KEY = "mcc-lb2-admin-tab";
+  function showPanel(id){
+    document.querySelectorAll(".panel").forEach(p => p.classList.toggle("on", p.id === id));
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.panel === id));
+    try { localStorage.setItem(TAB_KEY, id); } catch(e){}
   }
+  document.querySelectorAll(".tab").forEach(t => { t.onclick = () => showPanel(t.dataset.panel); });
+  try { const saved = localStorage.getItem(TAB_KEY); if (saved && $(saved)) showPanel(saved); } catch(e){}
 
-  /* 管理者が未設定＝誰でも入れてしまう状態なので警告 */
-  const rb = $("roleBadge");
-  if (ADMIN_SET){ rb.textContent = "🛠 管理者"; rb.className = "badge admin"; }
-  else {
-    rb.textContent = "⚠️ 管理者未設定";
-    rb.className = "badge warn";
-    setTimeout(() => toast("⚠️ config.js の admins が未設定です。今は誰でもこの画面に入れます"), 600);
-  }
-
+  /* ---- Store ---- */
   const store = C.makeStore();
   store.setActor({ pid: "u_" + session.discord.id, isAdmin: true });
   window.addEventListener("lb-denied", e => toast("🔒 " + ((e.detail && e.detail.op) || "この操作") + "は許可されていません"));
 
+  let roleCatalog = [], catalogOk = false;
+  function roleList(extraIds){
+    return catalogOk ? roleCatalog : C.fallbackRoleCatalog(session, extraIds || [], store.state);
+  }
+
   store.init().then(({mode, boardId}) => {
-    $("boardIdLabel").textContent = boardId;
-    const badge = $("syncBadge");
-    if (mode === "firestore"){ badge.textContent = "● LIVE 共有中"; badge.classList.add("live"); }
-    else badge.textContent = "ローカル保存モード";
-    if (boardId !== "default") $("boardLink").href = "index.html?board=" + encodeURIComponent(boardId);
+    $("curBoardBadge").textContent = boardId;
+    const b = $("syncBadge");
+    if (mode === "firestore"){ b.textContent = "● LIVE 共有中"; b.classList.add("badge"); b.style.borderColor = "var(--ok)"; b.style.color = "var(--ok)"; }
+    else { b.textContent = "⚠️ ローカル保存モード"; b.style.borderColor = "var(--gold)"; b.style.color = "var(--gold)"; }
     render();
-    renderBoards();
+    renderBoardList();
     loadCatalog();
+    loadHome();
   });
   store.onChange(render);
 
-  /* ---- API設定 ---- */
-  function fillCfg(){
-    const eff = C.RiotConfig.effective();
-    $("workerUrl").value = eff.workerUrl;
-    $("regionSel").value = eff.region;
-    $("platformSel").value = eff.platform;
-    $("cfgHint").textContent = C.RiotConfig.isOverridden()
-      ? "※ 現在 config.js を上書き中（このブラウザ設定を使用）"
-      : "保存はこのブラウザに記録され、本番ボードにも即反映されます。";
+  /* =============================================================
+     ロール選択フィールド（公開範囲・タイル・ツールで共用）
+     ============================================================= */
+  function roleField(container, getIds, setIds){
+    container.innerHTML = "";
+    const lbl = document.createElement("div");
+    lbl.className = "lbl";
+    lbl.textContent = "表示できるロール（未選択＝全員に表示）";
+    container.appendChild(lbl);
+
+    const chips = document.createElement("div");
+    chips.className = "rolepick";
+    container.appendChild(chips);
+
+    const note = document.createElement("div");
+    note.className = "hint";
+    note.style.marginTop = "6px";
+    container.appendChild(note);
+
+    const addRow = document.createElement("div");
+    addRow.className = "row";
+    addRow.style.marginTop = "7px";
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.placeholder = "ロールIDを貼って追加（17〜20桁）";
+    inp.style.minWidth = "240px";
+    const btn = document.createElement("button");
+    btn.className = "mini";
+    btn.textContent = "追加";
+    addRow.appendChild(inp); addRow.appendChild(btn);
+    container.appendChild(addRow);
+
+    function paint(){
+      const ids = getIds();
+      const list = roleList(ids);
+      chips.innerHTML = "";
+      list.forEach(r => {
+        const on = ids.includes(String(r.id));
+        const el = document.createElement("span");
+        el.className = "rp" + (on ? " on" : "");
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.style.background = C.roleColorCss(r.color);
+        el.appendChild(dot);
+        el.appendChild(document.createTextNode((on ? "✓ " : "") + (r.name || r.id)));
+        el.onclick = () => {
+          const cur = getIds().slice();
+          const i = cur.indexOf(String(r.id));
+          if (i >= 0) cur.splice(i, 1); else cur.push(String(r.id));
+          setIds(cur);
+          paint();
+        };
+        chips.appendChild(el);
+      });
+      if (!list.length) chips.innerHTML = '<span class="hint">ロールがありません。下の欄にIDを貼って追加してください。</span>';
+      note.textContent = catalogOk ? "" :
+        "⚠️ Discordからロール一覧を取得できていないため、判明しているぶんだけ表示しています。";
+    }
+    btn.onclick = () => {
+      const raw = inp.value.trim();
+      if (!/^\d{17,20}$/.test(raw)){ toast("ロールIDは17〜20桁の数字です"); return; }
+      const cur = getIds().slice();
+      if (cur.includes(raw)){ toast("すでに選択されています"); return; }
+      cur.push(raw);
+      setIds(cur);
+      inp.value = "";
+      paint();
+    };
+    inp.addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); btn.onclick(); } });
+    paint();
+    return paint;
   }
-  fillCfg();
-  $("saveCfg").onclick = () => {
-    C.RiotConfig.set({ workerUrl: $("workerUrl").value, region: $("regionSel").value, platform: $("platformSel").value });
-    fillCfg();
-    toast("API設定を保存しました");
-  };
-  $("resetCfg").onclick = () => { C.RiotConfig.clear(); fillCfg(); toast("config.js の値に戻しました"); };
-  $("testCfg").onclick = async () => {
-    const url = C.RiotConfig.effective().workerUrl;
-    if (!url){ toast("Worker URL が未設定です"); return; }
+
+  async function loadCatalog(){
     try {
-      const r = await fetch(url.replace(/\/$/,"") + "/health");
-      const j = await r.json();
-      toast(j.ok ? "✅ Worker に接続できました" : "⚠️ 応答はありましたが形式が不正です");
-    } catch(e){ toast("❌ 接続失敗: " + e.message); }
+      roleCatalog = await C.DiscordAuth.rolesCached();
+      catalogOk = !!(roleCatalog && roleCatalog.length);
+    } catch(e){ console.warn("roles", e); catalogOk = false; }
+    renderVis();
+    renderTiles();
+    renderTools();
+  }
+
+  /* =============================================================
+     HOME編集
+     ============================================================= */
+  let home = C.defaultHomeConfig();
+  let homeDirty = false;
+  function markDirty(){
+    homeDirty = true;
+    $("homeSave").classList.add("dirty");
+    $("hSaveHint").textContent = "未保存の変更があります";
+  }
+  function clearDirty(){
+    homeDirty = false;
+    $("homeSave").classList.remove("dirty");
+    $("hSaveHint").textContent = "保存すると全員のHOMEに反映されます";
+  }
+  async function loadHome(){
+    try { home = await C.loadHomeConfig(); }
+    catch(e){ toast("HOME設定の読み込みに失敗: " + e.message); }
+    $("hTitle").value = home.title;
+    $("hSub").value = home.subtitle;
+    renderTiles();
+    renderTools();
+    clearDirty();
+  }
+  $("hTitle").oninput = () => { home.title = $("hTitle").value; markDirty(); };
+  $("hSub").oninput = () => { home.subtitle = $("hSub").value; markDirty(); };
+
+  function moveItem(arr, i, d){
+    const j = i + d;
+    if (j < 0 || j >= arr.length) return;
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+
+  function renderTiles(){
+    const box = $("tileList");
+    box.innerHTML = "";
+    home.tiles.forEach((t, i) => {
+      const row = document.createElement("div");
+      row.className = "tile-row" + (t.enabled ? "" : " off");
+
+      const ord = document.createElement("div");
+      ord.className = "tile-ord";
+      const up = document.createElement("button");
+      up.className = "ordbtn"; up.textContent = "▲"; up.disabled = (i === 0);
+      up.title = "上へ";
+      up.onclick = () => { moveItem(home.tiles, i, -1); markDirty(); renderTiles(); };
+      const dn = document.createElement("button");
+      dn.className = "ordbtn"; dn.textContent = "▼"; dn.disabled = (i === home.tiles.length - 1);
+      dn.title = "下へ";
+      dn.onclick = () => { moveItem(home.tiles, i, 1); markDirty(); renderTiles(); };
+      ord.appendChild(up); ord.appendChild(dn);
+
+      const main = document.createElement("div");
+      main.className = "tile-main";
+
+      const l1 = document.createElement("div");
+      l1.className = "tile-line";
+      const ico = document.createElement("input");
+      ico.type = "text"; ico.className = "w-ico"; ico.value = t.icon; ico.maxLength = 4;
+      ico.title = "アイコン（絵文字）";
+      ico.oninput = () => { t.icon = ico.value; markDirty(); };
+      const nm = document.createElement("input");
+      nm.type = "text"; nm.value = t.name; nm.placeholder = "表示名";
+      nm.oninput = () => { t.name = nm.value; markDirty(); };
+      const tint = document.createElement("select");
+      tint.innerHTML = C.TINTS.map(x => '<option value="' + x + '">' + x + '</option>').join("");
+      tint.value = t.tint;
+      tint.title = "色";
+      tint.onchange = () => { t.tint = tint.value; markDirty(); };
+      l1.appendChild(ico); l1.appendChild(nm); l1.appendChild(tint);
+
+      const l2 = document.createElement("div");
+      l2.className = "tile-line";
+      const de = document.createElement("input");
+      de.type = "text"; de.value = t.desc; de.placeholder = "説明文";
+      de.oninput = () => { t.desc = de.value; markDirty(); };
+      l2.appendChild(de);
+
+      const l3 = document.createElement("div");
+      l3.className = "tile-line";
+      const url = document.createElement("input");
+      url.type = "text"; url.className = "w-url"; url.value = t.url; url.placeholder = "members.html";
+      url.oninput = () => { t.url = url.value; markDirty(); };
+      l3.appendChild(url);
+
+      const rf = document.createElement("div");
+      rf.className = "rolefield";
+      roleField(rf, () => t.roleIds, ids => { t.roleIds = ids; markDirty(); });
+
+      main.appendChild(l1); main.appendChild(l2); main.appendChild(l3); main.appendChild(rf);
+
+      const act = document.createElement("div");
+      act.className = "tile-act";
+      const en = document.createElement("label");
+      en.className = "chk";
+      const enc = document.createElement("input");
+      enc.type = "checkbox"; enc.checked = t.enabled;
+      enc.onchange = () => { t.enabled = enc.checked; markDirty(); renderTiles(); };
+      en.appendChild(enc); en.appendChild(document.createTextNode("表示"));
+      const sn = document.createElement("label");
+      sn.className = "chk";
+      const snc = document.createElement("input");
+      snc.type = "checkbox"; snc.checked = t.soon;
+      snc.onchange = () => { t.soon = snc.checked; markDirty(); };
+      sn.appendChild(snc); sn.appendChild(document.createTextNode("準備中"));
+      const del = document.createElement("button");
+      del.className = "mini danger";
+      del.textContent = "削除";
+      del.onclick = () => {
+        if (!confirm("タイル「" + t.name + "」を削除しますか？")) return;
+        home.tiles.splice(i, 1); markDirty(); renderTiles();
+      };
+      act.appendChild(en); act.appendChild(sn); act.appendChild(del);
+
+      row.appendChild(ord); row.appendChild(main); row.appendChild(act);
+      box.appendChild(row);
+    });
+  }
+
+  function renderTools(){
+    const box = $("toolList");
+    box.innerHTML = "";
+    if (!home.tools.length){
+      box.innerHTML = '<div class="hint">ツールはまだありません。「＋ ツールを追加」から登録してください。</div>';
+      return;
+    }
+    home.tools.forEach((t, i) => {
+      const row = document.createElement("div");
+      row.className = "tile-row";
+
+      const ord = document.createElement("div");
+      ord.className = "tile-ord";
+      const up = document.createElement("button");
+      up.className = "ordbtn"; up.textContent = "▲"; up.disabled = (i === 0);
+      up.onclick = () => { moveItem(home.tools, i, -1); markDirty(); renderTools(); };
+      const dn = document.createElement("button");
+      dn.className = "ordbtn"; dn.textContent = "▼"; dn.disabled = (i === home.tools.length - 1);
+      dn.onclick = () => { moveItem(home.tools, i, 1); markDirty(); renderTools(); };
+      ord.appendChild(up); ord.appendChild(dn);
+
+      const main = document.createElement("div");
+      main.className = "tile-main";
+
+      const l1 = document.createElement("div");
+      l1.className = "tile-line";
+      const ico = document.createElement("input");
+      ico.type = "text"; ico.className = "w-ico"; ico.value = t.icon; ico.maxLength = 4;
+      ico.oninput = () => { t.icon = ico.value; markDirty(); };
+      const nm = document.createElement("input");
+      nm.type = "text"; nm.value = t.name; nm.placeholder = "ツール名";
+      nm.oninput = () => { t.name = nm.value; markDirty(); };
+      l1.appendChild(ico); l1.appendChild(nm);
+
+      const l2 = document.createElement("div");
+      l2.className = "tile-line";
+      const de = document.createElement("input");
+      de.type = "text"; de.value = t.desc; de.placeholder = "説明（省略可）";
+      de.oninput = () => { t.desc = de.value; markDirty(); };
+      l2.appendChild(de);
+
+      const l3 = document.createElement("div");
+      l3.className = "tile-line";
+      const url = document.createElement("input");
+      url.type = "text"; url.className = "w-url"; url.value = t.url; url.placeholder = "https://…";
+      url.oninput = () => { t.url = url.value; markDirty(); };
+      const ext = document.createElement("label");
+      ext.className = "chk";
+      const extc = document.createElement("input");
+      extc.type = "checkbox"; extc.checked = t.external;
+      extc.onchange = () => { t.external = extc.checked; markDirty(); };
+      ext.appendChild(extc); ext.appendChild(document.createTextNode("別タブ"));
+      l3.appendChild(url); l3.appendChild(ext);
+
+      const rf = document.createElement("div");
+      rf.className = "rolefield";
+      roleField(rf, () => t.roleIds, ids => { t.roleIds = ids; markDirty(); });
+
+      main.appendChild(l1); main.appendChild(l2); main.appendChild(l3); main.appendChild(rf);
+
+      const act = document.createElement("div");
+      act.className = "tile-act";
+      const del = document.createElement("button");
+      del.className = "mini danger";
+      del.textContent = "削除";
+      del.onclick = () => {
+        if (!confirm("ツール「" + t.name + "」を削除しますか？")) return;
+        home.tools.splice(i, 1); markDirty(); renderTools();
+      };
+      act.appendChild(del);
+
+      row.appendChild(ord); row.appendChild(main); row.appendChild(act);
+      box.appendChild(row);
+    });
+  }
+
+  $("tileAdd").onclick = () => {
+    home.tiles.push({ id: "tile" + Date.now(), icon: "✨", name: "新しいタイル", desc: "",
+      url: "#", tint: "pink", enabled: true, soon: true, roleIds: [] });
+    markDirty(); renderTiles();
+  };
+  $("toolAdd").onclick = () => {
+    home.tools.push({ id: "tool" + Date.now(), icon: "🔗", name: "新しいツール", desc: "",
+      url: "", external: true, roleIds: [] });
+    markDirty(); renderTools();
+  };
+  $("hSaveBtn").onclick = async () => {
+    const btn = $("hSaveBtn");
+    btn.disabled = true;
+    try {
+      home = await C.saveHomeConfig(home);
+      clearDirty();
+      toast("HOME設定を保存しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+  $("hResetBtn").onclick = () => {
+    if (!confirm("HOMEの設定を初期状態に戻しますか？（保存を押すまで確定しません）")) return;
+    home = C.defaultHomeConfig();
+    $("hTitle").value = home.title;
+    $("hSub").value = home.subtitle;
+    renderTiles(); renderTools(); markDirty();
+  };
+  window.addEventListener("beforeunload", e => {
+    if (homeDirty){ e.preventDefault(); e.returnValue = ""; }
+  });
+
+  /* =============================================================
+     このボード
+     ============================================================= */
+  function currentVis(){ return C.normVisibility(store.state.visibility); }
+  let visPaint = null;
+  function renderVis(){
+    const v = currentVis();
+    $("visAll").checked = (v.mode !== "roles");
+    $("visRoles").checked = (v.mode === "roles");
+    $("visPicker").style.display = (v.mode === "roles") ? "" : "none";
+
+    if (v.mode === "roles"){
+      visPaint = roleField($("visField"),
+        () => currentVis().roleIds,
+        ids => { store.setVisibility({ mode: "roles", roleIds: ids }); renderVisHint(); });
+    }
+    renderVisHint();
+  }
+  function renderVisHint(){
+    const v = currentVis();
+    const lab = C.visibilityLabel(v, roleList(v.roleIds));
+    $("visHint").textContent = lab.open
+      ? "現在: ログインした全員が入場できます。"
+      : "現在: " + lab.names.join(" / ") + " のいずれかを持つ人だけが入場できます。";
+  }
+  $("visAll").onchange = () => { if ($("visAll").checked){ store.setVisibility({ mode: "all" }); renderVis(); } };
+  $("visRoles").onchange = () => { if ($("visRoles").checked){ store.setVisibility({ mode: "roles" }); renderVis(); } };
+  $("saveTitle").onclick = () => { store.setBoardTitle($("titleInput").value); toast("大会名を保存しました"); };
+
+  /* =============================================================
+     大会の管理
+     ============================================================= */
+  async function renderBoardList(){
+    let list = [];
+    try { list = await C.listAllBoards(); }
+    catch(e){ toast("一覧の取得に失敗: " + (e.code || e.message)); }
+    const box = $("boardList");
+    box.innerHTML = "";
+    if (!list.length){
+      box.innerHTML = '<div class="hint">大会がまだありません。</div>';
+      return;
+    }
+    list.forEach(b => {
+      const row = document.createElement("div");
+      row.className = "brow" + (b.id === store.boardId ? " cur" : "");
+      const info = document.createElement("div");
+      info.style.flex = "1";
+      info.style.minWidth = "0";
+      const n = document.createElement("div");
+      n.className = "bn";
+      n.textContent = (b.title || b.id) + (b.id === store.boardId ? "（編集中）" : "");
+      const i2 = document.createElement("div");
+      i2.className = "bi num";
+      const lab = C.visibilityLabel(b.visibility, roleList(b.visibility.roleIds));
+      i2.textContent = b.id + " ・ " + (b.players||0) + "人 ・ " + (lab.open ? "全員公開" : "🔒 " + lab.names.join("/"));
+      info.appendChild(n); info.appendChild(i2);
+
+      const open = document.createElement("a");
+      open.className = "mini";
+      open.textContent = "管理";
+      open.href = "editor.html?board=" + encodeURIComponent(b.id);
+      const view = document.createElement("a");
+      view.className = "mini";
+      view.textContent = "開く";
+      view.href = "index.html?board=" + encodeURIComponent(b.id);
+      const del = document.createElement("button");
+      del.className = "mini danger";
+      del.textContent = "削除";
+      del.onclick = () => { $("delBoardId").value = b.id; $("delBoardId").focus(); toast("削除欄にIDを入れました。内容を確認して実行してください"); };
+
+      row.appendChild(info); row.appendChild(view); row.appendChild(open); row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+  $("openBoardBtn").onclick = () => {
+    const id = ($("openBoardId").value || "").trim();
+    if (!id){ toast("ボードIDを入力してください"); return; }
+    location.href = "editor.html?board=" + encodeURIComponent(id);
+  };
+  $("delBoardBtn").onclick = async () => {
+    const id = ($("delBoardId").value || "").trim();
+    if (!id){ toast("削除するボードIDを入力してください"); return; }
+    if (!confirm("「" + id + "」を完全に削除します。\n選手・組卓・順位がすべて消え、元に戻せません。\n本当に実行しますか？")) return;
+    const btn = $("delBoardBtn");
+    btn.disabled = true;
+    try {
+      await C.deleteBoard(id);
+      toast("削除しました: " + id);
+      $("delBoardId").value = "";
+      await renderBoardList();
+      if (id === store.boardId){
+        alert("編集中のボードを削除しました。大会一覧に戻ります。");
+        location.href = "boards.html";
+        return;
+      }
+    } catch(e){ toast("削除できません: " + e.message); }
+    btn.disabled = false;
   };
 
-  /* ---- メンバー ---- */
+  /* =============================================================
+     メンバー
+     ============================================================= */
   function render(){
     const s = store.state;
     if (document.activeElement !== $("titleInput")) $("titleInput").value = s.title || "";
+    $("memCount").textContent = s.roster.length + "人";
+
     const tbl = $("memberTable");
     tbl.innerHTML = "<tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th></th></tr>";
     s.roster.forEach(p => {
@@ -302,29 +789,26 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
       const img = document.createElement("img");
       img.src = (p.discord && p.discord.avatar) || "";
       img.onerror = function(){ this.style.visibility = "hidden"; };
-      const nameWrap = document.createElement("div");
+      const wrap = document.createElement("div");
       const nameB = document.createElement("b");
       nameB.textContent = p.name;
       nameB.style.cursor = "pointer";
       nameB.title = "タップで表示名を変更（空欄でロック解除）";
       nameB.onclick = () => {
-        const nv = prompt(
-          p.nameLocked
-            ? "表示名を変更（空欄で保存するとロック解除＝Discord名に戻ります）"
-            : "表示名を変更（保存するとロックされ、再ログインでも上書きされません）",
-          p.name);
+        const nv = prompt(p.nameLocked
+          ? "表示名を変更（空欄で保存するとロック解除＝Discord名に戻ります）"
+          : "表示名を変更（保存するとロックされ、再ログインでも上書きされません）", p.name);
         if (nv == null) return;
         store.setPlayerName(p.id, nv);
       };
-      nameWrap.appendChild(nameB);
+      wrap.appendChild(nameB);
       if (p.nameLocked){
         const lk = document.createElement("span");
         lk.className = "namelock";
         lk.textContent = "🔒固定";
-        lk.title = "管理者が設定した表示名。本人が再ログインしても上書きされません";
-        nameWrap.appendChild(lk);
+        wrap.appendChild(lk);
       }
-      cell.appendChild(img); cell.appendChild(nameWrap);
+      cell.appendChild(img); cell.appendChild(wrap);
       tdP.appendChild(cell);
 
       const tdR = document.createElement("td");
@@ -355,30 +839,28 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
       const del = document.createElement("button");
       del.className = "mini danger";
       del.textContent = "削除";
-      del.onclick = () => { if (confirm(p.name + " をボードから削除しますか？（再ログインで戻れます）")) store.removePlayer(p.id); };
+      del.onclick = () => { if (confirm(p.name + " をこの大会から外しますか？（再ログインで戻れます）")) store.removePlayer(p.id); };
       tdAct.appendChild(del);
 
       tr.appendChild(tdP); tr.appendChild(tdR); tr.appendChild(tdRank); tr.appendChild(tdRoles); tr.appendChild(tdAct);
       tbl.appendChild(tr);
     });
+
     $("rawState").value = JSON.stringify(s, null, 2);
+    renderVisHint();
   }
 
   $("refreshRanks").onclick = async () => {
-    const s = store.state;
-    const targets = s.roster.filter(p => p.puuid);
+    const targets = store.state.roster.filter(p => p.puuid);
     if (!targets.length){ toast("puuid登録済みのメンバーがいません"); return; }
     const btn = $("refreshRanks");
     btn.disabled = true;
     let ok = 0, ng = 0;
     for (const p of targets){
-      try {
-        const rank = await C.Riot.rank(p.puuid);
-        store.updatePlayer(p.id, { rank });
-        ok++;
-      } catch(e){ ng++; console.warn(p.name, e); }
+      try { store.updatePlayer(p.id, { rank: await C.Riot.rank(p.puuid) }); ok++; }
+      catch(e){ ng++; console.warn(p.name, e); }
       btn.textContent = `🔄 取得中 ${ok+ng}/${targets.length}`;
-      await new Promise(r => setTimeout(r, 250)); // レート制限対策の小休止
+      await new Promise(r => setTimeout(r, 250));
     }
     btn.disabled = false;
     btn.textContent = "🔄 全員のランクを再取得";
@@ -386,8 +868,7 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
   };
 
   $("refreshRoles").onclick = async () => {
-    const s = store.state;
-    const targets = s.roster.filter(p => p.discord && p.discord.id);
+    const targets = store.state.roster.filter(p => p.discord && p.discord.id);
     if (!targets.length){ toast("対象のメンバーがいません"); return; }
     const btn = $("refreshRoles");
     btn.disabled = true;
@@ -403,81 +884,57 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     }
     btn.disabled = false;
     btn.textContent = "🎭 全員のロールを再取得";
-    try { await C.DiscordAuth.rolesCached(true); } catch(e){}
+    try { roleCatalog = await C.DiscordAuth.rolesCached(true); catalogOk = !!roleCatalog.length; } catch(e){}
     renderVis();
     toast(`ロール更新: 成功${ok}${gone?" / 退出"+gone:""}${ng?" / 失敗"+ng:""}`);
   };
 
-  /* ---- 公開範囲 ---- */
-  let roleCatalog = [];
-  function currentVis(){ return C.normVisibility(store.state.visibility); }
-  async function loadCatalog(){
-    try { roleCatalog = await C.DiscordAuth.rolesCached(); }
-    catch(e){ roleCatalog = C.rosterRoles(store.state); }
-    if (!roleCatalog.length) roleCatalog = C.rosterRoles(store.state);
-    renderVis();
+  /* =============================================================
+     接続設定
+     ============================================================= */
+  function fillCfg(){
+    const eff = C.RiotConfig.effective();
+    $("workerUrl").value = eff.workerUrl;
+    $("regionSel").value = eff.region;
+    $("platformSel").value = eff.platform;
+    $("cfgHint").textContent = C.RiotConfig.isOverridden()
+      ? "※ 現在 config.js を上書き中（このブラウザの設定を使用）"
+      : "config.js の値を使用中";
   }
-  function renderVis(){
-    const v = currentVis();
-    $("visAll").checked = (v.mode !== "roles");
-    $("visRoles").checked = (v.mode === "roles");
-    $("visPicker").style.display = (v.mode === "roles") ? "" : "none";
-
-    const box = $("visRoleList");
-    box.innerHTML = "";
-    (roleCatalog || []).forEach(r => {
-      const on = v.roleIds.includes(String(r.id));
-      const el = document.createElement("div");
-      el.className = "bpop" + (on ? " on" : "");
-      el.style.display = "flex";
-      el.style.alignItems = "center";
-      el.style.gap = "7px";
-      const dot = document.createElement("span");
-      dot.style.cssText = "width:9px;height:9px;border-radius:999px;flex:none;background:" + C.roleColorCss(r.color);
-      const nm = document.createElement("span");
-      nm.textContent = (on ? "✓ " : "") + (r.name || r.id);
-      el.appendChild(dot); el.appendChild(nm);
-      el.onclick = () => {
-        const cur = currentVis();
-        const ids = cur.roleIds.slice();
-        const i = ids.indexOf(String(r.id));
-        if (i >= 0) ids.splice(i, 1); else ids.push(String(r.id));
-        store.setVisibility({ mode: "roles", roleIds: ids });
-        renderVis();
-      };
-      box.appendChild(el);
-    });
-    if (!roleCatalog.length) box.innerHTML = '<span class="hint">ロール一覧を取得できませんでした（DISCORD_BOT_TOKEN 未設定の可能性）。メンバーが持っているロールから作るには、誰か1人がログインしている必要があります。</span>';
-
-    const lab = C.visibilityLabel(v, roleCatalog);
-    $("visHint").textContent = lab.open
-      ? "現在: ログインした全員が入場できます。"
-      : "現在: " + lab.names.join(" / ") + " のいずれかを持つ人だけが入場できます（管理者は常に入れます）。";
-  }
-  $("visAll").onchange = () => { if ($("visAll").checked){ store.setVisibility({ mode: "all" }); renderVis(); } };
-  $("visRoles").onchange = () => { if ($("visRoles").checked){ store.setVisibility({ mode: "roles" }); renderVis(); } };
-
-  /* ---- ボード管理 ---- */
-  $("saveTitle").onclick = () => { store.setBoardTitle($("titleInput").value); toast("大会名を保存しました"); };
-  $("openBoardBtn").onclick = () => {
-    const id = ($("openBoardId").value || "").trim();
-    if (!id){ toast("ボードIDを入力してください"); return; }
-    location.href = "editor.html?board=" + encodeURIComponent(id);
+  fillCfg();
+  $("saveCfg").onclick = () => {
+    C.RiotConfig.set({ workerUrl: $("workerUrl").value, region: $("regionSel").value, platform: $("platformSel").value });
+    fillCfg(); toast("保存しました");
   };
-  async function renderBoards(){
-    const list = await store.listBoards();
-    const box = $("boardList");
-    box.innerHTML = "";
-    list.forEach(b => {
-      const el = document.createElement("div");
-      el.className = "bpop" + (b.id === store.boardId ? " on" : "");
-      el.innerHTML = `<b>${escapeHtml(b.title || b.id)}</b><span class="num">${b.id} ・ ${b.players || 0}人 ・ ${b.updatedAt ? new Date(b.updatedAt).toLocaleDateString("ja-JP") : ""}</span>`;
-      el.onclick = () => { if (b.id !== store.boardId) location.href = "editor.html?board=" + encodeURIComponent(b.id); };
-      box.appendChild(el);
-    });
-  }
+  $("resetCfg").onclick = () => { C.RiotConfig.clear(); fillCfg(); toast("config.js の値に戻しました"); };
+  $("testCfg").onclick = async () => {
+    const url = C.RiotConfig.effective().workerUrl;
+    if (!url){ toast("Worker URL が未設定です"); return; }
+    try {
+      const j = await (await fetch(url.replace(/\/$/,"") + "/health")).json();
+      toast(j.ok ? ("✅ 接続OK" + (j.version ? "（worker v" + j.version + "）" : "（旧バージョン）")) : "⚠️ 応答が不正です");
+    } catch(e){ toast("❌ 接続失敗: " + e.message); }
+  };
+  $("diagCfg").onclick = async () => {
+    const url = C.RiotConfig.effective().workerUrl;
+    if (!url){ toast("Worker URL が未設定です"); return; }
+    const out = $("diagOut");
+    out.style.display = "";
+    out.value = "診断中…";
+    try {
+      const r = await fetch(url.replace(/\/$/,"") + "/diag");
+      const j = await r.json();
+      out.value = JSON.stringify(j, null, 2);
+      if (j.checks && j.checks.rolesMeaning) toast(j.checks.rolesMeaning);
+    } catch(e){
+      out.value = "取得できませんでした: " + e.message +
+        "\n\n/diag は worker.js v2.3 以降で使えます。Worker のコードが古い可能性があります。";
+    }
+  };
 
-  /* ---- データ管理 ---- */
+  /* =============================================================
+     データ
+     ============================================================= */
   $("exportBtn").onclick = () => {
     const blob = new Blob([JSON.stringify(store.state, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -497,17 +954,13 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
         if (!confirm("現在のボードをこのJSONで上書きしますか？")) return;
         store.importState(obj);
         toast("復元しました");
-      } catch(err){ toast("JSONの読み込みに失敗: " + err.message); }
+      } catch(err){ toast("読み込み失敗: " + err.message); }
       e.target.value = "";
     };
     reader.readAsText(f);
   };
-  $("clearResultsBtn").onclick = () => { if (confirm("全試合の順位をクリアしますか？（配置は残ります）")) { store.clearAllResults(); toast("結果をクリアしました"); } };
-  $("resetBtn").onclick = () => { if (confirm("組卓・結果・設定を初期化しますか？（メンバーは残ります）")) { store.resetBoard(); toast("初期化しました"); } };
-
-  function escapeHtml(s){
-    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  }
+  $("clearResultsBtn").onclick = () => { if (confirm("全試合の順位をクリアしますか？（配置は残ります）")){ store.clearAllResults(); toast("結果をクリアしました"); } };
+  $("resetBtn").onclick = () => { if (confirm("組卓・結果・設定を初期化しますか？（メンバーは残ります）")){ store.resetBoard(); toast("初期化しました"); } };
 })();
 </script>
 </body>

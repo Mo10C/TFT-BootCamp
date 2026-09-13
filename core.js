@@ -802,6 +802,126 @@
     return id;
   }
 
+  // ボードを削除する（管理者のみ）。索引からも消す。
+  async function deleteBoard(id) {
+    id = String(id || "").trim();
+    if (!id) throw new Error("ボードIDが必要です");
+    if (!isAdmin()) throw new Error("ボードの削除は管理者のみです");
+    const db = openDb();
+    if (db) {
+      try {
+        await db.collection("lboards").doc(id).delete();
+        await db.collection("lboard_index").doc("registry").set({
+          boards: { [encodeURIComponent(id)]: firebase.firestore.FieldValue.delete() }
+        }, { merge: true });
+      } catch (e) {
+        throw new Error("削除に失敗しました（" + (e.code || e.message) + "）");
+      }
+    } else {
+      localStorage.removeItem("mcclb2:" + id);
+      const idx = JSON.parse(localStorage.getItem(INDEX_LS_KEY_G) || "{}");
+      delete idx[id];
+      localStorage.setItem(INDEX_LS_KEY_G, JSON.stringify(idx));
+    }
+    return id;
+  }
+
+  /* =============================================================
+     HOME の設定（管理コンソールから編集できる）
+     保存先は lboard_index/home — 既存のルール（match /lboard_index/{id}）で
+     そのまま書けるので、セキュリティルールの追加は不要。
+     ============================================================= */
+  const HOME_LS_KEY = "mcc-lb2-home";
+  const TINTS = ["pink", "cyan", "violet", "gold", "ok", "danger"];
+
+  function defaultHomeConfig() {
+    return {
+      title: "マウンテンチョンク校 TOOLS",
+      subtitle: "Discordログイン式ホーム",
+      tiles: [
+        { id: "boards",   icon: "🏆", name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "pink",   enabled: true, soon: false, roleIds: [] },
+        { id: "schedule", icon: "🗓", name: "予定表",       desc: "大会・合宿・コーチングの日程をまとめて確認。", url: "schedule.html", tint: "cyan",   enabled: true, soon: true,  roleIds: [] },
+        { id: "members",  icon: "👥", name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "violet", enabled: true, soon: true,  roleIds: [] },
+        { id: "lp",       icon: "📈", name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "gold",   enabled: true, soon: true,  roleIds: [] }
+      ],
+      tools: (((CFG.home || {}).tools) || []).slice(),
+      updatedAt: 0
+    };
+  }
+  function normTile(t, i) {
+    t = t || {};
+    return {
+      id: String(t.id || ("tile" + i)),
+      icon: String(t.icon || "🔗").slice(0, 4),
+      name: String(t.name || "無題").slice(0, 40),
+      desc: String(t.desc || "").slice(0, 120),
+      url: String(t.url || "#").slice(0, 300),
+      tint: TINTS.includes(t.tint) ? t.tint : "pink",
+      enabled: t.enabled !== false,
+      soon: !!t.soon,
+      roleIds: Array.isArray(t.roleIds) ? t.roleIds.map(String).filter(Boolean) : []
+    };
+  }
+  function normTool(t, i) {
+    t = t || {};
+    return {
+      id: String(t.id || ("tool" + i)),
+      icon: String(t.icon || "🔗").slice(0, 4),
+      name: String(t.name || "無題").slice(0, 40),
+      desc: String(t.desc || "").slice(0, 120),
+      url: String(t.url || "#").slice(0, 300),
+      external: !!t.external,
+      roleIds: Array.isArray(t.roleIds) ? t.roleIds.map(String).filter(Boolean) : []
+    };
+  }
+  function normHomeConfig(h) {
+    const d = defaultHomeConfig();
+    h = h || {};
+    return {
+      title: typeof h.title === "string" && h.title.trim() ? h.title.trim() : d.title,
+      subtitle: typeof h.subtitle === "string" ? h.subtitle : d.subtitle,
+      tiles: Array.isArray(h.tiles) && h.tiles.length ? h.tiles.map(normTile) : d.tiles,
+      tools: Array.isArray(h.tools) ? h.tools.map(normTool) : d.tools.map(normTool),
+      updatedAt: h.updatedAt || 0
+    };
+  }
+  // 表示してよいタイル/ツールか（ロール制限。管理者は常に見える）
+  function canSeeEntry(entry, session) {
+    const ids = (entry && entry.roleIds) || [];
+    if (!ids.length) return true;
+    if (isAdmin(session)) return true;
+    const s = session || Session.get();
+    const roles = (s && s.discord && s.discord.roles) || [];
+    return roles.some(r => r && ids.includes(String(r.id)));
+  }
+
+  async function loadHomeConfig() {
+    const db = openDb();
+    try {
+      if (db) {
+        const snap = await db.collection("lboard_index").doc("home").get();
+        if (snap.exists) return normHomeConfig(snap.data());
+      } else {
+        const raw = localStorage.getItem(HOME_LS_KEY);
+        if (raw) return normHomeConfig(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("HOME設定の読み込みに失敗", e); }
+    return defaultHomeConfig();
+  }
+  async function saveHomeConfig(h) {
+    if (!isAdmin()) throw new Error("HOMEの編集は管理者のみです");
+    const cfg = normHomeConfig(h);
+    cfg.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc("home").set(cfg);
+      else localStorage.setItem(HOME_LS_KEY, JSON.stringify(cfg));
+    } catch (e) {
+      throw new Error("HOME設定を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return cfg;
+  }
+
   /* =============================================================
      集計・ヘルパー
      ============================================================= */
@@ -826,6 +946,29 @@
       return a.name.localeCompare(b.name, "ja");
     });
   }
+  /* Worker からロール一覧が取れないときの代替カタログ。
+     ログイン中の本人が持つロール（名前つき）＋ すでに選択済みのID ＋ roster にいる人のロール
+     を寄せ集める。Bot 未設定でも公開範囲の設定だけは進められるようにするための逃げ道。 */
+  function fallbackRoleCatalog(session, extraIds, state) {
+    const map = new Map();
+    const put = r => {
+      if (!r || !r.id) return;
+      const id = String(r.id);
+      const prev = map.get(id);
+      // 名前が分かっているものを優先して残す
+      if (!prev || (prev.name === id && r.name)) {
+        map.set(id, { id, name: r.name || id, color: r.color || 0 });
+      }
+    };
+    const s = session || Session.get();
+    ((s && s.discord && s.discord.roles) || []).forEach(put);
+    if (state && Array.isArray(state.roster)) {
+      state.roster.forEach(p => (p.roles || []).forEach(put));
+    }
+    (extraIds || []).forEach(id => put({ id: String(id), name: null, color: 0 }));
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  }
+
   function roleColorCss(color) {
     if (!color) return "var(--muted)";
     return "#" + Number(color).toString(16).padStart(6, "0");
@@ -1019,10 +1162,11 @@
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
-    hasRole, rosterRoles, roleColorCss,
+    hasRole, rosterRoles, roleColorCss, fallbackRoleCatalog,
     isAdmin, isAdminConfigured, adminConfig,
     normVisibility, canViewBoard, visibilityLabel,
-    listAllBoards, createBoard, slugify,
+    listAllBoards, createBoard, deleteBoard, slugify,
+    defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

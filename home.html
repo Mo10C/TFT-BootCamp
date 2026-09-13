@@ -19,8 +19,8 @@
     <div class="brand">
       <div class="hex">M</div>
       <div>
-        <h1>マウンテンチョンク校 TOOLS</h1>
-        <div class="sub">Discordログイン式ホーム</div>
+        <h1 id="homeTitle">マウンテンチョンク校 TOOLS</h1>
+        <div class="sub" id="homeSub">Discordログイン式ホーム</div>
       </div>
     </div>
     <span class="badge" id="roleBadge">—</span>
@@ -43,40 +43,7 @@
 
   <!-- メニュー -->
   <div class="sec">
-    <div class="pops">
-
-      <a class="pop" href="boards.html" style="--tint:var(--pink)">
-        <div class="ico">🏆</div>
-        <div class="pt">大会</div>
-        <div class="pd">リーダーボード。組卓・順位入力・全体順位。</div>
-        <div class="meta" id="boardMeta">読み込み中…</div>
-      </a>
-
-      <a class="pop soon" href="schedule.html" style="--tint:var(--cyan)">
-        <span class="soon-tag">準備中</span>
-        <div class="ico">🗓</div>
-        <div class="pt">予定表</div>
-        <div class="pd">大会・合宿・コーチングの日程をまとめて確認。</div>
-        <div class="meta">近日公開</div>
-      </a>
-
-      <a class="pop soon" href="members.html" style="--tint:var(--violet)">
-        <span class="soon-tag">準備中</span>
-        <div class="ico">👥</div>
-        <div class="pt">メンバー紹介</div>
-        <div class="pd">校のメンバーのプロフィールとロール。</div>
-        <div class="meta">近日公開</div>
-      </a>
-
-      <a class="pop soon" href="lp.html" style="--tint:var(--gold)">
-        <span class="soon-tag">準備中</span>
-        <div class="ico">📈</div>
-        <div class="pt">LPランキング</div>
-        <div class="pd">メンバーのランクとLPを一覧で比較。</div>
-        <div class="meta">近日公開</div>
-      </a>
-
-    </div>
+    <div class="pops" id="pops"></div>
   </div>
 
   <!-- ツール -->
@@ -102,24 +69,68 @@
   if (!session) return;
   const ctx = H.boot(session);
 
-  /* 大会の件数をタイルに出す */
-  C.listAllBoards().then(list => {
-    const visible = list.filter(b => C.canViewBoard(b.visibility, session));
-    $("boardMeta").textContent = visible.length
-      ? ("参加できる大会 " + visible.length + "件 →")
-      : (ctx.isAdmin ? "まだありません。作成する →" : "まだありません →");
-  }).catch(() => { $("boardMeta").textContent = "開く →"; });
+  let boardMetaEl = null;
 
-  /* ツール（config.js の home.tools） */
-  const tools = ((CFG.home || {}).tools) || [];
-  if (tools.length){
-    const box = $("tools");
-    let shown = 0;
-    tools.forEach(t => {
-      if (t.roleIds && t.roleIds.length && !ctx.isAdmin){
-        const ok = ctx.roles.some(r => t.roleIds.includes(String(r.id)));
-        if (!ok) return;
+  function renderTiles(home){
+    $("homeTitle").textContent = home.title;
+    $("homeSub").textContent = home.subtitle;
+    document.title = home.title.slice(0, 30) + " ｜ HOME";
+
+    const box = $("pops");
+    box.innerHTML = "";
+    home.tiles.forEach(t => {
+      if (!t.enabled) return;
+      if (!C.canSeeEntry(t, session)) return;
+
+      const a = document.createElement("a");
+      a.className = "pop" + (t.soon ? " soon" : "");
+      a.href = t.url || "#";
+      a.style.setProperty("--tint", "var(--" + t.tint + ")");
+
+      if (t.soon){
+        const tag = document.createElement("span");
+        tag.className = "soon-tag";
+        tag.textContent = "準備中";
+        a.appendChild(tag);
       }
+      const ic = document.createElement("div");
+      ic.className = "ico";
+      ic.textContent = t.icon;
+      const nm = document.createElement("div");
+      nm.className = "pt";
+      nm.textContent = t.name;
+      const de = document.createElement("div");
+      de.className = "pd";
+      de.textContent = t.desc;
+      const me = document.createElement("div");
+      me.className = "meta";
+      me.textContent = t.soon ? "近日公開" : "開く →";
+      a.appendChild(ic); a.appendChild(nm); a.appendChild(de); a.appendChild(me);
+      box.appendChild(a);
+
+      // 大会タイルだけ件数を出す
+      if (t.url && t.url.indexOf("boards.html") === 0 && !t.soon){
+        me.textContent = "読み込み中…";
+        boardMetaEl = me;
+      }
+    });
+
+    if (boardMetaEl){
+      C.listAllBoards().then(list => {
+        const visible = list.filter(b => C.canViewBoard(b.visibility, session));
+        boardMetaEl.textContent = visible.length
+          ? ("参加できる大会 " + visible.length + "件 →")
+          : (ctx.isAdmin ? "まだありません。作成する →" : "まだありません →");
+      }).catch(() => { boardMetaEl.textContent = "開く →"; });
+    }
+  }
+
+  function renderTools(home){
+    const box = $("tools");
+    box.innerHTML = "";
+    let shown = 0;
+    home.tools.forEach(t => {
+      if (!C.canSeeEntry(t, session)) return;
       shown++;
       const a = document.createElement("a");
       a.className = "tcard";
@@ -127,11 +138,11 @@
       if (t.external){ a.target = "_blank"; a.rel = "noopener"; }
       const ic = document.createElement("div");
       ic.className = "ico";
-      ic.textContent = t.icon || "🔗";
+      ic.textContent = t.icon;
       const d = document.createElement("div");
       const tt = document.createElement("div");
       tt.className = "tt";
-      tt.textContent = t.name || t.url;
+      tt.textContent = t.name;
       d.appendChild(tt);
       if (t.desc){
         const td = document.createElement("div");
@@ -142,8 +153,18 @@
       a.appendChild(ic); a.appendChild(d);
       box.appendChild(a);
     });
-    if (shown) $("toolsSec").style.display = "";
+    $("toolsSec").style.display = shown ? "" : "none";
   }
+
+  /* 先に既定値で描いてから、保存済み設定で上書きする（真っ白を避ける） */
+  const def = C.defaultHomeConfig();
+  renderTiles(def);
+  renderTools(def);
+  C.loadHomeConfig().then(home => {
+    boardMetaEl = null;
+    renderTiles(home);
+    renderTools(home);
+  }).catch(e => console.warn("HOME設定", e));
 })();
 </script>
 </body>

@@ -10,13 +10,41 @@ URLを踏むとまず **ログインページ** が開き、
 | ファイル | 役割 |
 |---|---|
 | `login.html` | 入口。Riot ID検証 ＋ DiscordログインOAuth |
-| `index.html` | 本番ボード（ログイン必須）。組卓・順位入力・全体順位 |
-| `editor.html` | 管理コンソール（**管理者専用**）。メンバー管理・ランク一括更新・バックアップ |
-| `core.js` | 共通ロジック（セッション / **権限** / Firestore同期 / 得点 / ロール組卓 / Riot API） |
+| `home.html` | **HOME**。ログイン後の着地点。メニュータイル＋ツール |
+| `boards.html` | 大会一覧・新規作成（公開範囲の指定込み） |
+| `index.html` | 本番ボード。組卓・順位入力・全体順位 |
+| `editor.html` | 管理コンソール（**管理者専用**・タブ式） |
+| `schedule.html` / `members.html` / `lp.html` | 準備中ページ（枠だけ） |
+| `core.js` | 共通ロジック（セッション / 権限 / Firestore同期 / 得点 / 公開範囲 / HOME設定 / Riot API） |
+| `home-common.js` | HOME系ページの共通処理（テーマ・プロフィール・権限バッジ） |
+| `ui.css` | HOME系ページの共通スタイル |
 | `config.js` | 設定（Firebase / Worker URL / region / **管理者** / 既定値） |
-| `worker.js` | Cloudflare Worker（Riot中継 ＋ Discord OAuth ＋ ロール解決） |
+| `worker.js` | Cloudflare Worker（Riot中継 ＋ Discord OAuth ＋ ロール解決 ＋ `/diag`） |
 | `wrangler.jsonc` | Worker のデプロイ設定 |
 | `DESIGN-auth.md` | 次フェーズ（Firestoreルールの厳格化）の設計判断メモ |
+
+## 画面のつながり
+
+```
+login.html ──▶ home.html ──┬─▶ boards.html ──▶ index.html（ボード本体）
+                           ├─▶ schedule.html / members.html / lp.html（準備中）
+                           └─▶ editor.html（管理者のみ）
+```
+
+`?board=xxx` 付きのURLでログインした人は HOME を経由せず直接そのボードへ入ります。
+
+## 管理コンソールのタブ
+
+| タブ | できること |
+|---|---|
+| 🏠 HOME編集 | タイトル・メニュータイル（並び替え/表示/準備中/ロール制限）・ツールの編集 |
+| 🏆 このボード | 大会名・公開範囲の設定 |
+| 🗂 大会の管理 | ボード一覧・切り替え・**削除** |
+| 👥 メンバー | 表示名の固定・ランク/ロールの一括再取得・除名 |
+| 🔌 接続設定 | Worker URL の上書き・接続テスト・**設定診断（/diag）** |
+| 💾 データ | JSONバックアップ・復元・結果クリア・初期化 |
+
+HOMEの設定は Firestore の `lboard_index/home` に保存されます（既存のルールで書けるので追加設定は不要）。
 
 ---
 
