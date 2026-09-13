@@ -22,7 +22,7 @@ window.MCC_LB_CONFIG = {
      この一式の worker.js を「新しい Worker」としてデプロイした URL を貼る。
      既存の tft-riot-proxy とは別 Worker にしてください（OAuth 機能が増えているため）。
      例: "https://mcc-login-board.moto-moto-tennis.workers.dev" */
-  workerUrl: "",
+  workerUrl: "https://mcc-login-board.moto-moto-tennis.workers.dev",
 
   /* ---- 3. Riot ルーティング ----
      region   = account / match API（asia / americas / europe）
