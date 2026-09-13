@@ -313,13 +313,19 @@ button{font-family:inherit;cursor:pointer}
     const ok = !!(draft.riot && draft.riot.puuid && draft.discord && draft.discord.id);
     $("enterBtn").disabled = !ok;
     $("enterNote").textContent = ok
-      ? "準備OK！ボードに入場すると自動で選手登録されます。"
+      ? "準備OK！入場すると自動で選手登録されます。"
       : "STEP 1 と STEP 2 の両方を完了すると入場できます。";
+    $("enterBtn").textContent = new URLSearchParams(location.search).get("board")
+      ? "ボードに入場する →" : "HOME に入る →";
   }
   $("enterBtn").onclick = () => {
     Session.set({ riot: draft.riot, discord: draft.discord, loggedInAt: Date.now() });
     try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
-    location.href = "index.html" + boardQuery();
+    // ?board= 付きで来た人は目的の大会へ直行。無ければ HOME へ。
+    const p = new URLSearchParams(location.search);
+    location.href = p.get("board")
+      ? ("index.html?board=" + encodeURIComponent(p.get("board")))
+      : "home.html";
   };
 
   /* ---- 既ログインなら下書きに反映（再入場が楽）---- */

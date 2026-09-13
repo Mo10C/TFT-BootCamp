@@ -145,6 +145,18 @@ body.viewer .seat:hover{border-color:var(--border-strong)}
 body.viewer .pop{cursor:default}
 .viewnote{font-size:11.5px;font-weight:700;color:var(--cyan);display:flex;align-items:center;gap:6px}
 
+/* 公開範囲ロック */
+#lockWrap{display:none;max-width:520px;margin:14vh auto 0;background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:34px 30px;box-shadow:var(--shadow-soft);text-align:center}
+#lockWrap .ico{font-size:44px;line-height:1}
+#lockWrap h2{font-size:18px;font-weight:900;margin:12px 0 8px}
+#lockWrap p{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+#lockWrap .need{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:14px 0 20px}
+#lockWrap .mini{display:inline-block;text-decoration:none;margin:0 4px}
+.vis-pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:900;padding:3px 10px;
+  border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+.vis-pill.limited{border-color:var(--gold);color:var(--gold)}
+
 /* toast */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
   padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
@@ -153,7 +165,19 @@ body.viewer .pop{cursor:default}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div id="lockWrap">
+  <div class="ico">🚪</div>
+  <h2>この大会は公開範囲が限定されています</h2>
+  <p>入場には、主催が指定した Discord ロールが必要です。</p>
+  <div class="need" id="lockNeed"></div>
+  <p id="lockWho" style="font-size:11.5px"></p>
+  <div style="margin-top:14px">
+    <a class="mini grad" href="home.html">🏠 HOME に戻る</a>
+    <a class="mini" href="login.html">別のアカウントでログイン</a>
+  </div>
+</div>
+
+<div class="wrap" id="mainWrap">
 
   <div class="top">
     <div class="brand">
@@ -173,6 +197,7 @@ body.viewer .pop{cursor:default}
         <div class="mrank" id="meRank">—</div>
       </div>
     </div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
     <button class="iconbtn" id="shareBtn">🔗 共有</button>
     <a class="iconbtn" href="editor.html" id="editorLink">⚙️ 管理</a>
     <button class="iconbtn" id="logoutBtn">ログアウト</button>
@@ -310,6 +335,17 @@ body.viewer .pop{cursor:default}
   applyPermissions();
 
   store.init().then(({mode, boardId}) => {
+    /* ---- 公開範囲チェック（ロールで限定されたボードは入れない）---- */
+    if (!C.canViewBoard(store.state.visibility, session)){
+      $("mainWrap").style.display = "none";
+      $("lockWrap").style.display = "";
+      $("lockWho").textContent = "ログイン中: " + (session.discord.name || "—");
+      C.Riot.enabled()
+        ? C.DiscordAuth.rolesCached().then(cat => renderNeed(cat)).catch(() => renderNeed([]))
+        : renderNeed([]);
+      return;
+    }
+
     $("boardIdLabel").textContent = boardId;
     const badge = $("syncBadge");
     if (mode === "firestore"){ badge.textContent = "● LIVE 共有中"; badge.classList.add("live"); }
@@ -321,6 +357,20 @@ body.viewer .pop{cursor:default}
     render();
   });
   store.onChange(render);
+
+  /* 必要なロールをチップで見せる（名前が引ければ名前、駄目ならID） */
+  function renderNeed(catalog){
+    const v = C.normVisibility(store.state.visibility);
+    const lab = C.visibilityLabel(v, catalog);
+    const box = $("lockNeed");
+    box.innerHTML = "";
+    lab.names.forEach(n => {
+      const el = document.createElement("span");
+      el.className = "vis-pill limited";
+      el.textContent = n;
+      box.appendChild(el);
+    });
+  }
 
   $("shareBtn").onclick = async () => {
     const url = location.origin + location.pathname.replace(/index\.html$/, "login.html") +

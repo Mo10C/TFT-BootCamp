@@ -166,7 +166,38 @@
   function blankState() {
     const d = CFG.defaults || {};
     const mc = d.matchCount || 3, tc = d.tableCount || 2;
-    return { mode: "solo", title: "", matchCount: mc, tableCount: tc, roster: [], matches: buildMatches(mc, tc), updatedAt: Date.now() };
+    return {
+      mode: "solo", title: "", matchCount: mc, tableCount: tc,
+      visibility: { mode: "all", roleIds: [] },
+      roster: [], matches: buildMatches(mc, tc), updatedAt: Date.now()
+    };
+  }
+
+  /* =============================================================
+     ボードの公開範囲
+       { mode: "all" }                        … ログイン済みの全員
+       { mode: "roles", roleIds: [...] }      … いずれかのロール保持者のみ
+     管理者は常に閲覧可。roleIds が空の "roles" は "all" と同じ扱い。
+     ※ 画面側の制御です。Firestoreルールは別途（DESIGN-auth.md）。
+     ============================================================= */
+  function normVisibility(v) {
+    if (!v || typeof v !== "object") return { mode: "all", roleIds: [] };
+    const ids = Array.isArray(v.roleIds) ? v.roleIds.map(String).filter(Boolean) : [];
+    return { mode: v.mode === "roles" ? "roles" : "all", roleIds: ids };
+  }
+  function canViewBoard(visibility, session) {
+    const v = normVisibility(visibility);
+    if (v.mode !== "roles" || !v.roleIds.length) return true;
+    if (isAdmin(session)) return true;
+    const s = session || Session.get();
+    const roles = (s && s.discord && s.discord.roles) || [];
+    return roles.some(r => r && v.roleIds.includes(String(r.id)));
+  }
+  function visibilityLabel(visibility, roleCatalog) {
+    const v = normVisibility(visibility);
+    if (v.mode !== "roles" || !v.roleIds.length) return { open: true, names: [] };
+    const map = new Map((roleCatalog || []).map(r => [String(r.id), r]));
+    return { open: false, names: v.roleIds.map(id => (map.get(id) || {}).name || id) };
   }
 
   /* =============================================================
@@ -253,6 +284,7 @@
       s.title = typeof s.title === "string" ? s.title : "";
       s.matchCount = Math.max(1, s.matchCount | 0 || 1);
       s.tableCount = Math.max(1, s.tableCount | 0 || 1);
+      s.visibility = normVisibility(s.visibility);
       if (!Array.isArray(s.roster)) s.roster = [];
       s.roster = s.roster.filter(p => p && p.id).map(p => ({
         id: p.id, name: p.name || "—", nameLocked: !!p.nameLocked,
@@ -299,7 +331,11 @@
 
     /* ---- ボード索引 ---- */
     function indexEntry() {
-      return { title: state.title || "", matchCount: state.matchCount, tableCount: state.tableCount, players: state.roster.length, updatedAt: state.updatedAt || Date.now() };
+      return {
+        title: state.title || "", matchCount: state.matchCount, tableCount: state.tableCount,
+        players: state.roster.length, visibility: normVisibility(state.visibility),
+        updatedAt: state.updatedAt || Date.now()
+      };
     }
     async function upsertIndex() {
       try {
@@ -322,12 +358,24 @@
       if (!map[boardId]) map[boardId] = indexEntry();
       return Object.entries(map).map(([id, v]) => ({
         id, title: (v && v.title) || "", matchCount: v && v.matchCount, tableCount: v && v.tableCount,
-        players: (v && v.players) || 0, updatedAt: (v && v.updatedAt) || 0
+        players: (v && v.players) || 0, visibility: normVisibility(v && v.visibility),
+        updatedAt: (v && v.updatedAt) || 0
       })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     }
     function setBoardTitle(name) {
       if (!guard("大会名の変更")) return;
       state.title = (name || "").trim();
+      save();
+    }
+    // 公開範囲の設定（管理者のみ）
+    function setVisibility(patch) {
+      if (!guard("公開範囲の変更")) return;
+      const cur = normVisibility(state.visibility);
+      const next = normVisibility({
+        mode: patch && patch.mode != null ? patch.mode : cur.mode,
+        roleIds: patch && patch.roleIds != null ? patch.roleIds : cur.roleIds
+      });
+      state.visibility = next;
       save();
     }
 
@@ -657,9 +705,74 @@
       assignSeat, clearSeat, setPlacement,
       clearMatchSeats, clearAllResults, resetBoard, importState, loadBoardState,
       setPresent, setAllPresent, setPresentByRole, autoAssign,
-      listBoards, setBoardTitle,
+      listBoards, setBoardTitle, setVisibility,
       _persistNow: persist
     };
+  }
+
+  /* =============================================================
+     ボード一覧（HOME用）— 特定のボードを開かずに索引だけ読む
+     makeStore().init() と違い、default ボードを作ってしまわない。
+     ============================================================= */
+  const INDEX_LS_KEY_G = "mcc-lb2-board-index";
+  function openDb() {
+    const fb = CFG.firebase || {};
+    const hasFb = fb.apiKey && fb.projectId && typeof window.firebase !== "undefined" && firebase.firestore;
+    if (!hasFb) return null;
+    if (!firebase.apps.length) firebase.initializeApp(fb);
+    return firebase.firestore();
+  }
+  async function listAllBoards() {
+    const db = openDb();
+    let map = {};
+    try {
+      if (db) {
+        const snap = await db.collection("lboard_index").doc("registry").get();
+        if (snap.exists) Object.entries((snap.data() || {}).boards || {}).forEach(([k, v]) => { map[decodeURIComponent(k)] = v; });
+      } else {
+        map = JSON.parse(localStorage.getItem(INDEX_LS_KEY_G) || "{}");
+      }
+    } catch (e) { console.error("listAllBoards", e); }
+    return Object.entries(map).map(([id, v]) => ({
+      id,
+      title: (v && v.title) || "",
+      matchCount: (v && v.matchCount) || 0,
+      tableCount: (v && v.tableCount) || 0,
+      players: (v && v.players) || 0,
+      visibility: normVisibility(v && v.visibility),
+      updatedAt: (v && v.updatedAt) || 0
+    })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+  // 新規ボードを作る（管理者のみ・HOMEから）
+  async function createBoard(id, opts) {
+    id = String(id || "").trim();
+    if (!id) throw new Error("ボードIDを入力してください");
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("ボードIDは半角英数字・ハイフン・アンダースコアのみ使えます");
+    if (!isAdmin()) throw new Error("ボードの作成は管理者のみです");
+    opts = opts || {};
+    const st = blankState();
+    st.title = (opts.title || "").trim();
+    st.visibility = normVisibility(opts.visibility);
+    const entry = {
+      title: st.title, matchCount: st.matchCount, tableCount: st.tableCount,
+      players: 0, visibility: st.visibility, updatedAt: st.updatedAt
+    };
+    const db = openDb();
+    if (db) {
+      const ref = db.collection("lboards").doc(id);
+      const snap = await ref.get();
+      if (snap.exists) throw new Error("そのボードIDは既に使われています");
+      await ref.set(st);
+      await db.collection("lboard_index").doc("registry")
+        .set({ boards: { [encodeURIComponent(id)]: entry } }, { merge: true });
+    } else {
+      if (localStorage.getItem("mcclb2:" + id)) throw new Error("そのボードIDは既に使われています");
+      localStorage.setItem("mcclb2:" + id, JSON.stringify(st));
+      const idx = JSON.parse(localStorage.getItem(INDEX_LS_KEY_G) || "{}");
+      idx[id] = entry;
+      localStorage.setItem(INDEX_LS_KEY_G, JSON.stringify(idx));
+    }
+    return id;
   }
 
   /* =============================================================
@@ -838,6 +951,26 @@
     },
     async guildRoles() {
       return workerGet("/roles", {});
+    },
+    // Botトークンでギルドメンバーを引く（本人の再ログインを待たずにロールを最新化できる）
+    // → { inGuild, nick, roles:[{id,name,color}] }
+    async guildMember(userId) {
+      return workerGet("/member", { userId });
+    },
+    // ロール一覧のキャッシュ（名前・色の表示用。30分）
+    async rolesCached(force) {
+      const K = "mcc-lb2-roles-cache";
+      try {
+        const raw = localStorage.getItem(K);
+        if (raw && !force) {
+          const c = JSON.parse(raw);
+          if (c && Array.isArray(c.roles) && Date.now() - (c.at || 0) < 30 * 60 * 1000) return c.roles;
+        }
+      } catch (e) { }
+      const res = await this.guildRoles();
+      const roles = (res && res.roles) || [];
+      try { localStorage.setItem(K, JSON.stringify({ at: Date.now(), roles })); } catch (e) { }
+      return roles;
     }
   };
 
@@ -861,6 +994,8 @@
     playerById, nameOf, avatarOf,
     hasRole, rosterRoles, roleColorCss,
     isAdmin, isAdminConfigured, adminConfig,
+    normVisibility, canViewBoard, visibilityLabel,
+    listAllBoards, createBoard,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

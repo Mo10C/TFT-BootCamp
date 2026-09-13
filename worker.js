@@ -62,6 +62,7 @@ export default {
         case "/auth/login":    return authLogin(url, env);
         case "/auth/callback": return authCallback(url, env);
         case "/roles":         return guildRoles(env);
+        case "/member":        return guildMember(url, env);
         default:               return json({ error: "unknown endpoint: " + path }, 404);
       }
     } catch (e) {
@@ -252,6 +253,38 @@ async function fetchGuildRoles(env) {
 async function guildRoles(env) {
   const data = await fetchGuildRoles(env);
   return json({ roles: data });
+}
+
+/* ---- 1人のギルドメンバーを Botトークンで引く ----
+   GET /member?userId=123456789012345678
+   管理コンソールの「全員のロールを再取得」で使用。
+   本人のOAuthトークンが不要なので、再ログインを待たずにロールを最新化できる。
+   ※ REST の members 取得に特権インテントは不要（Botがサーバーに入っていればよい） */
+async function guildMember(url, env) {
+  if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_GUILD_ID) throw new Error("DISCORD_BOT_TOKEN / DISCORD_GUILD_ID 未設定");
+  const userId = url.searchParams.get("userId");
+  if (!userId) return json({ error: "userId が必要です" }, 400);
+
+  const r = await fetch(DISCORD_API + "/guilds/" + env.DISCORD_GUILD_ID + "/members/" + enc(userId), {
+    headers: { Authorization: "Bot " + env.DISCORD_BOT_TOKEN }
+  });
+  if (r.status === 404) return json({ inGuild: false, nick: null, roles: [] });
+  if (!r.ok) return json({ error: "member " + r.status }, r.status);
+
+  const m = await r.json();
+  let roles = [];
+  if (Array.isArray(m.roles) && m.roles.length) {
+    const catalog = await fetchGuildRoles(env).catch(() => null);
+    if (catalog) {
+      const map = new Map(catalog.map(x => [x.id, x]));
+      roles = m.roles.map(id => map.get(id)).filter(Boolean)
+        .sort((a, b) => b.position - a.position)
+        .map(x => ({ id: x.id, name: x.name, color: x.color }));
+    } else {
+      roles = m.roles.map(id => ({ id, name: null, color: 0 }));
+    }
+  }
+  return json({ inGuild: true, nick: (m.nick || null), roles });
 }
 
 /* =============================================================

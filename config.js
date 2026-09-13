@@ -22,7 +22,7 @@ window.MCC_LB_CONFIG = {
      この一式の worker.js を「新しい Worker」としてデプロイした URL を貼る。
      既存の tft-riot-proxy とは別 Worker にしてください（OAuth 機能が増えているため）。
      例: "https://mcc-login-board.moto-moto-tennis.workers.dev" */
-  workerUrl: "https://tft-riot-proxy.moto-moto-tennis.workers.dev",
+  workerUrl: "",
 
   /* ---- 3. Riot ルーティング ----
      region   = account / match API（asia / americas / europe）
@@ -62,7 +62,21 @@ window.MCC_LB_CONFIG = {
     riotIds: ["Mo10C#819"]       // Riot ID での指定（ログイン時に入力したIDと照合）
   },
 
-  /* ---- 7. ロール設定（任意）----
+  /* ---- 7. HOME（home.html）に並べるツール ----
+     name / url は必須。icon は絵文字、desc は説明文（省略可）。
+     external: true で別タブ。
+     roleIds を指定すると、そのロールを持つ人にだけ表示されます（管理者は常に表示）。 */
+  home: {
+    tools: [
+      // { name: "マウンテンチョンク校 TOOLS", url: "https://mo10c.github.io/portal/", icon: "🏫",
+      //   desc: "既存のポータル", external: true },
+      // { name: "オーグメント図鑑", url: "../augument.html", icon: "📖", desc: "オーグメントの一覧と評価" },
+      // { name: "合宿コンテンツ", url: "../camp/", icon: "⛺", desc: "クラウドハッシュテイル校",
+      //   roleIds: ["合宿参加者ロールのID"] }
+    ]
+  },
+
+  /* ---- 8. ロール設定（任意）----
      pinnedOrder : フィルタ・組卓UIでの表示順を固定
      adminRoleIds: このロールを持つ人も管理者として扱う（運営ロールを作った場合に便利） */
   roles: {

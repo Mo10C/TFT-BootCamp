@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>HOME ｜ マウンテンチョンク校 TOOLS</title>
+<meta name="description" content="マウンテンチョンク校 TOOLS — Discordログイン式の総合ホーム">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
+  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
+  --pink:#D94E97;--pink-deep:#B83C7E;--cyan:#1FA3B4;--danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 16px 36px -22px rgba(70,50,110,.35);--shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
+}
+:root[data-theme="dark"]{
+  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
+  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
+  --pink:#F26DB0;--pink-deep:#F58CC2;--cyan:#4FD2DF;--danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 18px 40px -22px rgba(0,0,0,.7);--shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
+  background:radial-gradient(900px 480px at 88% -8%,color-mix(in srgb,var(--pink) 14%,transparent),transparent 60%),
+    radial-gradient(820px 460px at -8% 6%,color-mix(in srgb,var(--cyan) 13%,transparent),transparent 58%),var(--bg);
+  color:var(--ink);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,30px) clamp(14px,3vw,36px) 84px}
+
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .hex{width:40px;height:40px;background:var(--grad);clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);
+  display:grid;place-items:center;color:#fff;font-weight:900;font-size:15px;flex:none}
+.brand h1{font-size:16px;font-weight:900;letter-spacing:.03em}
+.brand .sub{font-size:10.5px;color:var(--muted)}
+.spacer{flex:1}
+.badge{font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+.badge.admin{border-color:var(--pink);color:var(--pink)}
+.badge.warn{border-color:var(--gold);color:var(--gold)}
+.iconbtn{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--muted)}
+
+/* me card */
+.mecard{display:flex;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:18px 22px;box-shadow:var(--shadow);margin-bottom:26px;flex-wrap:wrap}
+.mecard img{width:64px;height:64px;border-radius:999px;object-fit:cover;border:3px solid var(--border-strong);flex:none}
+.mecard .who{min-width:0;flex:1}
+.mecard .nm{font-size:19px;font-weight:900;line-height:1.3}
+.mecard .rid{font-size:11.5px;color:var(--muted)}
+.mecard .rank{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:900;padding:3px 12px;
+  border-radius:999px;border:1.5px solid;margin-top:5px}
+.roles{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.role-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;
+  border-radius:999px;background:var(--surface-2);border:1px solid var(--border-strong)}
+.role-chip .dot{width:8px;height:8px;border-radius:999px;flex:none}
+
+/* sections */
+.sec{margin-bottom:30px}
+.sec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:13px}
+.sec-head h2{font-size:15px;font-weight:900}
+.sec-head .cnt{font-size:11px;font-weight:700;color:var(--muted)}
+.mini{border:1px solid var(--border-strong);background:var(--surface);border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;color:var(--ink)}
+.mini:hover{border-color:var(--cyan)}
+.mini.grad{background:var(--grad);color:#fff;border:none}
+
+/* board grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:13px}
+.bcard{display:block;background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:15px 17px;box-shadow:var(--shadow-soft);transition:transform .12s,border-color .12s}
+.bcard:hover{transform:translateY(-2px);border-color:var(--cyan)}
+.bcard .bt{font-size:14.5px;font-weight:900;line-height:1.4;margin-bottom:3px;word-break:break-word}
+.bcard .bid{font-size:10.5px;color:var(--muted)}
+.bcard .meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
+.bcard .meta b{color:var(--ink);font-weight:900}
+.vis{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--border-strong)}
+.vis-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:900;padding:2px 9px;
+  border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+.vis-pill.open{border-color:color-mix(in srgb,var(--ok) 50%,var(--border-strong));color:var(--ok)}
+.vis-pill.limited{border-color:var(--gold);color:var(--gold)}
+.empty{background:var(--surface);border:1px dashed var(--border-strong);border-radius:16px;padding:26px;
+  text-align:center;font-size:12.5px;color:var(--muted)}
+
+/* tools */
+.tcard{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:13px 15px;box-shadow:var(--shadow-soft);transition:border-color .12s}
+.tcard:hover{border-color:var(--pink)}
+.tcard .ico{width:38px;height:38px;border-radius:11px;background:var(--surface-2);border:1px solid var(--border-strong);
+  display:grid;place-items:center;font-size:19px;flex:none}
+.tcard .tt{font-size:13.5px;font-weight:900;line-height:1.35}
+.tcard .td{font-size:11px;color:var(--muted);line-height:1.45}
+
+/* new board */
+.newbox{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:15px 17px;
+  box-shadow:var(--shadow-soft);display:none}
+.newbox.show{display:block}
+.newrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:9px}
+.newrow label{font-size:11.5px;font-weight:700;color:var(--muted);min-width:74px}
+.newrow input{flex:1;min-width:170px;border:1px solid var(--border-strong);background:var(--surface-2);
+  color:var(--ink);border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
+.hint{font-size:11px;color:var(--muted)}
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;
+  transition:opacity .2s;z-index:99;max-width:88vw}
+#toast.show{opacity:.96}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="hex">M</div>
+      <div>
+        <h1>マウンテンチョンク校 TOOLS</h1>
+        <div class="sub">Discordログイン式ホーム</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <button class="iconbtn" id="logoutBtn">ログアウト</button>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <!-- 自分 -->
+  <div class="mecard">
+    <img id="meAvatar" alt="">
+    <div class="who">
+      <div class="nm" id="meName">—</div>
+      <div class="rid num" id="meRiot">—</div>
+      <div class="rank" id="meRank">—</div>
+      <div class="roles" id="meRoles"></div>
+    </div>
+  </div>
+
+  <!-- 大会 -->
+  <div class="sec">
+    <div class="sec-head">
+      <h2>🏆 大会</h2>
+      <span class="cnt" id="boardCount">読み込み中…</span>
+      <div class="spacer"></div>
+      <button class="mini grad" id="newBtn" style="display:none">＋ 新しい大会</button>
+      <a class="mini" id="editorLink" href="editor.html" style="display:none">⚙️ 管理コンソール</a>
+    </div>
+    <div class="newbox" id="newBox">
+      <div class="newrow">
+        <label>ボードID</label>
+        <input type="text" id="nbId" placeholder="gasshuku-2026（半角英数字・ハイフン）" spellcheck="false">
+      </div>
+      <div class="newrow">
+        <label>大会名</label>
+        <input type="text" id="nbTitle" placeholder="第4回 校内カップ">
+      </div>
+      <div class="newrow">
+        <button class="mini grad" id="nbCreate">作成して開く</button>
+        <button class="mini" id="nbCancel">やめる</button>
+        <span class="hint">公開範囲は作成後に管理コンソールで設定できます（初期値: 全員）</span>
+      </div>
+    </div>
+    <div class="grid" id="boards" style="margin-top:13px"></div>
+  </div>
+
+  <!-- ツール -->
+  <div class="sec" id="toolsSec" style="display:none">
+    <div class="sec-head"><h2>🧰 ツール</h2></div>
+    <div class="grid" id="tools"></div>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script>
+(function(){
+  const C = window.LBCore;
+  const CFG = window.MCC_LB_CONFIG || {};
+  const $ = id => document.getElementById(id);
+
+  const session = C.Session.require();
+  if (!session) return;
+
+  const IS_ADMIN = C.isAdmin(session);
+  const ADMIN_SET = C.isAdminConfigured();
+
+  /* テーマ */
+  const THEME_KEY = "mcc-portal-theme";
+  function applyTheme(t){ document.documentElement.setAttribute("data-theme", t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  $("themeBtn").onclick = () => {
+    const t = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";
+    localStorage.setItem(THEME_KEY,t); applyTheme(t);
+  };
+
+  let toastTimer = null;
+  function toast(msg){
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>el.classList.remove("show"), 2800);
+  }
+
+  /* ---- 自分の情報 ---- */
+  $("meAvatar").src = session.discord.avatar || "";
+  $("meAvatar").onerror = function(){ this.style.visibility = "hidden"; };
+  $("meName").textContent = session.discord.name || session.discord.username || "—";
+  $("meRiot").textContent = C.Session.riotIdOf(session);
+  const rk = $("meRank");
+  rk.textContent = C.rankLabel(session.riot.rank);
+  rk.style.color = C.rankColor(session.riot.rank);
+  rk.style.borderColor = C.rankColor(session.riot.rank);
+
+  const myRoles = (session.discord.roles || []);
+  const rbox = $("meRoles");
+  myRoles.forEach(r => {
+    const chip = document.createElement("span");
+    chip.className = "role-chip";
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.background = C.roleColorCss(r.color);
+    chip.appendChild(dot);
+    chip.appendChild(document.createTextNode(r.name || r.id));
+    rbox.appendChild(chip);
+  });
+  if (!myRoles.length){
+    const chip = document.createElement("span");
+    chip.className = "role-chip";
+    chip.textContent = "ロールなし";
+    rbox.appendChild(chip);
+  }
+
+  const badge = $("roleBadge");
+  if (IS_ADMIN){
+    badge.textContent = ADMIN_SET ? "🛠 管理者" : "⚠️ 管理者未設定";
+    badge.className = "badge " + (ADMIN_SET ? "admin" : "warn");
+    $("newBtn").style.display = "";
+    $("editorLink").style.display = "";
+  } else {
+    badge.textContent = "👤 プレイヤー";
+    badge.className = "badge";
+  }
+
+  $("logoutBtn").onclick = () => {
+    if (!confirm("ログアウトしますか？")) return;
+    C.Session.clear();
+    location.href = "login.html";
+  };
+
+  /* ---- ロール名の辞書（公開範囲の表示用）---- */
+  let catalog = [];
+
+  /* ---- 大会一覧 ---- */
+  async function renderBoards(){
+    let list = [];
+    try { list = await C.listAllBoards(); }
+    catch(e){ console.error(e); toast("大会一覧の取得に失敗しました"); }
+
+    const visible = list.filter(b => C.canViewBoard(b.visibility, session));
+    const hidden = list.length - visible.length;
+
+    $("boardCount").textContent = visible.length
+      ? (visible.length + "件" + (hidden ? "（ロール制限で非表示 " + hidden + "件）" : ""))
+      : "";
+
+    const box = $("boards");
+    box.innerHTML = "";
+
+    if (!visible.length){
+      const e = document.createElement("div");
+      e.className = "empty";
+      e.style.gridColumn = "1 / -1";
+      e.textContent = hidden
+        ? "参加できる大会がまだありません（" + hidden + "件はロール制限で表示されていません）。"
+        : (IS_ADMIN ? "大会がまだありません。「＋ 新しい大会」から作成してください。" : "大会がまだ作られていません。");
+      box.appendChild(e);
+      return;
+    }
+
+    visible.forEach(b => {
+      const a = document.createElement("a");
+      a.className = "bcard";
+      a.href = "index.html?board=" + encodeURIComponent(b.id);
+
+      const t = document.createElement("div");
+      t.className = "bt";
+      t.textContent = b.title || b.id;
+      const i = document.createElement("div");
+      i.className = "bid num";
+      i.textContent = b.id;
+
+      const m = document.createElement("div");
+      m.className = "meta";
+      m.innerHTML =
+        '<span><b class="num">' + (b.players||0) + '</b> 人</span>' +
+        '<span><b class="num">' + (b.matchCount||0) + '</b> 試合</span>' +
+        '<span><b class="num">' + (b.tableCount||0) + '</b> 卓</span>' +
+        (b.updatedAt ? '<span>' + new Date(b.updatedAt).toLocaleDateString("ja-JP") + '</span>' : '');
+
+      a.appendChild(t); a.appendChild(i); a.appendChild(m);
+
+      const lab = C.visibilityLabel(b.visibility, catalog);
+      const v = document.createElement("div");
+      v.className = "vis";
+      if (lab.open){
+        const p = document.createElement("span");
+        p.className = "vis-pill open";
+        p.textContent = "全員参加OK";
+        v.appendChild(p);
+      } else {
+        lab.names.forEach(n => {
+          const p = document.createElement("span");
+          p.className = "vis-pill limited";
+          p.textContent = "🔒 " + n;
+          v.appendChild(p);
+        });
+      }
+      a.appendChild(v);
+      box.appendChild(a);
+    });
+  }
+
+  /* ---- 新規作成 ---- */
+  $("newBtn").onclick = () => {
+    $("newBox").classList.toggle("show");
+    if ($("newBox").classList.contains("show")) $("nbId").focus();
+  };
+  $("nbCancel").onclick = () => $("newBox").classList.remove("show");
+  $("nbCreate").onclick = async () => {
+    const id = $("nbId").value.trim();
+    const title = $("nbTitle").value.trim();
+    const btn = $("nbCreate");
+    btn.disabled = true;
+    try {
+      await C.createBoard(id, { title });
+      location.href = "index.html?board=" + encodeURIComponent(id);
+    } catch(e){
+      toast("作成できません: " + e.message);
+      btn.disabled = false;
+    }
+  };
+
+  /* ---- ツール（config.js の home.tools）---- */
+  function renderTools(){
+    const tools = ((CFG.home || {}).tools) || [];
+    if (!tools.length) return;
+    $("toolsSec").style.display = "";
+    const box = $("tools");
+    tools.forEach(t => {
+      if (t.roleIds && t.roleIds.length && !IS_ADMIN){
+        const ok = myRoles.some(r => t.roleIds.includes(String(r.id)));
+        if (!ok) return;
+      }
+      const a = document.createElement("a");
+      a.className = "tcard";
+      a.href = t.url || "#";
+      if (t.external) { a.target = "_blank"; a.rel = "noopener"; }
+      const ic = document.createElement("div");
+      ic.className = "ico";
+      ic.textContent = t.icon || "🔗";
+      const d = document.createElement("div");
+      const tt = document.createElement("div");
+      tt.className = "tt";
+      tt.textContent = t.name || t.url;
+      const td = document.createElement("div");
+      td.className = "td";
+      td.textContent = t.desc || "";
+      d.appendChild(tt); if (t.desc) d.appendChild(td);
+      a.appendChild(ic); a.appendChild(d);
+      box.appendChild(a);
+    });
+  }
+
+  /* ---- 起動 ---- */
+  renderTools();
+  renderBoards();
+  C.DiscordAuth.rolesCached()
+    .then(cat => { catalog = cat || []; renderBoards(); })
+    .catch(() => {});
+})();
+</script>
+</body>
+</html>

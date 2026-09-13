@@ -99,6 +99,7 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     <span class="badge" id="roleBadge">—</span>
     <span class="badge">board: <span id="boardIdLabel" class="num">default</span></span>
     <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" href="index.html" id="boardLink">🏆 ボードへ</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
@@ -127,6 +128,7 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     <h2>👥 メンバー（ログインした人が自動登録されます）</h2>
     <div class="row">
       <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
+      <button class="mini" id="refreshRoles">🎭 全員のロールを再取得</button>
       <span class="hint">名前をタップで表示名を変更（空欄で保存するとロック解除＝次回ログインでDiscord名に戻ります）</span>
     </div>
     <table id="memberTable">
@@ -148,6 +150,20 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
       <button class="mini" id="openBoardBtn">開く（無ければ新規作成）</button>
     </div>
     <div class="boards" id="boardList"></div>
+  </div>
+
+  <!-- 公開範囲 -->
+  <div class="card">
+    <h2>🚪 このボードの公開範囲</h2>
+    <div class="row">
+      <label><input type="radio" name="visMode" value="all" id="visAll"> ログインした全員が入れる</label>
+      <label style="margin-left:14px"><input type="radio" name="visMode" value="roles" id="visRoles"> 指定ロールの保持者だけ</label>
+    </div>
+    <div id="visPicker" style="display:none">
+      <div class="hint" style="margin:8px 0 6px">入場を許可するロールを選んでください（複数可・いずれか1つ持っていれば入れます）。</div>
+      <div class="boards" id="visRoleList"></div>
+    </div>
+    <div class="hint" id="visHint" style="margin-top:10px"></div>
   </div>
 
   <!-- データ -->
@@ -240,6 +256,7 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     if (boardId !== "default") $("boardLink").href = "index.html?board=" + encodeURIComponent(boardId);
     render();
     renderBoards();
+    loadCatalog();
   });
   store.onChange(render);
 
@@ -367,6 +384,78 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     btn.textContent = "🔄 全員のランクを再取得";
     toast(`ランク更新: 成功${ok} / 失敗${ng}`);
   };
+
+  $("refreshRoles").onclick = async () => {
+    const s = store.state;
+    const targets = s.roster.filter(p => p.discord && p.discord.id);
+    if (!targets.length){ toast("対象のメンバーがいません"); return; }
+    const btn = $("refreshRoles");
+    btn.disabled = true;
+    let ok = 0, ng = 0, gone = 0;
+    for (const p of targets){
+      try {
+        const m = await C.DiscordAuth.guildMember(p.discord.id);
+        if (m && m.inGuild){ store.updatePlayer(p.id, { roles: m.roles || [] }); ok++; }
+        else { store.updatePlayer(p.id, { roles: [] }); gone++; }
+      } catch(e){ ng++; console.warn(p.name, e); }
+      btn.textContent = `🎭 取得中 ${ok+ng+gone}/${targets.length}`;
+      await new Promise(r => setTimeout(r, 200));
+    }
+    btn.disabled = false;
+    btn.textContent = "🎭 全員のロールを再取得";
+    try { await C.DiscordAuth.rolesCached(true); } catch(e){}
+    renderVis();
+    toast(`ロール更新: 成功${ok}${gone?" / 退出"+gone:""}${ng?" / 失敗"+ng:""}`);
+  };
+
+  /* ---- 公開範囲 ---- */
+  let roleCatalog = [];
+  function currentVis(){ return C.normVisibility(store.state.visibility); }
+  async function loadCatalog(){
+    try { roleCatalog = await C.DiscordAuth.rolesCached(); }
+    catch(e){ roleCatalog = C.rosterRoles(store.state); }
+    if (!roleCatalog.length) roleCatalog = C.rosterRoles(store.state);
+    renderVis();
+  }
+  function renderVis(){
+    const v = currentVis();
+    $("visAll").checked = (v.mode !== "roles");
+    $("visRoles").checked = (v.mode === "roles");
+    $("visPicker").style.display = (v.mode === "roles") ? "" : "none";
+
+    const box = $("visRoleList");
+    box.innerHTML = "";
+    (roleCatalog || []).forEach(r => {
+      const on = v.roleIds.includes(String(r.id));
+      const el = document.createElement("div");
+      el.className = "bpop" + (on ? " on" : "");
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.gap = "7px";
+      const dot = document.createElement("span");
+      dot.style.cssText = "width:9px;height:9px;border-radius:999px;flex:none;background:" + C.roleColorCss(r.color);
+      const nm = document.createElement("span");
+      nm.textContent = (on ? "✓ " : "") + (r.name || r.id);
+      el.appendChild(dot); el.appendChild(nm);
+      el.onclick = () => {
+        const cur = currentVis();
+        const ids = cur.roleIds.slice();
+        const i = ids.indexOf(String(r.id));
+        if (i >= 0) ids.splice(i, 1); else ids.push(String(r.id));
+        store.setVisibility({ mode: "roles", roleIds: ids });
+        renderVis();
+      };
+      box.appendChild(el);
+    });
+    if (!roleCatalog.length) box.innerHTML = '<span class="hint">ロール一覧を取得できませんでした（DISCORD_BOT_TOKEN 未設定の可能性）。メンバーが持っているロールから作るには、誰か1人がログインしている必要があります。</span>';
+
+    const lab = C.visibilityLabel(v, roleCatalog);
+    $("visHint").textContent = lab.open
+      ? "現在: ログインした全員が入場できます。"
+      : "現在: " + lab.names.join(" / ") + " のいずれかを持つ人だけが入場できます（管理者は常に入れます）。";
+  }
+  $("visAll").onchange = () => { if ($("visAll").checked){ store.setVisibility({ mode: "all" }); renderVis(); } };
+  $("visRoles").onchange = () => { if ($("visRoles").checked){ store.setVisibility({ mode: "roles" }); renderVis(); } };
 
   /* ---- ボード管理 ---- */
   $("saveTitle").onclick = () => { store.setBoardTitle($("titleInput").value); toast("大会名を保存しました"); };
