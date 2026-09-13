@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>メンバー紹介 ｜ マウンテンチョンク校 TOOLS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="hex">👥</div>
+      <div>
+        <h1>メンバー紹介</h1>
+        <div class="sub">マウンテンチョンク校 TOOLS</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div class="soon-wrap">
+    <div class="big" style="color:var(--violet)">👥</div>
+    <h2>メンバー紹介</h2>
+    <p>校のメンバーのプロフィールをまとめる画面です。</p>
+    <p><b>この画面はまだ準備中です。</b></p>
+
+    <div class="soon-list">
+      <div class="soon-item"><span>・</span><div><b>プロフィール</b><br>アイコン・Riot ID・ロール・自己紹介。</div></div>
+      <div class="soon-item"><span>・</span><div><b>ロール別の並び</b><br>コーチ / 生徒 / 合宿参加者などで絞り込み。</div></div>
+      <div class="soon-item"><span>・</span><div><b>戦績へのリンク</b><br>その人が出た大会と成績をたどれるように。</div></div>
+    </div>
+
+    <a class="mini grad" href="home.html">🏠 HOME に戻る</a>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script src="home-common.js"></script>
+<script>
+(function(){
+  const session = window.LBCore.Session.require();
+  if (!session) return;
+  window.MCCHome.boot(session);
+})();
+</script>
+</body>
+</html>

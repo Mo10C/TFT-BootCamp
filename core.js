@@ -743,30 +743,57 @@
       updatedAt: (v && v.updatedAt) || 0
     })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   }
-  // 新規ボードを作る（管理者のみ・HOMEから）
+  /* 大会名からボードIDを作る。日本語だけの名前なら日付ベースのIDになる。
+     例: "第4回 校内カップ" → "board-20260913-4f2a" / "Camp 2026!" → "camp-2026" */
+  function slugify(s) {
+    const base = String(s || "").trim().toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40)
+      .replace(/-+$/, "");
+    // 英字が1文字も残らない場合は日付ベースにする。
+    // 「第4回 校内カップ」が "4" になると「第5回」= "5" と衝突しやすく、意味も分からないため。
+    if (base.length >= 2 && /[a-z]/.test(base)) return base;
+    const d = new Date();
+    const p = n => String(n).padStart(2, "0");
+    const rnd = Math.random().toString(36).slice(2, 6);
+    return "board-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + rnd;
+  }
+
+  // 新規ボードを作る（管理者のみ）
+  // createBoard(id, { title, visibility })   id を空にすると title から自動生成
   async function createBoard(id, opts) {
-    id = String(id || "").trim();
-    if (!id) throw new Error("ボードIDを入力してください");
-    if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("ボードIDは半角英数字・ハイフン・アンダースコアのみ使えます");
-    if (!isAdmin()) throw new Error("ボードの作成は管理者のみです");
     opts = opts || {};
+    id = String(id || "").trim();
+    if (!id) id = slugify(opts.title);
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw new Error("ボードIDに使えるのは半角英数字・ハイフン・アンダースコアだけです（入力: " + id + "）");
+    }
+    if (!isAdmin()) throw new Error("ボードの作成は管理者のみです");
+
     const st = blankState();
-    st.title = (opts.title || "").trim();
+    st.title = String(opts.title || "").trim();
     st.visibility = normVisibility(opts.visibility);
     const entry = {
       title: st.title, matchCount: st.matchCount, tableCount: st.tableCount,
       players: 0, visibility: st.visibility, updatedAt: st.updatedAt
     };
+
     const db = openDb();
     if (db) {
-      const ref = db.collection("lboards").doc(id);
-      const snap = await ref.get();
-      if (snap.exists) throw new Error("そのボードIDは既に使われています");
-      await ref.set(st);
-      await db.collection("lboard_index").doc("registry")
-        .set({ boards: { [encodeURIComponent(id)]: entry } }, { merge: true });
+      let snap;
+      try { snap = await db.collection("lboards").doc(id).get(); }
+      catch (e) { throw new Error("Firestore を読めませんでした（" + (e.code || e.message) + "）。セキュリティルールに lboards / lboard_index を追加しているか確認してください"); }
+      if (snap.exists) throw new Error("そのボードIDは既に使われています: " + id);
+      try {
+        await db.collection("lboards").doc(id).set(st);
+        await db.collection("lboard_index").doc("registry")
+          .set({ boards: { [encodeURIComponent(id)]: entry } }, { merge: true });
+      } catch (e) {
+        throw new Error("Firestore に書き込めませんでした（" + (e.code || e.message) + "）");
+      }
     } else {
-      if (localStorage.getItem("mcclb2:" + id)) throw new Error("そのボードIDは既に使われています");
+      if (localStorage.getItem("mcclb2:" + id)) throw new Error("そのボードIDは既に使われています: " + id);
       localStorage.setItem("mcclb2:" + id, JSON.stringify(st));
       const idx = JSON.parse(localStorage.getItem(INDEX_LS_KEY_G) || "{}");
       idx[id] = entry;
@@ -995,7 +1022,7 @@
     hasRole, rosterRoles, roleColorCss,
     isAdmin, isAdminConfigured, adminConfig,
     normVisibility, canViewBoard, visibilityLabel,
-    listAllBoards, createBoard,
+    listAllBoards, createBoard, slugify,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

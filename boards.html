@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>大会 ｜ マウンテンチョンク校 TOOLS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="hex">🏆</div>
+      <div>
+        <h1>大会</h1>
+        <div class="sub">マウンテンチョンク校 リーダーボード</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head">
+      <h2>開催中・過去の大会</h2>
+      <span class="cnt" id="boardCount">読み込み中…</span>
+      <div class="spacer"></div>
+      <button class="mini grad" id="newBtn" style="display:none">＋ 新しい大会</button>
+    </div>
+
+    <!-- 新規作成 -->
+    <div class="formbox" id="newBox">
+      <div class="frow">
+        <label for="nbTitle">大会名</label>
+        <input type="text" id="nbTitle" placeholder="第4回 校内カップ" autocomplete="off">
+      </div>
+      <div class="frow">
+        <label for="nbId">ボードID</label>
+        <input type="text" id="nbId" class="mono" placeholder="大会名から自動で作られます" spellcheck="false" autocomplete="off">
+        <span class="hint">URLに使われます。半角英数字・ハイフン。空欄でOK</span>
+      </div>
+
+      <div class="frow" style="align-items:flex-start">
+        <label>公開範囲</label>
+        <div style="flex:1;min-width:210px">
+          <div class="radios">
+            <label><input type="radio" name="nbVis" id="nbVisAll" checked> ログインした全員</label>
+            <label><input type="radio" name="nbVis" id="nbVisRoles"> 指定ロールの人だけ</label>
+          </div>
+          <div id="nbRolePick" style="display:none">
+            <div class="hint" style="margin:9px 0 5px">入場を許可するロールを選択（複数可・いずれか1つ持っていれば入れます）</div>
+            <div class="rolepick" id="nbRoles"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frow" style="margin-bottom:0">
+        <button class="mini grad" id="nbCreate">作成して開く</button>
+        <button class="mini" id="nbCancel">やめる</button>
+        <span class="hint" id="nbHint">管理者は公開範囲に関わらず常に入場できます</span>
+      </div>
+    </div>
+
+    <div class="grid" id="boards"></div>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js"></script>
+<script src="home-common.js"></script>
+<script>
+(function(){
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome.boot(session);
+  const toast = ctx.toast;
+
+  if (ctx.isAdmin) $("newBtn").style.display = "";
+
+  let catalog = [];          // ギルドのロール一覧（名前・色）
+  let picked = [];           // 新規作成で選択中のロールID
+
+  /* ---- 一覧 ---- */
+  async function renderBoards(){
+    let list = [];
+    try { list = await C.listAllBoards(); }
+    catch(e){ console.error(e); toast("大会一覧の取得に失敗: " + (e.code || e.message)); }
+
+    const visible = list.filter(b => C.canViewBoard(b.visibility, session));
+    const hidden = list.length - visible.length;
+    $("boardCount").textContent = visible.length
+      ? (visible.length + "件" + (hidden ? "（ロール制限で非表示 " + hidden + "件）" : ""))
+      : "";
+
+    const box = $("boards");
+    box.innerHTML = "";
+    if (!visible.length){
+      const e = document.createElement("div");
+      e.className = "empty";
+      e.style.gridColumn = "1 / -1";
+      e.textContent = hidden
+        ? "参加できる大会がまだありません（" + hidden + "件はロール制限で表示されていません）。"
+        : (ctx.isAdmin ? "大会がまだありません。「＋ 新しい大会」から作成してください。" : "大会がまだ作られていません。");
+      box.appendChild(e);
+      return;
+    }
+
+    visible.forEach(b => {
+      const a = document.createElement("a");
+      a.className = "bcard";
+      a.href = "index.html?board=" + encodeURIComponent(b.id);
+
+      const t = document.createElement("div");
+      t.className = "bt";
+      t.textContent = b.title || b.id;
+      const i = document.createElement("div");
+      i.className = "bid num";
+      i.textContent = b.id;
+      const m = document.createElement("div");
+      m.className = "meta";
+      m.innerHTML =
+        '<span><b class="num">' + (b.players||0) + '</b> 人</span>' +
+        '<span><b class="num">' + (b.matchCount||0) + '</b> 試合</span>' +
+        '<span><b class="num">' + (b.tableCount||0) + '</b> 卓</span>' +
+        (b.updatedAt ? '<span>' + new Date(b.updatedAt).toLocaleDateString("ja-JP") + '</span>' : '');
+      a.appendChild(t); a.appendChild(i); a.appendChild(m);
+
+      const lab = C.visibilityLabel(b.visibility, catalog);
+      const v = document.createElement("div");
+      v.className = "vis";
+      if (lab.open){
+        const p = document.createElement("span");
+        p.className = "vis-pill open";
+        p.textContent = "全員参加OK";
+        v.appendChild(p);
+      } else {
+        lab.names.forEach(n => {
+          const p = document.createElement("span");
+          p.className = "vis-pill limited";
+          p.textContent = "🔒 " + n;
+          v.appendChild(p);
+        });
+      }
+      a.appendChild(v);
+      box.appendChild(a);
+    });
+  }
+
+  /* ---- ロール選択 ---- */
+  function renderRolePick(){
+    const box = $("nbRoles");
+    box.innerHTML = "";
+    if (!catalog.length){
+      box.innerHTML = '<span class="hint">ロール一覧を取得できませんでした。Worker の DISCORD_BOT_TOKEN と、Bot がサーバーに入っているかを確認してください。</span>';
+      return;
+    }
+    catalog.forEach(r => {
+      const on = picked.includes(String(r.id));
+      const el = document.createElement("span");
+      el.className = "rp" + (on ? " on" : "");
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = C.roleColorCss(r.color);
+      el.appendChild(dot);
+      el.appendChild(document.createTextNode((on ? "✓ " : "") + (r.name || r.id)));
+      el.onclick = () => {
+        const i = picked.indexOf(String(r.id));
+        if (i >= 0) picked.splice(i, 1); else picked.push(String(r.id));
+        renderRolePick();
+      };
+      box.appendChild(el);
+    });
+  }
+
+  $("nbVisAll").onchange = () => { $("nbRolePick").style.display = "none"; };
+  $("nbVisRoles").onchange = () => { $("nbRolePick").style.display = ""; renderRolePick(); };
+
+  /* 大会名からIDを自動生成（ID欄を手で触っていない間だけ） */
+  let idTouched = false;
+  $("nbId").addEventListener("input", () => { idTouched = true; });
+  $("nbTitle").addEventListener("input", () => {
+    if (idTouched) return;
+    $("nbId").placeholder = C.slugify($("nbTitle").value) || "大会名から自動で作られます";
+  });
+
+  $("newBtn").onclick = () => {
+    const box = $("newBox");
+    box.classList.toggle("show");
+    if (box.classList.contains("show")) $("nbTitle").focus();
+  };
+  $("nbCancel").onclick = () => $("newBox").classList.remove("show");
+
+  $("nbCreate").onclick = async () => {
+    const title = $("nbTitle").value.trim();
+    const id = $("nbId").value.trim();
+    if (!title && !id){ toast("大会名を入力してください"); return; }
+    if ($("nbVisRoles").checked && !picked.length){
+      toast("入場を許可するロールを1つ以上選んでください");
+      return;
+    }
+    const visibility = $("nbVisRoles").checked
+      ? { mode: "roles", roleIds: picked.slice() }
+      : { mode: "all", roleIds: [] };
+
+    const btn = $("nbCreate");
+    btn.disabled = true;
+    btn.textContent = "作成中…";
+    try {
+      const newId = await C.createBoard(id, { title, visibility });
+      location.href = "index.html?board=" + encodeURIComponent(newId);
+    } catch(e){
+      console.error(e);
+      toast("作成できません: " + e.message);
+      btn.disabled = false;
+      btn.textContent = "作成して開く";
+    }
+  };
+
+  /* ---- 起動 ---- */
+  renderBoards();
+  C.DiscordAuth.rolesCached()
+    .then(cat => { catalog = cat || []; renderBoards(); if ($("nbVisRoles").checked) renderRolePick(); })
+    .catch(e => { console.warn("roles", e); });
+})();
+</script>
+</body>
+</html>

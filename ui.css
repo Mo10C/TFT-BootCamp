@@ -1,0 +1,159 @@
+/* =============================================================
+   ui.css — HOME まわり共通スタイル
+   home.html / boards.html / schedule.html / members.html / lp.html
+   （index.html / editor.html / login.html は各自のインラインCSSのまま）
+   ============================================================= */
+:root{
+  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
+  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
+  --pink:#D94E97;--pink-deep:#B83C7E;--cyan:#1FA3B4;--cyan-deep:#188A99;
+  --danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;--violet:#7B5BD6;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 16px 36px -22px rgba(70,50,110,.35);
+  --shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
+  --shadow-pop:0 14px 30px -18px rgba(70,50,110,.42);
+}
+:root[data-theme="dark"]{
+  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
+  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
+  --pink:#F26DB0;--pink-deep:#F58CC2;--cyan:#4FD2DF;--cyan-deep:#7BE0E9;
+  --danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;--violet:#A98CF0;
+  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
+  --shadow:0 18px 40px -22px rgba(0,0,0,.7);
+  --shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
+  --shadow-pop:0 16px 34px -18px rgba(0,0,0,.75);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
+  background:radial-gradient(900px 480px at 88% -8%,color-mix(in srgb,var(--pink) 14%,transparent),transparent 60%),
+    radial-gradient(820px 460px at -8% 6%,color-mix(in srgb,var(--cyan) 13%,transparent),transparent 58%),var(--bg);
+  color:var(--ink);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding:clamp(14px,3vw,30px) clamp(14px,3vw,36px) 84px}
+.spacer{flex:1}
+
+/* ---- ヘッダー ---- */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .hex{width:40px;height:40px;background:var(--grad);flex:none;
+  clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);
+  display:grid;place-items:center;color:#fff;font-weight:900;font-size:15px}
+.brand h1{font-size:16px;font-weight:900;letter-spacing:.03em}
+.brand .sub{font-size:10.5px;color:var(--muted)}
+.badge{font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px;
+  border:1.5px solid var(--border-strong);color:var(--muted)}
+.badge.admin{border-color:var(--pink);color:var(--pink)}
+.badge.warn{border-color:var(--gold);color:var(--gold)}
+.iconbtn{border:1px solid var(--border-strong);background:var(--surface);border-radius:999px;
+  padding:7px 13px;font-size:12px;font-weight:700;color:var(--muted);display:inline-block}
+.iconbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* ---- 自分カード ---- */
+.mecard{display:flex;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:20px;padding:18px 22px;box-shadow:var(--shadow);margin-bottom:26px;flex-wrap:wrap}
+.mecard img{width:64px;height:64px;border-radius:999px;object-fit:cover;border:3px solid var(--border-strong);flex:none}
+.mecard .who{min-width:0;flex:1}
+.mecard .nm{font-size:19px;font-weight:900;line-height:1.3}
+.mecard .rid{font-size:11.5px;color:var(--muted)}
+.mecard .rank{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:900;
+  padding:3px 12px;border-radius:999px;border:1.5px solid;margin-top:5px}
+.roles{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.role-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border-strong)}
+.role-chip .dot{width:8px;height:8px;border-radius:999px;flex:none}
+
+/* ---- POPタイル（HOMEのメニュー）---- */
+.pops{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));gap:15px}
+.pop{position:relative;display:flex;flex-direction:column;gap:6px;overflow:hidden;
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:22px 20px 20px;box-shadow:var(--shadow-pop);
+  transition:transform .14s ease,border-color .14s ease}
+.pop::after{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--accent,var(--grad))}
+.pop:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--tint,var(--pink)) 55%,var(--border))}
+.pop .ico{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:25px;
+  background:color-mix(in srgb,var(--tint,var(--pink)) 13%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--tint,var(--pink)) 32%,var(--border));margin-bottom:4px}
+.pop .pt{font-size:16.5px;font-weight:900;letter-spacing:.01em}
+.pop .pd{font-size:11.5px;color:var(--muted);line-height:1.55}
+.pop .meta{margin-top:8px;font-size:11px;font-weight:900;color:var(--tint,var(--pink))}
+.pop.soon{opacity:.72}
+.pop .soon-tag{position:absolute;top:14px;right:14px;font-size:9.5px;font-weight:900;
+  padding:2px 9px;border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+
+/* ---- セクション ---- */
+.sec{margin-bottom:30px}
+.sec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:13px}
+.sec-head h2{font-size:15px;font-weight:900}
+.sec-head .cnt{font-size:11px;font-weight:700;color:var(--muted)}
+.mini{border:1px solid var(--border-strong);background:var(--surface);border-radius:9px;
+  padding:7px 13px;font-size:12px;font-weight:700;color:var(--ink);display:inline-block}
+.mini:hover{border-color:var(--cyan)}
+.mini.grad{background:var(--grad);color:#fff;border:none}
+.mini.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--border-strong))}
+.mini:disabled{opacity:.5;cursor:default}
+.hint{font-size:11px;color:var(--muted)}
+
+/* ---- カードグリッド ---- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:13px}
+.bcard{display:block;background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:15px 17px;box-shadow:var(--shadow-soft);transition:transform .12s,border-color .12s}
+.bcard:hover{transform:translateY(-2px);border-color:var(--cyan)}
+.bcard .bt{font-size:14.5px;font-weight:900;line-height:1.4;margin-bottom:3px;word-break:break-word}
+.bcard .bid{font-size:10.5px;color:var(--muted)}
+.bcard .meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
+.bcard .meta b{color:var(--ink);font-weight:900}
+.vis{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;padding-top:9px;border-top:1px dashed var(--border-strong)}
+.vis-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:900;
+  padding:2px 9px;border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
+.vis-pill.open{border-color:color-mix(in srgb,var(--ok) 50%,var(--border-strong));color:var(--ok)}
+.vis-pill.limited{border-color:var(--gold);color:var(--gold)}
+.empty{background:var(--surface);border:1px dashed var(--border-strong);border-radius:16px;
+  padding:26px;text-align:center;font-size:12.5px;color:var(--muted)}
+
+/* ---- ツール ---- */
+.tcard{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:13px 15px;box-shadow:var(--shadow-soft);transition:border-color .12s}
+.tcard:hover{border-color:var(--pink)}
+.tcard .ico{width:38px;height:38px;border-radius:11px;background:var(--surface-2);
+  border:1px solid var(--border-strong);display:grid;place-items:center;font-size:19px;flex:none}
+.tcard .tt{font-size:13.5px;font-weight:900;line-height:1.35}
+.tcard .td{font-size:11px;color:var(--muted);line-height:1.45}
+
+/* ---- フォーム ---- */
+.formbox{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:16px 18px;box-shadow:var(--shadow-soft);display:none;margin-bottom:14px}
+.formbox.show{display:block}
+.frow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:11px}
+.frow > label{font-size:11.5px;font-weight:700;color:var(--muted);min-width:78px}
+.frow input[type=text]{flex:1;min-width:180px;border:1px solid var(--border-strong);background:var(--surface-2);
+  color:var(--ink);border-radius:9px;padding:9px 12px;font-size:13.5px;font-family:inherit}
+.frow input[type=text]:focus{outline:none;border-color:var(--cyan)}
+.frow input.mono{font-family:"Space Grotesk",ui-monospace,monospace;font-size:12.5px}
+.radios{display:flex;gap:16px;flex-wrap:wrap}
+.radios label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;cursor:pointer}
+.radios input{accent-color:var(--pink)}
+.rolepick{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
+.rp{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:6px 12px;
+  border-radius:999px;background:var(--surface-2);border:1.5px solid var(--border-strong);cursor:pointer;user-select:none}
+.rp .dot{width:9px;height:9px;border-radius:999px;flex:none}
+.rp.on{border-color:var(--pink);background:color-mix(in srgb,var(--pink) 10%,var(--surface))}
+
+/* ---- 準備中ページ ---- */
+.soon-wrap{max-width:620px;margin:9vh auto 0;background:var(--surface);border:1px solid var(--border);
+  border-radius:22px;padding:40px 32px;box-shadow:var(--shadow);text-align:center}
+.soon-wrap .big{font-size:52px;line-height:1}
+.soon-wrap h2{font-size:21px;font-weight:900;margin:14px 0 10px}
+.soon-wrap p{font-size:13px;color:var(--muted);margin-bottom:8px}
+.soon-list{text-align:left;max-width:420px;margin:20px auto 24px;display:flex;flex-direction:column;gap:9px}
+.soon-item{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;color:var(--muted);
+  background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:10px 13px}
+.soon-item b{color:var(--ink);font-weight:900;font-size:12.5px}
+
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;
+  transition:opacity .2s;z-index:99;max-width:88vw;text-align:center}
+#toast.show{opacity:.96}
