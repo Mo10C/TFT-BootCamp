@@ -134,6 +134,17 @@ td.gm{width:56px;text-align:right;color:var(--muted)}
 select.place{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:8px;padding:4px 7px;font-size:12px;font-weight:700}
 .rbadge-sm{font-size:9.5px;font-weight:900}
 
+/* 権限 */
+.badge.admin{border-color:var(--pink);color:var(--pink)}
+.badge.view{border-color:var(--cyan);color:var(--cyan)}
+.badge.warn{border-color:var(--gold);color:var(--gold)}
+body.viewer .adminonly{display:none !important}
+body.viewer .settings input{opacity:.6;pointer-events:none}
+body.viewer .seat{cursor:default}
+body.viewer .seat:hover{border-color:var(--border-strong)}
+body.viewer .pop{cursor:default}
+.viewnote{font-size:11.5px;font-weight:700;color:var(--cyan);display:flex;align-items:center;gap:6px}
+
 /* toast */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
   padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
@@ -153,6 +164,7 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
       </div>
     </div>
     <span class="badge" id="syncBadge">— 接続中…</span>
+    <span class="badge" id="roleBadge">—</span>
     <div class="spacer"></div>
     <div class="me" id="meChip" title="ログイン中のアカウント">
       <img id="meAvatar" alt="">
@@ -171,8 +183,9 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
     <label>大会名</label><input type="text" id="titleInput" placeholder="（例）第3回 校内カップ">
     <label>試合数</label><input type="number" id="matchCountInput" min="1" max="12">
     <label>卓数</label><input type="number" id="tableCountInput" min="1" max="8">
-    <button class="mini" id="applySettings">反映</button>
+    <button class="mini adminonly" id="applySettings">反映</button>
     <span class="hint" id="capHint"></span>
+    <span class="viewnote" id="viewNote" style="display:none">👀 閲覧モード（設定の変更は管理者のみ）</span>
   </div>
 
   <!-- ロールフィルタ -->
@@ -182,14 +195,14 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
   <div class="pbar">
     <div class="pbar-head">
       <span class="title">👥 参加者（<span id="presentCount" class="num">0</span>/<span id="rosterCount" class="num">0</span>）</span>
-      <span class="hint">POPをタップ→席をタップで配置。チェック＝この試合に参加</span>
+      <span class="hint" id="pbarHint">POPをタップ→席をタップで配置。チェック＝この試合に参加</span>
       <div class="spacer"></div>
-      <button class="mini" id="allOn">全員 参加</button>
-      <button class="mini" id="allOff">全員 外す</button>
-      <button class="mini" id="filterOn">表示中だけ参加</button>
+      <button class="mini adminonly" id="allOn">全員 参加</button>
+      <button class="mini adminonly" id="allOff">全員 外す</button>
+      <button class="mini adminonly" id="filterOn">表示中だけ参加</button>
     </div>
     <div class="pops" id="pops"></div>
-    <div class="assign-row">
+    <div class="assign-row adminonly">
       <b style="font-size:12px">🎲 自動組卓</b>
       <select id="assignMethod">
         <option value="random">完全ランダム</option>
@@ -228,6 +241,10 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
   if (!session) return;
   const myPid = "u_" + session.discord.id;
 
+  /* ---- 権限判定（管理者 / 一般プレイヤー）---- */
+  const IS_ADMIN = C.isAdmin(session);
+  const ADMIN_SET = C.isAdminConfigured();
+
   /* ---- テーマ ---- */
   const THEME_KEY = "mcc-portal-theme";
   function applyTheme(t){ document.documentElement.setAttribute("data-theme", t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
@@ -262,13 +279,42 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
 
   /* ---- Store ---- */
   const store = C.makeStore();
+  store.setActor({ pid: myPid, isAdmin: IS_ADMIN });
+
+  /* 権限ガードに弾かれたらトーストで知らせる */
+  window.addEventListener("lb-denied", e => {
+    toast("🔒 " + ((e.detail && e.detail.op) || "この操作") + "は管理者のみです");
+  });
+
+  /* 権限に応じて画面をロック */
+  function applyPermissions(){
+    document.body.classList.toggle("viewer", !IS_ADMIN);
+    const rb = $("roleBadge");
+    if (IS_ADMIN){
+      rb.textContent = ADMIN_SET ? "🛠 管理者" : "🛠 管理者（未設定・全員操作可）";
+      rb.className = "badge " + (ADMIN_SET ? "admin" : "warn");
+    } else {
+      rb.textContent = "👀 閲覧モード";
+      rb.className = "badge view";
+    }
+    $("viewNote").style.display = IS_ADMIN ? "none" : "";
+    $("editorLink").style.display = IS_ADMIN ? "" : "none";
+    ["titleInput","matchCountInput","tableCountInput"].forEach(id => { $(id).readOnly = !IS_ADMIN; });
+    $("pbarHint").textContent = IS_ADMIN
+      ? "POPをタップ→席をタップで配置。チェック＝この試合に参加"
+      : "自分のチェックボックスで、この試合に出るかどうかを切り替えられます";
+    if (!ADMIN_SET && IS_ADMIN){
+      console.warn("[LB] config.js の admins が未設定です。全員が管理者として扱われます。");
+    }
+  }
+  applyPermissions();
 
   store.init().then(({mode, boardId}) => {
     $("boardIdLabel").textContent = boardId;
     const badge = $("syncBadge");
     if (mode === "firestore"){ badge.textContent = "● LIVE 共有中"; badge.classList.add("live"); }
     else badge.textContent = "ローカル保存モード";
-    // 自分を選手登録（最新のランク・ロールで上書き）
+    // 自分を選手登録（最新のランク・ロールで上書き。権限に関係なく自己登録は可能）
     store.upsertSelf(session);
     // 管理リンクにboardを引き継ぐ
     if (boardId !== "default") $("editorLink").href = "editor.html?board=" + encodeURIComponent(boardId);
@@ -285,6 +331,7 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
 
   /* ---- 設定 ---- */
   $("applySettings").onclick = () => {
+    if (!IS_ADMIN){ toast("🔒 設定の変更は管理者のみです"); return; }
     store.setBoardTitle($("titleInput").value);
     store.setSettings({
       matchCount: parseInt($("matchCountInput").value,10) || 1,
@@ -415,6 +462,8 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
     s.roster.forEach(p => {
       const isOn = C.isPresent(s, curMatch, p.id);
       if (isOn) present++;
+      const mine = (p.id === myPid);
+      const canToggle = IS_ADMIN || mine;
       const pop = document.createElement("div");
       pop.className = "pop"
         + (selectedPid === p.id ? " sel" : "")
@@ -423,7 +472,13 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.checked = isOn;
-      cb.onclick = e => { e.stopPropagation(); store.setPresent(curMatch, p.id, cb.checked); };
+      cb.disabled = !canToggle;
+      cb.title = canToggle ? "この試合に参加する" : "他の選手の出欠は管理者のみ変更できます";
+      cb.onclick = e => {
+        e.stopPropagation();
+        if (!canToggle){ cb.checked = isOn; toast("🔒 他の選手の出欠は管理者のみです"); return; }
+        store.setPresent(curMatch, p.id, cb.checked);
+      };
       pop.appendChild(cb);
       const img = document.createElement("img");
       img.src = (p.discord && p.discord.avatar) || "";
@@ -449,6 +504,7 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
       info.appendChild(pn); info.appendChild(pr); info.appendChild(rd);
       pop.appendChild(info);
       pop.onclick = () => {
+        if (!IS_ADMIN) return; // 一般プレイヤーは配置操作なし
         if (!isOn){ toast("不参加の選手は配置できません（チェックを入れてください）"); return; }
         selectedPid = (selectedPid === p.id) ? null : p.id;
         render();
@@ -499,6 +555,7 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
             seat.appendChild(pill);
           }
           seat.onclick = () => {
+            if (!IS_ADMIN) return;
             if (selectedPid && selectedPid !== pid){
               store.assignSeat(curMatch, t, si, selectedPid);
               selectedPid = null;
@@ -512,6 +569,7 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
           em.textContent = "空席 " + (si+1);
           seat.appendChild(em);
           seat.onclick = () => {
+            if (!IS_ADMIN) return;
             if (!selectedPid){ toast("先に参加者POPをタップして選択してください"); return; }
             store.assignSeat(curMatch, t, si, selectedPid);
             selectedPid = null;
@@ -566,11 +624,13 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
         card.className = "rescard";
         const h = document.createElement("h3");
         h.textContent = `第${m+1}試合 ・ 卓${t+1}`;
-        const btn = document.createElement("button");
-        btn.className = "mini grad";
-        btn.textContent = "⚡ 自動取得";
-        btn.onclick = () => autoFetch(m, t, btn);
-        h.appendChild(btn);
+        if (IS_ADMIN){
+          const btn = document.createElement("button");
+          btn.className = "mini grad";
+          btn.textContent = "⚡ 自動取得";
+          btn.onclick = () => autoFetch(m, t, btn);
+          h.appendChild(btn);
+        }
         card.appendChild(h);
 
         const tbl = document.createElement("table");
@@ -583,11 +643,15 @@ select.place{border:1px solid var(--border-strong);background:var(--surface-2);c
           const tdP = document.createElement("td");
           tdP.innerHTML = `<div class="cellp"><img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'"><b>${escapeHtml(p ? p.name : "—")}</b></div>`;
           const tdR = document.createElement("td");
-          const sel = document.createElement("select");
-          sel.className = "place";
-          sel.innerHTML = '<option value="">—</option>' + [1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${rk===n?"selected":""}>${n}位</option>`).join("");
-          sel.onchange = () => store.setPlacement(m, t, pid, parseInt(sel.value,10) || 0);
-          tdR.appendChild(sel);
+          if (IS_ADMIN){
+            const sel = document.createElement("select");
+            sel.className = "place";
+            sel.innerHTML = '<option value="">—</option>' + [1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${rk===n?"selected":""}>${n}位</option>`).join("");
+            sel.onchange = () => store.setPlacement(m, t, pid, parseInt(sel.value,10) || 0);
+            tdR.appendChild(sel);
+          } else {
+            tdR.innerHTML = rk ? `<b class="num">${rk}位</b>` : '<span class="hint">—</span>';
+          }
           const tdPt = document.createElement("td");
           tdPt.className = "pt num";
           tdPt.textContent = C.pointsFor(s.mode, rk || 0);

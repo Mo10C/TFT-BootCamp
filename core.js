@@ -1,12 +1,12 @@
 /* =============================================================
    core.js — ログイン式リーダーボード 共通コアロジック
-   セッション / データ模型 / 得点計算 / Firestore同期 / Riot API / ロール
+   セッション / 権限 / データ模型 / 得点計算 / Firestore同期 / Riot API / ロール
 
    login.html / index.html / editor.html が読み込みます。
 
    ★ 選手（roster の1件）はログインしたユーザーそのもの:
      { id: "u_<discordId>",
-       name, riotId, puuid,
+       name, nameLocked, riotId, puuid,
        rank: { tier, division, lp, queue },
        discord: { id, name, username, avatar },
        roles: [{id, name, color}],   // ログイン時点のギルドロール
@@ -17,6 +17,12 @@
        roster:[player], matches:[{ tables:[{seats[8], placements{}}], present }],
        updatedAt }
      present: pid配列（null=全員参加）
+
+   ★ 権限（v2.1 で追加）:
+     store.setActor({ pid, isAdmin }) を呼んでから使う。
+     - 管理者          : すべての操作
+     - 一般プレイヤー  : 閲覧 ＋ 自己登録（upsertSelf）＋ 自分の出欠のみ
+     ガードに弾かれると window に "lb-denied" イベントが飛びます。
    ============================================================= */
 (function () {
   "use strict";
@@ -91,8 +97,52 @@
         roles: Array.isArray(s.discord.roles) ? s.discord.roles : [],
         updatedAt: Date.now()
       };
+    },
+    riotIdOf(s) {
+      s = s || this.get();
+      if (!s || !s.riot) return "";
+      return ((s.riot.gameName || "") + "#" + (s.riot.tagLine || ""));
     }
   };
+
+  /* =============================================================
+     権限判定
+     config.js:
+       admins: { discordIds: [...], riotIds: ["Mo10C#819"] }
+       roles:  { adminRoleIds: [...] }
+     3つとも空 = 初期セットアップ中とみなして全員管理者（警告つき）
+     ============================================================= */
+  function adminConfig() {
+    const a = CFG.admins || {};
+    return {
+      discordIds: (a.discordIds || []).map(x => String(x).trim()).filter(Boolean),
+      riotIds: (a.riotIds || []).map(x => String(x).trim().toLowerCase()).filter(Boolean),
+      roleIds: (((CFG.roles || {}).adminRoleIds) || []).map(x => String(x).trim()).filter(Boolean)
+    };
+  }
+  // 管理者が1人も設定されていない = 誰でも操作できてしまう状態
+  function isAdminConfigured() {
+    const c = adminConfig();
+    return !!(c.discordIds.length || c.riotIds.length || c.roleIds.length);
+  }
+  function isAdmin(session) {
+    const s = session || Session.get();
+    if (!s) return false;
+    const c = adminConfig();
+    if (!isAdminConfigured()) return true; // 未設定 = セットアップ中
+
+    const did = s.discord && s.discord.id ? String(s.discord.id) : "";
+    if (did && c.discordIds.includes(did)) return true;
+
+    const riot = Session.riotIdOf(s).toLowerCase();
+    if (riot && riot !== "#" && c.riotIds.includes(riot)) return true;
+
+    if (c.roleIds.length) {
+      const roles = (s.discord && s.discord.roles) || [];
+      if (roles.some(r => r && c.roleIds.includes(String(r.id)))) return true;
+    }
+    return false;
+  }
 
   /* =============================================================
      得点・状態
@@ -130,6 +180,7 @@
     let mode = "local";
     let db = null, docRef = null, indexRef = null;
     let applyingRemote = false, saveTimer = null;
+    let actor = { pid: null, isAdmin: false };
     const INDEX_LS_KEY = "mcc-lb2-board-index";
     const idxKey = id => encodeURIComponent(id);
     const lsKey = () => "mcclb2:" + boardId;
@@ -140,6 +191,20 @@
     }
     function emit() { listeners.forEach(fn => { try { fn(state); } catch (e) { console.error(e); } }); }
     function onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(x => x !== fn); }; }
+
+    /* ---- 権限 ---- */
+    function setActor(a) {
+      actor = { pid: (a && a.pid) || null, isAdmin: !!(a && a.isAdmin) };
+      return actor;
+    }
+    function getActor() { return { pid: actor.pid, isAdmin: actor.isAdmin }; }
+    function canEdit() { return !!actor.isAdmin; }
+    function deny(op) {
+      console.warn("[LB] 権限がないため中止しました: " + op);
+      try { window.dispatchEvent(new CustomEvent("lb-denied", { detail: { op } })); } catch (e) { }
+      return false;
+    }
+    function guard(op) { return actor.isAdmin ? true : deny(op); }
 
     async function init() {
       boardId = getBoardId();
@@ -190,7 +255,8 @@
       s.tableCount = Math.max(1, s.tableCount | 0 || 1);
       if (!Array.isArray(s.roster)) s.roster = [];
       s.roster = s.roster.filter(p => p && p.id).map(p => ({
-        id: p.id, name: p.name || "—", riotId: p.riotId || "", puuid: p.puuid || "",
+        id: p.id, name: p.name || "—", nameLocked: !!p.nameLocked,
+        riotId: p.riotId || "", puuid: p.puuid || "",
         rank: p.rank || null,
         discord: p.discord || null,
         roles: Array.isArray(p.roles) ? p.roles : [],
@@ -259,10 +325,15 @@
         players: (v && v.players) || 0, updatedAt: (v && v.updatedAt) || 0
       })).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     }
-    function setBoardTitle(name) { state.title = (name || "").trim(); save(); }
+    function setBoardTitle(name) {
+      if (!guard("大会名の変更")) return;
+      state.title = (name || "").trim();
+      save();
+    }
 
     /* ---- 設定 ---- */
     function setSettings(patch) {
+      if (!guard("試合数・卓数の変更")) return;
       const mc = Math.max(1, (patch.matchCount != null ? patch.matchCount : state.matchCount) | 0);
       const tc = Math.max(1, (patch.tableCount != null ? patch.tableCount : state.tableCount) | 0);
       // 既存データ温存でリサイズ
@@ -286,14 +357,18 @@
     }
 
     /* ---- ログインユーザーの登録（upsert）----
-       同じ discord.id なら情報を最新化（ランク・ロール・アバター）。 */
+       権限に関係なく「自分自身」だけは登録・更新できる（＝自己登録）。
+       同じ discord.id なら情報を最新化（ランク・ロール・アバター）。
+       ★ nameLocked が立っている選手は、管理者が付けた表示名を保持する。 */
     function upsertSelf(session) {
       const p = Session.toPlayer(session);
       if (!p) return null;
       const i = state.roster.findIndex(x => x.id === p.id);
       if (i >= 0) {
         const prev = state.roster[i];
-        state.roster[i] = Object.assign({}, prev, p, { joinedAt: prev.joinedAt || Date.now() });
+        const merged = Object.assign({}, prev, p, { joinedAt: prev.joinedAt || Date.now() });
+        if (prev.nameLocked) { merged.name = prev.name; merged.nameLocked = true; }
+        state.roster[i] = merged;
       } else {
         p.joinedAt = Date.now();
         state.roster.push(p);
@@ -302,12 +377,25 @@
       return p.id;
     }
     function updatePlayer(pid, patch) {
+      if (!guard("選手情報の編集")) return;
       const p = state.roster.find(x => x.id === pid);
       if (!p) return;
       Object.assign(p, patch, { updatedAt: Date.now() });
       save();
     }
+    // 表示名の手動設定（空文字でロック解除＝次回ログインでDiscord名に戻る）
+    function setPlayerName(pid, name) {
+      if (!guard("表示名の変更")) return;
+      const p = state.roster.find(x => x.id === pid);
+      if (!p) return;
+      const nv = (name || "").trim();
+      if (nv) { p.name = nv; p.nameLocked = true; }
+      else { p.nameLocked = false; p.name = (p.discord && p.discord.name) || p.name; }
+      p.updatedAt = Date.now();
+      save();
+    }
     function removePlayer(pid) {
+      if (!guard("選手の削除")) return;
       state.roster = state.roster.filter(p => p.id !== pid);
       state.matches.forEach(mt => {
         if (Array.isArray(mt.present)) mt.present = mt.present.filter(id => id !== pid);
@@ -322,6 +410,7 @@
 
     /* ---- 席・順位 ---- */
     function assignSeat(matchIdx, tableIdx, seatIdx, pid) {
+      if (!guard("席の配置")) return;
       const tb = state.matches[matchIdx].tables[tableIdx];
       // 同じ試合で既に座っていたら外す
       state.matches[matchIdx].tables.forEach(x => {
@@ -332,6 +421,7 @@
       save();
     }
     function clearSeat(matchIdx, tableIdx, seatIdx) {
+      if (!guard("席のクリア")) return;
       const tb = state.matches[matchIdx].tables[tableIdx];
       const pid = tb.seats[seatIdx];
       tb.seats[seatIdx] = null;
@@ -339,28 +429,36 @@
       save();
     }
     function setPlacement(matchIdx, tableIdx, pid, rank) {
+      if (!guard("順位の入力")) return;
       const tb = state.matches[matchIdx].tables[tableIdx];
       if (rank) tb.placements[pid] = rank | 0;
       else delete tb.placements[pid];
       save();
     }
     function clearMatchSeats(matchIdx) {
+      if (!guard("配置のクリア")) return;
       const mt = state.matches[matchIdx];
       if (!mt) return;
       mt.tables.forEach(tb => { tb.seats = new Array(SEATS_PER_TABLE).fill(null); tb.placements = {}; });
       save();
     }
     function clearAllResults() {
+      if (!guard("全結果のクリア")) return;
       state.matches.forEach(mt => mt.tables.forEach(tb => { tb.placements = {}; }));
       save();
     }
     function resetBoard() {
+      if (!guard("ボードの初期化")) return;
       const roster = state.roster; // ログイン済みメンバーは残す
       state = blankState();
       state.roster = roster;
       save();
     }
-    function importState(obj) { state = normalize(obj); save(); }
+    function importState(obj) {
+      if (!guard("バックアップからの復元")) return;
+      state = normalize(obj);
+      save();
+    }
     function loadBoardState(id) {
       // 読み取り専用で別ボードの状態を取得
       return (async () => {
@@ -380,7 +478,9 @@
       if (!Array.isArray(mt.present)) mt.present = state.roster.map(p => p.id);
       return mt.present;
     }
+    // 一般プレイヤーは「自分の出欠」だけ切り替えられる
     function setPresent(matchIdx, pid, on) {
+      if (!actor.isAdmin && pid !== actor.pid) return deny("他の選手の出欠変更");
       const mt = state.matches[matchIdx];
       if (!mt) return;
       const arr = materializePresent(matchIdx);
@@ -397,6 +497,7 @@
       save();
     }
     function setAllPresent(matchIdx, on, pids) {
+      if (!guard("出欠の一括変更")) return;
       // pids を渡すとその集合だけを対象にする（ロールフィルタ用）
       const mt = state.matches[matchIdx];
       if (!mt) return;
@@ -415,6 +516,7 @@
     }
     // 指定ロール保持者だけを参加にする
     function setPresentByRole(matchIdx, roleId) {
+      if (!guard("ロールによる出欠の一括変更")) return;
       const mt = state.matches[matchIdx];
       if (!mt) return;
       const withRole = state.roster.filter(p => hasRole(p, roleId)).map(p => p.id);
@@ -436,6 +538,7 @@
        roleGroup   : 同じロールの人を同じ卓へ固める（roleId指定時はそのロール優先、
                      省略時は最上位ロールでグループ化） */
     function autoAssign(matchIdx, opts) {
+      if (!guard("自動組卓")) return null;
       opts = opts || {};
       const method = opts.method || "random";
       const mt = state.matches[matchIdx];
@@ -549,7 +652,8 @@
       get state() { return state; },
       get mode() { return mode; },
       get boardId() { return boardId; },
-      setSettings, upsertSelf, updatePlayer, removePlayer,
+      setActor, getActor, canEdit,
+      setSettings, upsertSelf, updatePlayer, setPlayerName, removePlayer,
       assignSeat, clearSeat, setPlacement,
       clearMatchSeats, clearAllResults, resetBoard, importState, loadBoardState,
       setPresent, setAllPresent, setPresentByRole, autoAssign,
@@ -585,12 +689,6 @@
   function roleColorCss(color) {
     if (!color) return "var(--muted)";
     return "#" + Number(color).toString(16).padStart(6, "0");
-  }
-  function isAdmin(session) {
-    const ids = ((CFG.roles || {}).adminRoleIds) || [];
-    if (!ids.length) return true; // 未設定なら全員OK（たたき台）
-    const roles = (session && session.discord && session.discord.roles) || [];
-    return roles.some(r => ids.includes(r.id));
   }
 
   function isPresent(state, matchIdx, pid) {
@@ -761,7 +859,8 @@
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
-    hasRole, rosterRoles, roleColorCss, isAdmin,
+    hasRole, rosterRoles, roleColorCss,
+    isAdmin, isAdminConfigured, adminConfig,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

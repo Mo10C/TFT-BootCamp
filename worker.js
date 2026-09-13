@@ -28,6 +28,11 @@
    Discord Developer Portal 側の設定:
      OAuth2 → Redirects に「このWorkerのURL + /auth/callback」を登録
      例: https://mcc-login-board.xxx.workers.dev/auth/callback
+
+   --- 変更履歴 -------------------------------------------------
+   v2.1  /auth/login から prompt=none を削除。
+         prompt=none は「すでにこのアプリを認可済みの人」しか通らないため、
+         初回ログインの参加者が必ず consent_required で弾かれていた。
    ============================================================= */
 
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
@@ -146,8 +151,10 @@ function authLogin(url, env) {
     response_type: "code",
     redirect_uri: redirectUri(url),
     scope: "identify guilds.members.read",
-    state,
-    prompt: "none"
+    state
+    // ★ prompt は指定しない。
+    //   "none" にすると未認可のユーザーが consent_required で必ず失敗する。
+    //   未指定なら「初回は認可画面 / 2回目以降は自動で素通り」という理想の挙動になる。
   });
   return Response.redirect("https://discord.com/oauth2/authorize?" + q.toString(), 302);
 }

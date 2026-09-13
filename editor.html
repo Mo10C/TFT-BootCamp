@@ -62,14 +62,41 @@ tr:last-child td{border-bottom:none}
   padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
 #toast.show{opacity:.96}
 textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);border-radius:9px;padding:8px 10px;font-size:11px;font-family:"Space Grotesk",monospace}
+.badge.admin{border-color:var(--pink);color:var(--pink)}
+.badge.warn{border-color:var(--gold);color:var(--gold)}
+.lockscreen{max-width:520px;margin:14vh auto 0;background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:34px 30px;box-shadow:var(--shadow-soft);text-align:center}
+.lockscreen .ico{font-size:44px;line-height:1}
+.lockscreen h2{font-size:18px;font-weight:900;margin:12px 0 8px}
+.lockscreen p{font-size:12.5px;color:var(--muted);margin-bottom:6px}
+.lockscreen .who{display:inline-block;font-size:12px;font-weight:900;margin:10px 0 20px;padding:5px 14px;border-radius:999px;border:1.5px solid var(--border-strong)}
+.lockscreen a.mini{display:inline-block;text-decoration:none;margin:0 4px}
+.lock-note{font-size:11px;color:var(--muted);margin-top:18px;line-height:1.7}
+.namelock{font-size:9.5px;color:var(--muted);margin-left:5px}
 </style>
 </head>
 <body>
-<div class="wrap">
+<!-- 非管理者向けロック画面（権限チェック後に表示） -->
+<div id="lockWrap" style="display:none">
+  <div class="lockscreen">
+    <div class="ico">🔒</div>
+    <h2>管理コンソールは管理者専用です</h2>
+    <p>このページの操作（メンバー管理・ランク一括更新・バックアップ）は<br>大会運営の管理者アカウントのみが利用できます。</p>
+    <div class="who" id="lockWho">—</div>
+    <div>
+      <a class="mini grad" id="lockBack" href="index.html">🏆 ボードに戻る</a>
+      <a class="mini" id="lockLogin" href="login.html">別のアカウントでログイン</a>
+    </div>
+    <div class="lock-note">管理者のはずなのにここが出る場合は、<br><code>config.js</code> の <code>admins.riotIds</code> / <code>admins.discordIds</code> にご自身が入っているか確認してください。</div>
+  </div>
+</div>
+
+<div class="wrap" id="adminWrap" style="display:none">
 
   <div class="top">
     <h1>⚙️ 管理コンソール</h1>
     <span class="badge" id="syncBadge">— 接続中…</span>
+    <span class="badge" id="roleBadge">—</span>
     <span class="badge">board: <span id="boardIdLabel" class="num">default</span></span>
     <div class="spacer"></div>
     <a class="iconbtn" href="index.html" id="boardLink">🏆 ボードへ</a>
@@ -100,7 +127,7 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     <h2>👥 メンバー（ログインした人が自動登録されます）</h2>
     <div class="row">
       <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
-      <span class="hint">名前をタップで表示名を変更できます</span>
+      <span class="hint">名前をタップで表示名を変更（空欄で保存するとロック解除＝次回ログインでDiscord名に戻ります）</span>
     </div>
     <table id="memberTable">
       <tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th></th></tr>
@@ -157,9 +184,29 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
   const session = C.Session.require();
   if (!session) return;
 
-  /* テーマ */
   const THEME_KEY = "mcc-portal-theme";
-  function applyTheme(t){ document.documentElement.setAttribute("data-theme", t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
+  function applyThemeAttr(t){ document.documentElement.setAttribute("data-theme", t); }
+  applyThemeAttr(localStorage.getItem(THEME_KEY) || "light");
+
+  /* =============================================================
+     権限ゲート : 管理者でなければ以降を一切実行しない
+     ============================================================= */
+  const IS_ADMIN = C.isAdmin(session);
+  const ADMIN_SET = C.isAdminConfigured();
+  const boardParam = new URLSearchParams(location.search).get("board");
+  const boardQuery = boardParam ? "?board=" + encodeURIComponent(boardParam) : "";
+
+  if (!IS_ADMIN){
+    $("lockWrap").style.display = "";
+    $("lockWho").textContent = (session.discord.name || "—") + " ／ " + C.Session.riotIdOf(session);
+    $("lockBack").href = "index.html" + boardQuery;
+    $("lockLogin").href = "login.html" + boardQuery;
+    return;
+  }
+  $("adminWrap").style.display = "";
+
+  /* テーマ */
+  function applyTheme(t){ applyThemeAttr(t); $("themeBtn").textContent = t==="dark"?"☀️":"🌙"; }
   applyTheme(localStorage.getItem(THEME_KEY) || "light");
   $("themeBtn").onclick = () => { const t = document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"; localStorage.setItem(THEME_KEY,t); applyTheme(t); };
 
@@ -172,12 +219,19 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
     toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
   }
 
-  /* 管理者ロールの案内（強制はしない：たたき台） */
-  if (!C.isAdmin(session)) {
-    toast("⚠️ 管理者ロールが設定されていないアカウントです（操作は可能ですが注意）");
+  /* 管理者が未設定＝誰でも入れてしまう状態なので警告 */
+  const rb = $("roleBadge");
+  if (ADMIN_SET){ rb.textContent = "🛠 管理者"; rb.className = "badge admin"; }
+  else {
+    rb.textContent = "⚠️ 管理者未設定";
+    rb.className = "badge warn";
+    setTimeout(() => toast("⚠️ config.js の admins が未設定です。今は誰でもこの画面に入れます"), 600);
   }
 
   const store = C.makeStore();
+  store.setActor({ pid: "u_" + session.discord.id, isAdmin: true });
+  window.addEventListener("lb-denied", e => toast("🔒 " + ((e.detail && e.detail.op) || "この操作") + "は許可されていません"));
+
   store.init().then(({mode, boardId}) => {
     $("boardIdLabel").textContent = boardId;
     const badge = $("syncBadge");
@@ -231,15 +285,29 @@ textarea{width:100%;min-height:90px;border:1px solid var(--border-strong);backgr
       const img = document.createElement("img");
       img.src = (p.discord && p.discord.avatar) || "";
       img.onerror = function(){ this.style.visibility = "hidden"; };
+      const nameWrap = document.createElement("div");
       const nameB = document.createElement("b");
       nameB.textContent = p.name;
       nameB.style.cursor = "pointer";
-      nameB.title = "タップで表示名を変更";
+      nameB.title = "タップで表示名を変更（空欄でロック解除）";
       nameB.onclick = () => {
-        const nv = prompt("表示名を変更", p.name);
-        if (nv != null && nv.trim()) store.updatePlayer(p.id, { name: nv.trim() });
+        const nv = prompt(
+          p.nameLocked
+            ? "表示名を変更（空欄で保存するとロック解除＝Discord名に戻ります）"
+            : "表示名を変更（保存するとロックされ、再ログインでも上書きされません）",
+          p.name);
+        if (nv == null) return;
+        store.setPlayerName(p.id, nv);
       };
-      cell.appendChild(img); cell.appendChild(nameB);
+      nameWrap.appendChild(nameB);
+      if (p.nameLocked){
+        const lk = document.createElement("span");
+        lk.className = "namelock";
+        lk.textContent = "🔒固定";
+        lk.title = "管理者が設定した表示名。本人が再ログインしても上書きされません";
+        nameWrap.appendChild(lk);
+      }
+      cell.appendChild(img); cell.appendChild(nameWrap);
       tdP.appendChild(cell);
 
       const tdR = document.createElement("td");
