@@ -895,18 +895,54 @@
     return roles.some(r => r && ids.includes(String(r.id)));
   }
 
+  /* 直近に読み込んだHOME設定をブラウザに残しておく。
+     初回描画をこれで行うことで、Firestore の応答を待つ間に
+     既定の並び順が一瞬見えてしまうのを防ぐ。 */
+  const HOME_CACHE_KEY = "mcc-lb2-home-cache";
+  function cacheHomeConfig(cfg) {
+    try { localStorage.setItem(HOME_CACHE_KEY, JSON.stringify(cfg)); } catch (e) { }
+  }
+  // 同期的に返る（await 不要）。キャッシュが無ければ null。
+  function cachedHomeConfig() {
+    try {
+      const raw = localStorage.getItem(HOME_CACHE_KEY);
+      if (raw) return normHomeConfig(JSON.parse(raw));
+    } catch (e) { }
+    return null;
+  }
+  // 描き直しが必要かの判定に使う（updatedAt の差だけでは描き直さない）
+  function homeConfigKey(cfg) {
+    const c = normHomeConfig(cfg);
+    return JSON.stringify({ t: c.title, s: c.subtitle, tiles: c.tiles, tools: c.tools });
+  }
+
   async function loadHomeConfig() {
     const db = openDb();
     try {
       if (db) {
         const snap = await db.collection("lboard_index").doc("home").get();
-        if (snap.exists) return normHomeConfig(snap.data());
+        if (snap.exists) {
+          const cfg = normHomeConfig(snap.data());
+          cacheHomeConfig(cfg);
+          return cfg;
+        }
       } else {
         const raw = localStorage.getItem(HOME_LS_KEY);
-        if (raw) return normHomeConfig(JSON.parse(raw));
+        if (raw) {
+          const cfg = normHomeConfig(JSON.parse(raw));
+          cacheHomeConfig(cfg);
+          return cfg;
+        }
       }
-    } catch (e) { console.warn("HOME設定の読み込みに失敗", e); }
-    return defaultHomeConfig();
+      // 保存された設定がまだ無い場合も既定値をキャッシュしておく
+      const d = defaultHomeConfig();
+      cacheHomeConfig(d);
+      return d;
+    } catch (e) {
+      console.warn("HOME設定の読み込みに失敗", e);
+      // 通信に失敗したときはキャッシュを優先（既定値に戻さない）
+      return cachedHomeConfig() || defaultHomeConfig();
+    }
   }
   async function saveHomeConfig(h) {
     if (!isAdmin()) throw new Error("HOMEの編集は管理者のみです");
@@ -919,6 +955,7 @@
     } catch (e) {
       throw new Error("HOME設定を保存できませんでした（" + (e.code || e.message) + "）");
     }
+    cacheHomeConfig(cfg);
     return cfg;
   }
 
@@ -1167,6 +1204,7 @@
     normVisibility, canViewBoard, visibilityLabel,
     listAllBoards, createBoard, deleteBoard, slugify,
     defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
+    cachedHomeConfig, homeConfigKey,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

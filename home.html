@@ -156,11 +156,16 @@
     $("toolsSec").style.display = shown ? "" : "none";
   }
 
-  /* 先に既定値で描いてから、保存済み設定で上書きする（真っ白を避ける） */
-  const def = C.defaultHomeConfig();
-  renderTiles(def);
-  renderTools(def);
+  /* 初回描画は「前回このブラウザで見た内容」から行う。
+     こうしないと Firestore の応答を待つ間、既定の並び順が一瞬見えてしまう。
+     取得後、内容が実際に変わっていたときだけ描き直す（updatedAt の差では描き直さない）。 */
+  let shown = C.cachedHomeConfig() || C.defaultHomeConfig();
+  renderTiles(shown);
+  renderTools(shown);
+
   C.loadHomeConfig().then(home => {
+    if (C.homeConfigKey(home) === C.homeConfigKey(shown)) return;  // 変化なし＝描き直さない
+    shown = home;
     boardMetaEl = null;
     renderTiles(home);
     renderTools(home);
