@@ -492,6 +492,20 @@
       save();
       return p.id;
     }
+    /* ログイン済みメンバー（全体名簿）を、このボードの名簿に取り込む。
+       すでに居る人はそのまま（表示名・大会に参加 の設定を壊さない）。 */
+    function mergeMembers(list) {
+      if (!guard("メンバーの取り込み")) return 0;
+      let added = 0;
+      (list || []).forEach(m => {
+        if (!m || !m.id) return;
+        if (state.roster.some(x => x.id === m.id)) return;
+        state.roster.push(Object.assign({}, m, { joinedAt: m.joinedAt || Date.now() }));
+        added++;
+      });
+      if (added) save();
+      return added;
+    }
     function updatePlayer(pid, patch) {
       if (!guard("選手情報の編集")) return;
       const p = state.roster.find(x => x.id === pid);
@@ -826,7 +840,7 @@
       get boardId() { return boardId; },
       setActor, getActor, canEdit,
       setSettings, upsertSelf, updatePlayer, setPlayerName, removePlayer, setOptIn,
-      assignSeat, clearSeat, moveSeat, unseatPlayer, setPlacement,
+      assignSeat, clearSeat, moveSeat, unseatPlayer, setPlacement, mergeMembers,
       clearMatchSeats, clearAllResults, resetBoard, importState, loadBoardState,
       setPresent, setAllPresent, setPresentByRole, autoAssign,
       listBoards, setBoardTitle, setVisibility,
@@ -1137,6 +1151,34 @@
     const div = ["IV", "III", "II", "I"][di];
     return TIER_ORDER[ti] + " " + div + " " + Math.round(rest - di * 100) + "LP";
   }
+  /* 短い表記。グラフの線の右はしなど、幅が無いところで使う。
+     例: EMERALD II 79LP → "E2 79LP" ／ GRANDMASTER 272LP → "GM 272LP"
+     ★ 絶対LP（2279 など）をそのまま出すと何の数字か分からないので、必ずこちらを通すこと。 */
+  const TIER_ABBR = {
+    IRON: "I", BRONZE: "B", SILVER: "S", GOLD: "G", PLATINUM: "P",
+    EMERALD: "E", DIAMOND: "D", MASTER: "M", GRANDMASTER: "GM", CHALLENGER: "C", RATED: "R"
+  };
+  const DIV_NUM = { IV: "4", III: "3", II: "2", I: "1" };
+  const NO_DIV = /^(MASTER|GRANDMASTER|CHALLENGER|RATED)$/;
+
+  // ランク（tier/division/lp）から短い表記
+  function rankShort(rank) {
+    if (!rank || !rank.tier) return "—";
+    const t = TIER_ABBR[rank.tier] || String(rank.tier).slice(0, 1);
+    const div = NO_DIV.test(rank.tier) ? "" : (DIV_NUM[rank.division] || "");
+    return t + div + " " + (rank.lp | 0) + "LP";
+  }
+  // 絶対LPから短い表記（過去の点など、ティアが分からないとき用）
+  function absToShort(v) {
+    if (v == null) return "—";
+    if (v >= 2800) return "M " + Math.round(v - 2800) + "LP";
+    const ti = Math.min(TIER_ORDER.length - 2, Math.floor(v / 400));
+    const rest = v - ti * 400;
+    const di = Math.min(3, Math.floor(rest / 100));
+    return (TIER_ABBR[TIER_ORDER[ti]] || "?") + ["4", "3", "2", "1"][di] +
+      " " + Math.round(rest - di * 100) + "LP";
+  }
+
   // ティアの境目（グラフの補助線用）
   function tierLines(min, max) {
     const out = [];
@@ -1757,6 +1799,125 @@
   }
 
   /* =============================================================
+     全体メンバー名簿（lboard_index/members）
+
+     ★ 大会ボードごとの名簿とは別に、「ログインした人」を1か所にためる。
+        どのページでログインしても登録されるので、
+        大会ボードを開いていない人も管理コンソールのメンバー一覧に並ぶ。
+     ============================================================= */
+  const MEMBERS_DOC = "members";
+  const MEMBERS_LS_KEY = "mcc-lb2-members";
+
+  function normMembers(raw) {
+    const out = {};
+    Object.entries((raw && raw.members) || {}).forEach(([id, m]) => {
+      if (!id || !m) return;
+      out[id] = {
+        id: id,
+        name: String(m.name || "—"),
+        riotId: String(m.riotId || ""),
+        puuid: String(m.puuid || ""),
+        rank: (m.rank && m.rank.tier) ? { tier: String(m.rank.tier),
+               division: String(m.rank.division || ""), lp: m.rank.lp | 0 } : null,
+        discord: m.discord ? {
+          id: String(m.discord.id || ""), name: String(m.discord.name || ""),
+          username: String(m.discord.username || ""), avatar: String(m.discord.avatar || "")
+        } : null,
+        roles: rolesOf(m),
+        staff: !!m.staff,
+        nameLocked: !!m.nameLocked,
+        optIn: !!m.optIn,
+        joinedAt: m.joinedAt || 0,
+        updatedAt: m.updatedAt || 0
+      };
+    });
+    return out;
+  }
+
+  async function loadMembers() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(MEMBERS_DOC).get();
+        if (snap.exists) return normMembers(snap.data());
+      } else {
+        const raw = localStorage.getItem(MEMBERS_LS_KEY);
+        if (raw) return normMembers(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("メンバー名簿の読み込みに失敗", e); }
+    return {};
+  }
+
+  /* ログインした本人を名簿に登録する。1日1回でじゅうぶん。
+     home-common.js の boot() から呼ばれるので、どのページを開いても登録される。 */
+  async function registerMember(session, force) {
+    session = session || Session.get();
+    const p = Session.toPlayer(session);
+    if (!p) return false;
+    const flag = "mcc-lb2-member-done-" + p.id + "-" + dayKey();
+    try { if (!force && localStorage.getItem(flag)) return false; } catch (e) { }
+
+    const entry = {
+      name: p.name, riotId: p.riotId || "", puuid: p.puuid || "",
+      rank: p.rank || null, discord: p.discord || null,
+      roles: rolesOf(p), staff: !!p.staff,
+      joinedAt: Date.now(), updatedAt: Date.now()
+    };
+    const db = openDb();
+    try {
+      if (db) {
+        // merge なので、管理者が付けた表示名・大会に参加 は消えない
+        await db.collection("lboard_index").doc(MEMBERS_DOC)
+          .set({ members: { [p.id]: entry }, updatedAt: Date.now() }, { merge: true });
+      } else {
+        const cur = { members: normMembers(JSON.parse(localStorage.getItem(MEMBERS_LS_KEY) || "{}")) };
+        cur.members[p.id] = Object.assign({}, cur.members[p.id] || {}, entry, { id: p.id });
+        localStorage.setItem(MEMBERS_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) { console.warn("メンバー登録に失敗", e); return false; }
+    try { localStorage.setItem(flag, "1"); } catch (e) { }
+    return true;
+  }
+
+  async function updateGlobalMember(id, patch) {
+    if (!isAdmin()) throw new Error("メンバーの編集は管理者のみです");
+    if (!id) return;
+    const body = Object.assign({}, patch, { updatedAt: Date.now() });
+    const db = openDb();
+    try {
+      if (db) {
+        await db.collection("lboard_index").doc(MEMBERS_DOC)
+          .set({ members: { [id]: body }, updatedAt: Date.now() }, { merge: true });
+      } else {
+        const cur = { members: normMembers(JSON.parse(localStorage.getItem(MEMBERS_LS_KEY) || "{}")) };
+        cur.members[id] = Object.assign({}, cur.members[id] || { id }, body);
+        localStorage.setItem(MEMBERS_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) { throw new Error("保存できませんでした（" + (e.code || e.message) + "）"); }
+  }
+
+  async function removeGlobalMember(id) {
+    if (!isAdmin()) throw new Error("メンバーの削除は管理者のみです");
+    if (!id) return;
+    const db = openDb();
+    try {
+      if (db) {
+        const ref = db.collection("lboard_index").doc(MEMBERS_DOC);
+        const snap = await ref.get();
+        const cur = snap.exists ? normMembers(snap.data()) : {};
+        delete cur[id];
+        await ref.set({ members: cur, updatedAt: Date.now() });
+      } else {
+        const cur = normMembers(JSON.parse(localStorage.getItem(MEMBERS_LS_KEY) || "{}"));
+        delete cur[id];
+        localStorage.setItem(MEMBERS_LS_KEY, JSON.stringify({ members: cur }));
+      }
+    } catch (e) { throw new Error("削除できませんでした（" + (e.code || e.message) + "）"); }
+    // その人が「また開いたら復活」しないよう、登録済みフラグも消しておく
+    try { localStorage.removeItem("mcc-lb2-member-done-" + id + "-" + dayKey()); } catch (e) { }
+  }
+
+  /* =============================================================
      Discord へ投げるメッセージの文面
 
      保存先: lboard_index/messages
@@ -2229,7 +2390,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.3",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.5",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -2240,10 +2401,11 @@
     listAllBoards, createBoard, deleteBoard, slugify,
     defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
     cachedHomeConfig, homeConfigKey,
-    absLP, absToLabel, tierLines, dayKey, shiftDay,
+    absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay,
     loadLpData, recordLp, recordLpForSelf, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
+    loadMembers, registerMember, updateGlobalMember, removeGlobalMember,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.3">
+<link rel="stylesheet" href="ui.css?v=4.5">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -384,14 +384,17 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <div class="card">
       <h2>メンバー <span class="hint" id="memCount"></span></h2>
       <div class="lead">
-        ログインした人が自動で登録されます。名前をタップすると表示名を変更でき、以降は本人が再ログインしても上書きされません（空欄で保存すると解除）。<br>
+        <b>どのページでもログインした人は、自動でここに並びます</b>（大会ボードを開いていなくてもOK）。<br>
+        名前をタップすると表示名を変更でき、以降は本人が再ログインしても上書きされません（空欄で保存すると解除）。<br>
         <b>運営ロールの人は既定で「不参加」</b>です（参加者一覧・組卓・全体順位・LPランキングに出ません）。
         大会に出てもらうときは「大会に参加」をONにしてください。
       </div>
       <div class="row">
         <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
         <button class="mini" id="refreshRoles">🎭 全員のロールを再取得</button>
+        <button class="mini" id="pullMembers">👥 ログイン済みの人を取り込む</button>
       </div>
+      <div class="hint" id="memPullHint" style="margin-bottom:9px"></div>
       <div class="tw">
         <table id="memberTable"></table>
       </div>
@@ -627,8 +630,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.3"></script>
-<script src="home-common.js?v=4.3"></script>
+<script src="core.js?v=4.5"></script>
+<script src="home-common.js?v=4.5"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -688,6 +691,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     loadSched();
     loadSnap();
     loadMsgs();
+    pullMembers(true);
   });
   store.onChange(render);
 
@@ -1158,6 +1162,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
           : "表示名を変更（保存するとロックされ、再ログインでも上書きされません）", p.name);
         if (nv == null) return;
         store.setPlayerName(p.id, nv);
+        // 全体名簿にも反映（取り込み直しても名前が戻らないように）
+        C.updateGlobalMember(p.id, { name: nv || p.name, nameLocked: !!nv }).catch(()=>{});
       };
       wrap.appendChild(nameB);
       if (p.nameLocked){
@@ -1211,6 +1217,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
         cb.checked = !!p.optIn;
         cb.onchange = () => {
           store.setOptIn(p.id, cb.checked);
+          C.updateGlobalMember(p.id, { optIn: cb.checked }).catch(()=>{});
           toast(cb.checked ? (p.name + " を大会に参加させました") : (p.name + " を大会から外しました"));
         };
         lb.appendChild(cb);
@@ -1228,7 +1235,12 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       const del = document.createElement("button");
       del.className = "mini danger";
       del.textContent = "削除";
-      del.onclick = () => { if (confirm(p.name + " をこの大会から外しますか？（再ログインで戻れます）")) store.removePlayer(p.id); };
+      del.onclick = async () => {
+        if (!confirm(p.name + " を一覧から外しますか？\n（本人が次にログインすると、また並びます）")) return;
+        store.removePlayer(p.id);
+        try { await C.removeGlobalMember(p.id); } catch(e){ toast(e.message); }
+        pullMembers(true);
+      };
       tdAct.appendChild(del);
 
       tr.appendChild(tdP); tr.appendChild(tdR); tr.appendChild(tdRank); tr.appendChild(tdRoles);
@@ -1675,6 +1687,29 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       document.removeEventListener("pointercancel", cleanup);
     }
   })();
+
+  /* ---- 全体名簿（lboard_index/members）をこのボードに取り込む ----
+     ログインしただけの人（大会ボードを開いていない人）も一覧に出すため。 */
+  async function pullMembers(quiet){
+    try {
+      const all = await C.loadMembers();
+      const list = Object.values(all);
+      const before = store.state.roster.length;
+      const added = store.mergeMembers(list) || 0;
+      const hint = $("memPullHint");
+      if (hint){
+        hint.textContent = list.length
+          ? ("ログイン済み " + list.length + "人" +
+             (added ? "／ " + added + "人をこの一覧に追加しました" : "／ 全員このボードに居ます"))
+          : "まだ誰もログインしていません。";
+      }
+      if (!quiet) toast(added ? (added + "人を取り込みました") : "新しく取り込む人はいませんでした");
+    } catch(e){
+      if (!quiet) toast("取り込みに失敗: " + e.message);
+      console.warn(e);
+    }
+  }
+  $("pullMembers").onclick = () => pullMembers(false);
 
   /* =============================================================
      予定表

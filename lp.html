@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.3">
+<link rel="stylesheet" href="ui.css?v=4.5">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -102,7 +102,7 @@
 .ruler .pad-dl{width:106px;flex:none;font-size:9.5px;font-weight:900;color:var(--muted);text-align:right}
 /* グラフ内側の余白（PAD.l / PAD.r）と同じだけ空けて、目盛りを線の始点・終点に合わせる */
 .ruler .bar{flex:1;min-width:0;display:flex;justify-content:space-between;
-  padding-left:30px;padding-right:46px;
+  padding-left:30px;padding-right:62px;
   font-family:"Space Grotesk",sans-serif;font-size:9.5px;font-weight:700;color:var(--muted)}
 .ruler .bar .mid{opacity:.75}
 .ruler .bar .base{color:var(--accent-deep)}
@@ -243,8 +243,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.3"></script>
-<script src="home-common.js?v=4.3"></script>
+<script src="core.js?v=4.5"></script>
+<script src="home-common.js?v=4.5"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -524,7 +524,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 
   function drawChart(p, vspan, w, h, detailed){
     const m = p.m;
-    const PAD = { l:30, r:46, t:8, b: detailed ? 16 : 7 };
+    const PAD = { l:30, r:62, t:8, b: detailed ? 16 : 7 };
 
     const vs = p.pts.map(q => q.v);
     const mid = (Math.max.apply(null, vs) + Math.min.apply(null, vs)) / 2;
@@ -578,11 +578,18 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         fill:"var(--line)", stroke:"var(--surface)", "stroke-width":"2" }));
     });
 
-    // 右はしに現在のLPを直接ラベル（色だけに頼らない）
+    // 右はしに現在のランクを直接ラベル（色だけに頼らない）
+    // ★ 絶対LP（2279 など）は内部用の通し数値なので、そのままは出さない。
+    //   いちばん新しい点は、保存してある実際のランクを使う（GM/チャレも正しく出る）。
     const last = p.pts[p.pts.length - 1];
+    const curRank = rankOf(m);
+    const txt = (curRank && (m.abs | 0) === last.v) ? C.rankShort(curRank) : C.absToShort(last.v);
     const lbl = mk("text", { x: w - PAD.r + 6, y: Math.max(10, Math.min(h - PAD.b, Y(last.v) + 3.5)),
       "font-size":"10", fill:"var(--ink)", "font-weight":"900" });
-    lbl.textContent = last.v >= 2800 ? ("M+" + (last.v - 2800)) : String(last.v);
+    lbl.textContent = txt;
+    const tt = mk("title");
+    tt.textContent = C.absToLabel(last.v) + "（" + last.d + "）";
+    lbl.appendChild(tt);
     svg.appendChild(lbl);
 
     // 開いているときだけ、日付とLPの目盛りを足す
@@ -598,10 +605,10 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       }
       p.pts.forEach((q, i) => {
         if (i === p.pts.length - 1) return;      // 右はしの数字と重なるので最後は出さない
-        if (gap < 26) return;                    // 詰まりすぎるときは数字を出さない
+        if (gap < 46) return;                    // 詰まりすぎるときは数字を出さない
         const t = mk("text", { x:X(q.d), y:Y(q.v)-9, "text-anchor":"middle", "font-size":"8",
           fill:"var(--muted)", "font-weight":"700" });
-        t.textContent = q.v;
+        t.textContent = C.absToShort(q.v);
         svg.appendChild(t);
       });
     }
@@ -758,7 +765,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       "<br>縦の幅は既定ではその人に合わせて自動（右はしに「縦◯◯LP」と表示）。" +
       "<b>「縦をそろえる」</b>を押すと全員同じ縦幅になり、伸びの傾きをそのまま見比べられます。" +
       "<br>「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" +
-      "LPはティアをまたいで比べられるよう、IRON IV 0LP を 0 とした通し数値に換算しています。";
+      "グラフの中では、ティアをまたいで比べられるよう IRON IV 0LP を 0 とした通し数値で線を引いていますが、表示は <b>E2 79LP</b>（＝EMERALD II 79LP）のような短い形にしています。";
   }
 
   /* ---------- 起動 ----------

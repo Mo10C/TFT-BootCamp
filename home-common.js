@@ -36,6 +36,11 @@
 
   function boot(session) {
     session = session || C.Session.get();
+    // ★ どのページを開いても、ログイン済みなら全体名簿に登録する（1日1回）。
+    //   これで大会ボードを開いていない人も、管理コンソールのメンバー一覧に並ぶ。
+    if (session && typeof C.registerMember === "function") {
+      C.registerMember(session).catch(() => { });
+    }
     const isAdmin = C.isAdmin(session);
     const adminSet = C.isAdminConfigured();
     const roles = (session && session.discord && session.discord.roles) || [];

@@ -321,7 +321,7 @@ body.viewer .pop{cursor:default}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.3"></script>
+<script src="core.js?v=4.5"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -329,6 +329,8 @@ body.viewer .pop{cursor:default}
 
   /* ---- ログインチェック ---- */
   const session = C.Session.require();
+  // 全体名簿にも登録しておく（管理コンソールのメンバー一覧に並ぶように・1日1回）
+  if (session && typeof C.registerMember === "function") C.registerMember(session).catch(()=>{});
   if (!session) return;
   const myPid = "u_" + session.discord.id;
 
