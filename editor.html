@@ -4,10 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>管理コンソール ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.1">
+<link rel="stylesheet" href="ui.css?v=4.3">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -70,6 +74,26 @@ tr:last-child td{border-bottom:none}
 .chk input{accent-color:var(--pink)}
 .rolefield{border-top:1px dashed var(--border-strong);padding-top:8px;margin-top:2px}
 .rolefield .lbl{font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:5px}
+
+/* メッセージ編集 */
+.msgcard .sub{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.7}
+.msgcard .sub b{color:var(--ink)}
+.mfield{margin-bottom:12px}
+.mfield .mlbl{font-size:11.5px;font-weight:900;margin-bottom:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mfield .mlbl .tip{font-size:10.5px;font-weight:400;color:var(--muted)}
+.mfield textarea{min-height:58px;font-size:12.5px;
+  font-family:"Zen Kaku Gothic New",-apple-system,sans-serif;line-height:1.7}
+.mfield textarea.one{min-height:44px}
+.vars{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.vbtn{border:1px solid var(--border-strong);background:var(--surface-2);border-radius:8px;
+  padding:2px 8px;font-size:10.5px;font-weight:700;color:var(--muted);white-space:nowrap}
+.vbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.vbtn code{font-family:ui-monospace,monospace;color:var(--ink);margin-right:4px}
+.mprev{background:#36393f;color:#dcddde;border-radius:12px;padding:13px 15px;margin-top:4px;
+  font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word;
+  font-family:"Zen Kaku Gothic New",-apple-system,sans-serif;border:1px solid #202225}
+.mprev b{color:#fff;font-weight:700}
+.mprev .ph{color:#72767d;font-size:11px;display:block;margin-bottom:7px;font-weight:700}
 
 /* 予定表 */
 .srow{display:flex;align-items:center;gap:9px;background:var(--surface-2);
@@ -177,6 +201,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <button class="tab" data-panel="p-sched">🗓 予定表</button>
     <button class="tab" data-panel="p-lp">📈 LP</button>
     <button class="tab" data-panel="p-snap">🏅 先生スナップショット</button>
+    <button class="tab" data-panel="p-msg">💬 メッセージ</button>
     <button class="tab" data-panel="p-conn">🔌 接続設定</button>
     <button class="tab" data-panel="p-data">💾 データ</button>
   </nav>
@@ -518,6 +543,34 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     </div>
   </div>
 
+  <!-- ================= メッセージ ================= -->
+  <div class="panel" id="p-msg">
+    <div class="card">
+      <h2>Discordに投げる文面</h2>
+      <div class="lead">
+        自動で投稿されるメッセージの文章を、ここで自由に書き替えられます。<br>
+        どれも <b>見出し → 明細（件数ぶん繰り返し） → しめの一言</b> の3つでできています。
+        見出し・しめを空にすると、その行ごと出ません。<br>
+        <code>{なまえ}</code> のところに実際の値が入ります。下のボタンを押すと、
+        カーソルの位置に差し込めます。
+      </div>
+      <div class="row">
+        <button class="mini" id="msgResetAll">すべて既定の文面に戻す</button>
+        <span class="hint" id="msgState">—</span>
+      </div>
+    </div>
+
+    <div id="msgCards"></div>
+
+    <div class="sticky-save" id="msgSave">
+      <span class="dirty-dot"></span>
+      <b style="font-size:12.5px">メッセージの文面</b>
+      <div class="spacer" style="flex:1"></div>
+      <button class="mini" id="msgReset">もとに戻す</button>
+      <button class="mini grad" id="msgApply">💾 保存</button>
+    </div>
+  </div>
+
   <!-- ================= 接続設定 ================= -->
   <div class="panel" id="p-conn">
     <div class="card">
@@ -574,8 +627,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.1"></script>
-<script src="home-common.js?v=4.1"></script>
+<script src="core.js?v=4.3"></script>
+<script src="home-common.js?v=4.3"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -634,6 +687,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     loadLp();
     loadSched();
     loadSnap();
+    loadMsgs();
   });
   store.onChange(render);
 
@@ -2018,6 +2072,139 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       await loadSnap();
     } catch(e){ out.value = "失敗: " + e.message; }
     btn.disabled = false;
+  };
+
+  /* =============================================================
+     Discordに投げる文面
+     ============================================================= */
+  let msgData = null, msgEdit = null, msgDirty = false;
+
+  async function loadMsgs(){
+    try { msgData = await C.loadMessages(); }
+    catch(e){ toast("文面の読み込みに失敗: " + e.message); return; }
+    msgEdit = JSON.parse(JSON.stringify(msgData));
+    msgDirty = false;
+    renderMsgs();
+  }
+  function markMsgDirty(){ msgDirty = true; $("msgSave").classList.add("dirty"); }
+
+  function renderMsgs(){
+    const box = $("msgCards");
+    box.innerHTML = "";
+    $("msgState").textContent = msgData && msgData.isDefault
+      ? "まだ保存していません（既定の文面が使われています）"
+      : ("保存済み" + (msgData && msgData.updatedAt
+          ? "（最終更新 " + new Date(msgData.updatedAt).toLocaleString("ja-JP") + "）" : ""));
+
+    C.MSG_KEYS.forEach(key => {
+      const meta = C.MSG_META[key];
+      const card = document.createElement("div");
+      card.className = "card msgcard";
+
+      const h = document.createElement("h2");
+      h.textContent = meta.name;
+      card.appendChild(h);
+
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      sub.innerHTML = "投稿先: <b>" + esc(meta.where) + "</b>　／　いつ: " + esc(meta.when);
+      card.appendChild(sub);
+
+      [["head", "見出し", "いちばん上の行。空にすると出ません"],
+       ["line", "明細（件数ぶん繰り返し）", "1件につき1行。ここは空にできません"],
+       ["foot", "しめの一言", "いちばん下の行。空にすると出ません"]].forEach(([f, label, tip]) => {
+        const fd = document.createElement("div");
+        fd.className = "mfield";
+        const lb = document.createElement("div");
+        lb.className = "mlbl";
+        lb.innerHTML = esc(label) + '<span class="tip">' + esc(tip) + "</span>";
+        fd.appendChild(lb);
+
+        const ta = document.createElement("textarea");
+        ta.className = (f === "line") ? "one" : "";
+        ta.value = msgEdit[key][f] || "";
+        ta.oninput = () => { msgEdit[key][f] = ta.value; markMsgDirty(); paintPreview(); };
+        fd.appendChild(ta);
+
+        const vs = document.createElement("div");
+        vs.className = "vars";
+        (meta.vars[f] || []).forEach(([name, desc]) => {
+          const b = document.createElement("button");
+          b.className = "vbtn";
+          b.innerHTML = "<code>{" + name + "}</code>" + esc(desc);
+          b.title = "カーソルの位置に差し込みます";
+          b.onclick = () => {
+            const tag = "{" + name + "}";
+            const a = ta.selectionStart | 0, z = ta.selectionEnd | 0;
+            ta.value = ta.value.slice(0, a) + tag + ta.value.slice(z);
+            ta.focus();
+            ta.selectionStart = ta.selectionEnd = a + tag.length;
+            msgEdit[key][f] = ta.value;
+            markMsgDirty(); paintPreview();
+          };
+          vs.appendChild(b);
+        });
+        fd.appendChild(vs);
+        card.appendChild(fd);
+      });
+
+      const pv = document.createElement("div");
+      pv.className = "mprev";
+      card.appendChild(pv);
+
+      const act = document.createElement("div");
+      act.className = "row";
+      act.style.marginTop = "10px";
+      const rb = document.createElement("button");
+      rb.className = "mini";
+      rb.textContent = "このメッセージを既定に戻す";
+      rb.onclick = () => {
+        const d = C.defaultMessages()[key];
+        msgEdit[key] = { head: d.head, line: d.line, foot: d.foot };
+        markMsgDirty(); renderMsgs();
+      };
+      act.appendChild(rb);
+      card.appendChild(act);
+
+      function paintPreview(){
+        const sv = C.sampleMessageVars(key);
+        let txt;
+        try { txt = C.buildMessage(msgEdit[key], sv.head, sv.rows); }
+        catch(e){ txt = "（文面の組み立てに失敗しました: " + e.message + "）"; }
+        // Discord の **太字** だけ見た目を再現する
+        pv.innerHTML = '<span class="ph">▼ こう投稿されます（サンプルの値で表示）</span>' +
+          esc(txt).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+      }
+      paintPreview();
+
+      box.appendChild(card);
+    });
+  }
+
+  $("msgApply").onclick = async () => {
+    const btn = $("msgApply");
+    btn.disabled = true;
+    try {
+      msgData = await C.saveMessages(msgEdit);
+      msgEdit = JSON.parse(JSON.stringify(msgData));
+      msgDirty = false;
+      $("msgSave").classList.remove("dirty");
+      renderMsgs();
+      toast("文面を保存しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+  $("msgReset").onclick = () => {
+    if (msgDirty && !confirm("編集中の内容を捨てて、保存されている文面に戻しますか？")) return;
+    msgEdit = JSON.parse(JSON.stringify(msgData));
+    msgDirty = false;
+    $("msgSave").classList.remove("dirty");
+    renderMsgs();
+  };
+  $("msgResetAll").onclick = () => {
+    if (!confirm("すべての文面を既定に戻しますか？（保存するまで確定しません）")) return;
+    msgEdit = C.normMessages(C.defaultMessages());
+    markMsgDirty(); renderMsgs();
   };
 
   /* =============================================================

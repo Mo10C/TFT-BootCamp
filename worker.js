@@ -49,7 +49,7 @@
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
 const ALLOWED_PLATFORMS = ["jp1", "kr", "na1", "euw1", "eun1", "oc1", "br1", "la1", "la2", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"];
 const DISCORD_API = "https://discord.com/api/v10";
-const WORKER_VERSION = "3.3";
+const WORKER_VERSION = "3.4";
 
 // ブラウザからのAPI呼び出しを許可するオリジン（"*" か "https://mo10c.github.io" 等）
 const ALLOW_ORIGIN = "*";
@@ -123,6 +123,64 @@ export default {
     console.warn("知らないCronが鳴りました: " + cron);
   }
 };
+
+/* =============================================================
+   Discord へ投げる文面
+
+   Firestore の lboard_index/messages に管理コンソールで保存された
+   テンプレートがあればそれを使い、無ければ下の既定を使う。
+   ★ 新しくDiscordへ投げるものを作るときは、必ずここに既定を足して
+      管理コンソールから編集できるようにすること。
+   ============================================================= */
+const DEFAULT_MSG = {
+  promote: {
+    head: "🎊 **ランクアップのお知らせ** 🎊",
+    line: "{emoji} **{name}** さんが **{to}** に昇格しました！（{from} → {to}）",
+    foot: "おめでとうございます！"
+  },
+  schedule: {
+    head: "🗓 **きょう {md}（{wd}）の予定**　― {title}",
+    line: "{mark} **{name}**{note}",
+    foot: "みなさん参加おまちしています！"
+  },
+  snapshot: {
+    head: "📸 **{label}{maru}**　{md} 23:45 時点",
+    line: "{medal} **{rank}位　{name}**　{rankLabel}　**+{point}pt**",
+    foot: "おつかれさまでした！"
+  },
+  final: {
+    head: "🏆 **{title} 決定！** 🏆\n{rounds}回の{label}の合計ポイントで、{title}{n}名が決まりました。",
+    line: "{medal} **{name}**　**{total}pt**{detail}",
+    foot: "おめでとうございます！ 代表としてよろしくお願いします 🎉"
+  }
+};
+
+// core.js の fillTemplate と同じ動きにすること（管理画面のプレビューと合わせるため）
+function fillW(tpl, vars) {
+  return String(tpl == null ? "" : tpl).replace(/\{(\w+)\}/g, (m, k) =>
+    (vars && vars[k] != null) ? String(vars[k]) : "");
+}
+function buildW(tpl, headVars, rows) {
+  const head = fillW(tpl.head, headVars).trim();
+  const body = (rows || []).map(v => fillW(tpl.line, v)).join("\n");
+  const foot = fillW(tpl.foot, headVars).trim();
+  let out = "";
+  if (head) out += head + "\n";
+  out += body;
+  if (foot) out += "\n\n" + foot;
+  return out.trim();
+}
+async function getMsg(env, key) {
+  let saved = null;
+  try { saved = await fsGet(env, "lboard_index/messages"); } catch (e) { }
+  const d = DEFAULT_MSG[key];
+  const a = (saved && saved[key]) || {};
+  return {
+    head: typeof a.head === "string" ? a.head : d.head,
+    line: (typeof a.line === "string" && a.line.trim()) ? a.line : d.line,
+    foot: typeof a.foot === "string" ? a.foot : d.foot
+  };
+}
 
 /* =============================================================
    LP の一斉集計（毎日23:45 JST）
@@ -275,17 +333,13 @@ async function announcePromotions(env, list) {
   if (!ch || !env.DISCORD_BOT_TOKEN) return 0;
   const emoji = { BRONZE:"🥉", SILVER:"🥈", GOLD:"🥇", PLATINUM:"💎", EMERALD:"💚",
                   DIAMOND:"💠", MASTER:"👑", GRANDMASTER:"🔥", CHALLENGER:"🏆" };
-  const lines = list.map(p =>
-    (emoji[p.to] || "🎉") + " **" + p.name + "** さんが **" + p.to + "** に昇格しました！（" + p.from + " → " + p.to + "）");
-  const content = "🎊 **ランクアップのお知らせ** 🎊\n" + lines.join("\n") + "\nおめでとうございます！";
-
-  const r = await fetch(DISCORD_API + "/channels/" + enc(ch) + "/messages", {
-    method: "POST",
-    headers: { Authorization: "Bot " + String(env.DISCORD_BOT_TOKEN).trim(), "Content-Type": "application/json" },
-    body: JSON.stringify({ content: content.slice(0, 1900) })
-  });
-  if (!r.ok) { console.error("Discord投稿に失敗", r.status, (await r.text()).slice(0, 200)); return 0; }
-  return list.length;
+  const tpl = await getMsg(env, "promote");
+  const content = buildW(tpl, { count: list.length }, list.map(p => ({
+    emoji: emoji[p.to] || "🎉", name: p.name, from: p.from, to: p.to,
+    division: p.division || "", lp: p.lp | 0
+  })));
+  const ok = await postTo(env, ch, content);
+  return ok ? list.length : 0;
 }
 
 /* ---- 手動実行用。CRON_KEY を知っている人だけ ---- */
@@ -322,12 +376,15 @@ async function announceToday(env) {
 
   const title = String(doc.title || "").trim();
   const wd = ["日", "月", "火", "水", "木", "金", "土"][jstWeekday(today)];
-  const head = "🗓 **きょう " + Number(today.slice(5, 7)) + "/" + Number(today.slice(8)) +
-    "（" + wd + "）の予定**" + (title ? "　― " + title : "");
-  const lines = todays.map(e =>
-    (e.star ? "⭐ **" : "・**") + String(e.name).trim() + "**" +
-    (String(e.note || "").trim() ? "　" + String(e.note).trim() : ""));
-  const content = head + "\n" + lines.join("\n") + "\n\nみなさん参加おまちしています！";
+  const tpl = await getMsg(env, "schedule");
+  const content = buildW(tpl, {
+    md: Number(today.slice(5, 7)) + "/" + Number(today.slice(8)),
+    wd: wd, date: today, title: title, count: todays.length
+  }, todays.map(e => ({
+    mark: e.star ? "⭐" : "・",
+    name: String(e.name).trim(),
+    note: String(e.note || "").trim() ? "　" + String(e.note).trim() : ""
+  })));
 
   const ch = env.DISCORD_SCHEDULE_CHANNEL_ID || env.DISCORD_ANNOUNCE_CHANNEL_ID;
   const ok = await postTo(env, ch, content);
@@ -420,12 +477,14 @@ async function runSnapshot(env, opts) {
   const maru = ["", "①", "②", "③", "④", "⑤", "⑥"][round] || ("第" + round + "回");
   const medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"];
 
-  let content = "📸 **" + label + maru + "**　" +
-    Number(today.slice(5, 7)) + "/" + Number(today.slice(8)) + " 23:45 時点\n";
-  content += rows.map(r =>
-    medal[r.rank - 1] + " **" + r.rank + "位　" + r.name + "**　" +
-    rankLabelW(r) + "　**+" + r.point + "pt**").join("\n");
-  content += "\n\nおつかれさまでした！";
+  const tplS = await getMsg(env, "snapshot");
+  const content = buildW(tplS, {
+    label: label, maru: maru, round: round,
+    md: Number(today.slice(5, 7)) + "/" + Number(today.slice(8)), date: today
+  }, rows.map(r => ({
+    medal: medal[r.rank - 1] || "✨", rank: r.rank, name: r.name,
+    rankLabel: rankLabelW(r), point: r.point
+  })));
 
   const ch = env.DISCORD_ANNOUNCE_CHANNEL_ID;
   const posted = await postTo(env, ch, content);
@@ -454,16 +513,18 @@ async function runSnapshot(env, opts) {
       String(a.name).localeCompare(String(b.name)));
     const chosen = order.slice(0, finalN);
 
-    let msg = "🏆 **" + finalTitle + " 決定！** 🏆\n" +
-      dates.length + "回の" + label + "の合計ポイントで、" + finalTitle + finalN + "名が決まりました。\n\n";
-    msg += chosen.map((t, i) => {
+    const tplF = await getMsg(env, "final");
+    const msg = buildW(tplF, {
+      title: finalTitle, label: label, rounds: dates.length, n: finalN
+    }, chosen.map((t, i) => {
       const detail = dates.filter(d => t.per[d] != null)
-        .map((d, k) => (["①","②","③","④","⑤","⑥"][dates.indexOf(d)] || "") + (t.per[d] | 0) + "pt")
+        .map(d => (["①","②","③","④","⑤","⑥"][dates.indexOf(d)] || "") + (t.per[d] | 0) + "pt")
         .join(" + ");
-      return (medal[i] || "✨") + " **" + t.name + "**　**" + t.total + "pt**" +
-        (detail ? "（" + detail + "）" : "");
-    }).join("\n");
-    msg += "\n\nおめでとうございます！ 代表としてよろしくお願いします 🎉";
+      return {
+        medal: medal[i] || "✨", rank: i + 1, name: t.name, total: t.total,
+        detail: detail ? "（" + detail + "）" : ""
+      };
+    }));
 
     const okF = await postTo(env, ch, msg);
     patch.final = chosen;

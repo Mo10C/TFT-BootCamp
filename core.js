@@ -1757,6 +1757,197 @@
   }
 
   /* =============================================================
+     Discord へ投げるメッセージの文面
+
+     保存先: lboard_index/messages
+       { promote:{head,line,foot}, schedule:{...}, snapshot:{...}, final:{...} }
+
+     組み立て方はどれも同じ:
+        head
+        line × 件数
+        （空行）foot
+     head / foot は空にすればその行ごと出ません。
+
+     {◯◯} は差し込み。使える名前は MSG_VARS を見てください。
+     Worker 側にも同じ差し込み処理が入っています（fillW）。
+     ★ 新しくDiscordへ投げるものを作るときは、必ずここに文面を足して
+        管理コンソールから編集できるようにすること。
+     ============================================================= */
+  const MSG_KEYS = ["promote", "schedule", "snapshot", "final"];
+
+  const MSG_META = {
+    promote: {
+      name: "ランクアップのお祝い",
+      where: "談話室",
+      when: "毎日23:45の集計でティアが上がった人がいたとき",
+      vars: {
+        head: [["count", "人数"]],
+        line: [["emoji", "ティアの絵文字"], ["name", "名前"], ["from", "前のティア"],
+               ["to", "新しいティア"], ["division", "ディビジョン"], ["lp", "LP"]],
+        foot: [["count", "人数"]]
+      }
+    },
+    schedule: {
+      name: "きょうの予定",
+      where: "連絡事項",
+      when: "毎朝9:00（予定がある日だけ）",
+      vars: {
+        head: [["md", "10/25"], ["wd", "曜日"], ["date", "2026-10-25"],
+               ["title", "予定表のタイトル"], ["count", "件数"]],
+        line: [["mark", "⭐ または ・"], ["name", "予定の名前"], ["note", "メモ（あれば頭に空白つき）"]],
+        foot: [["count", "件数"]]
+      }
+    },
+    snapshot: {
+      name: "先生スナップショットの結果",
+      where: "談話室",
+      when: "実施日の23:45",
+      vars: {
+        head: [["label", "呼び名"], ["maru", "①②…"], ["round", "回数"],
+               ["md", "10/31"], ["date", "2026-10-31"]],
+        line: [["medal", "🥇🥈🥉"], ["rank", "順位"], ["name", "名前"],
+               ["rankLabel", "MASTER 120LP"], ["point", "ポイント"]],
+        foot: [["label", "呼び名"], ["maru", "①②…"]]
+      }
+    },
+    final: {
+      name: "代表先生の表彰",
+      where: "談話室",
+      when: "最終回の23:45（結果のすぐあと）",
+      vars: {
+        head: [["title", "表彰の名前"], ["label", "呼び名"], ["rounds", "全体の回数"], ["n", "選ばれる人数"]],
+        line: [["medal", "🥇🥈🥉"], ["rank", "順位"], ["name", "名前"],
+               ["total", "合計ポイント"], ["detail", "（①4pt + ②3pt）"]],
+        foot: [["title", "表彰の名前"], ["n", "人数"]]
+      }
+    }
+  };
+
+  function defaultMessages() {
+    return {
+      promote: {
+        head: "🎊 **ランクアップのお知らせ** 🎊",
+        line: "{emoji} **{name}** さんが **{to}** に昇格しました！（{from} → {to}）",
+        foot: "おめでとうございます！"
+      },
+      schedule: {
+        head: "🗓 **きょう {md}（{wd}）の予定**　― {title}",
+        line: "{mark} **{name}**{note}",
+        foot: "みなさん参加おまちしています！"
+      },
+      snapshot: {
+        head: "📸 **{label}{maru}**　{md} 23:45 時点",
+        line: "{medal} **{rank}位　{name}**　{rankLabel}　**+{point}pt**",
+        foot: "おつかれさまでした！"
+      },
+      final: {
+        head: "🏆 **{title} 決定！** 🏆\n{rounds}回の{label}の合計ポイントで、{title}{n}名が決まりました。",
+        line: "{medal} **{name}**　**{total}pt**{detail}",
+        foot: "おめでとうございます！ 代表としてよろしくお願いします 🎉"
+      },
+      updatedAt: 0
+    };
+  }
+
+  function normMessages(raw) {
+    raw = raw || {};
+    const d = defaultMessages();
+    const out = { updatedAt: raw.updatedAt || 0 };
+    MSG_KEYS.forEach(k => {
+      const a = raw[k] || {};
+      out[k] = {
+        head: typeof a.head === "string" ? a.head : d[k].head,
+        line: (typeof a.line === "string" && a.line.trim()) ? a.line : d[k].line,
+        foot: typeof a.foot === "string" ? a.foot : d[k].foot
+      };
+    });
+    return out;
+  }
+
+  async function loadMessages() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc("messages").get();
+        if (snap.exists) return normMessages(snap.data());
+      } else {
+        const raw = localStorage.getItem("mcc-lb2-messages");
+        if (raw) return normMessages(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("メッセージ文面の読み込みに失敗", e); }
+    const d = normMessages(defaultMessages());
+    d.isDefault = true;
+    return d;
+  }
+
+  async function saveMessages(msgs) {
+    if (!isAdmin()) throw new Error("文面の編集は管理者のみです");
+    const m = normMessages(msgs);
+    m.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc("messages").set(m);
+      else localStorage.setItem("mcc-lb2-messages", JSON.stringify(m));
+    } catch (e) {
+      throw new Error("文面を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return m;
+  }
+
+  /* {name} を差し替える。Worker 側の fillW と同じ動き。 */
+  function fillTemplate(tpl, vars) {
+    return String(tpl == null ? "" : tpl).replace(/\{(\w+)\}/g, (m, k) =>
+      (vars && vars[k] != null) ? String(vars[k]) : "");
+  }
+  /* head + 明細 + foot を1通にまとめる */
+  function buildMessage(tpl, headVars, rows) {
+    const head = fillTemplate(tpl.head, headVars).trim();
+    const body = (rows || []).map(v => fillTemplate(tpl.line, v)).join("\n");
+    const foot = fillTemplate(tpl.foot, headVars).trim();
+    let out = "";
+    if (head) out += head + "\n";
+    out += body;
+    if (foot) out += "\n\n" + foot;
+    return out.trim();
+  }
+
+  /* 管理画面のプレビュー用のサンプル */
+  function sampleMessageVars(key) {
+    if (key === "promote") return {
+      head: { count: 2 },
+      rows: [
+        { emoji: "💠", name: "もと先生", from: "EMERALD", to: "DIAMOND", division: "IV", lp: 12 },
+        { emoji: "👑", name: "すいちゃん", from: "DIAMOND", to: "MASTER", division: "", lp: 5 }
+      ]
+    };
+    if (key === "schedule") return {
+      head: { md: "10/25", wd: "日", date: "2026-10-25", title: "クラウドハッシュテイル校　スケジュール表", count: 2 },
+      rows: [
+        { mark: "⭐", name: "開校式", note: "　21:00集合" },
+        { mark: "・", name: "校内イベント 〜謎解き〜", note: "" }
+      ]
+    };
+    if (key === "snapshot") return {
+      head: { label: "先生スナップショット", maru: "①", round: 1, md: "10/31", date: "2026-10-31" },
+      rows: [
+        { medal: "🥇", rank: 1, name: "あ先生", rankLabel: "MASTER 120LP", point: 4 },
+        { medal: "🥈", rank: 2, name: "い先生", rankLabel: "DIAMOND I 40LP", point: 3 },
+        { medal: "🥉", rank: 3, name: "う先生", rankLabel: "DIAMOND III 10LP", point: 2 },
+        { medal: "4️⃣", rank: 4, name: "え先生", rankLabel: "EMERALD I 80LP", point: 1 }
+      ]
+    };
+    return {
+      head: { title: "代表先生", label: "先生スナップショット", rounds: 2, n: 4 },
+      rows: [
+        { medal: "🥇", rank: 1, name: "い先生", total: 7, detail: "（①3pt + ②4pt）" },
+        { medal: "🥈", rank: 2, name: "あ先生", total: 7, detail: "（①4pt + ②3pt）" },
+        { medal: "🥉", rank: 3, name: "う先生", total: 3, detail: "（①2pt + ②1pt）" },
+        { medal: "4️⃣", rank: 4, name: "お先生", total: 2, detail: "（②2pt）" }
+      ]
+    };
+  }
+
+  /* =============================================================
      集計・ヘルパー
      ============================================================= */
   function playerById(state, id) { return state.roster.find(p => p.id === id) || null; }
@@ -2038,7 +2229,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.1",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.3",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -2057,6 +2248,8 @@
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
+    MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
+    fillTemplate, buildMessage, sampleMessageVars,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,
