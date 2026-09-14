@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.6">
+<link rel="stylesheet" href="ui.css?v=3.8">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -67,6 +67,33 @@ tr:last-child td{border-bottom:none}
 .chk input{accent-color:var(--pink)}
 .rolefield{border-top:1px dashed var(--border-strong);padding-top:8px;margin-top:2px}
 .rolefield .lbl{font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:5px}
+
+/* LPの並び順（ロールの並べ替え） */
+.grow{display:flex;align-items:center;gap:10px;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:7px;
+  transition:border-color .1s, opacity .1s}
+.grow.off{opacity:.45}
+.grow.ghosted{opacity:.3}
+.grow.dropline{border-color:var(--cyan);box-shadow:0 -3px 0 -1px var(--cyan) inset}
+.grow .handle{font-size:15px;color:var(--muted);cursor:grab;flex:none;
+  user-select:none;line-height:1;padding:2px 2px 4px}
+body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !important}
+.grow .dot{width:11px;height:11px;border-radius:999px;flex:none;border:1px solid var(--border-strong)}
+.grow .rn{font-size:12.5px;font-weight:900;min-width:96px;flex:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grow .rid{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--muted);flex:none}
+.grow .lbl{flex:1;min-width:110px}
+.grow .lbl input{width:100%;padding:6px 9px;font-size:12px}
+.grow .cnt{font-family:"Space Grotesk",sans-serif;font-size:10.5px;color:var(--muted);
+  flex:none;white-space:nowrap}
+.grow .ord{display:flex;flex-direction:column;gap:2px;flex:none}
+.gdragcard{position:fixed;z-index:9999;pointer-events:none;left:0;top:0;
+  display:flex;align-items:center;gap:9px;background:var(--surface);
+  border:1.5px solid var(--cyan);border-radius:12px;padding:8px 13px;
+  box-shadow:0 18px 34px -12px rgba(0,0,0,.42);transform:translate(-50%,-50%) rotate(-1.5deg);
+  font-size:12.5px;font-weight:900;white-space:nowrap}
+.gother{display:flex;align-items:center;gap:10px;border:1px dashed var(--border-strong);
+  border-radius:12px;padding:9px 12px;font-size:12px;color:var(--muted);margin-top:3px}
 
 .danger-zone{border-color:color-mix(in srgb,var(--danger) 35%,var(--border))}
 .danger-zone > h2{color:var(--danger)}
@@ -278,6 +305,33 @@ tr:last-child td{border-bottom:none}
       </div>
       <div class="hint" id="lpStat" style="margin-top:10px"></div>
     </div>
+
+    <div class="card">
+      <h2>並び順（ロールごと）</h2>
+      <div class="lead">
+        LPランキングは、ここで並べた<b>Discordロールの順</b>にセクション分けして表示されます。
+        行を<b>ドラッグ</b>するか ↑↓ で入れ替えてください。<br>
+        ・<b>「使う」のチェックを外したロール</b>はセクションになりません<br>
+        ・<b>見出し名</b>を同じにして隣どうしに並べると、1つのセクションにまとまります
+        （例: 校長と副校長を両方「校長・副校長」にする）<br>
+        ・複数のロールを持つ人は、<b>リストの下のほう</b>のセクションに入ります
+        （校長が生徒ロールも持っている場合など）<br>
+        ・どれにも当てはまらない人は、いちばん下の「その他」にまとまります
+      </div>
+      <div class="row">
+        <button class="mini" id="lpLoadRoles">🔄 Discordのロールを読み込む</button>
+        <button class="mini" id="lpSyncRoles">👥 メンバーのロール情報を更新</button>
+        <span class="hint" id="lpRoleHint">—</span>
+      </div>
+      <div id="lpGroupList" style="margin-top:12px"></div>
+      <div class="sticky-save" id="lpGroupSave" style="display:none">
+        <span class="dirty-dot"></span>
+        <b style="font-size:12.5px">並び順の変更</b>
+        <div class="spacer" style="flex:1"></div>
+        <button class="mini" id="lpGroupReset">もとに戻す</button>
+        <button class="mini grad" id="lpGroupApply">💾 保存</button>
+      </div>
+    </div>
   </div>
 
   <!-- ================= メンバー ================= -->
@@ -355,8 +409,8 @@ tr:last-child td{border-bottom:none}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.6"></script>
-<script src="home-common.js?v=3.6"></script>
+<script src="core.js?v=3.8"></script>
+<script src="home-common.js?v=3.8"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -1004,6 +1058,7 @@ tr:last-child td{border-bottom:none}
          (sorted.length && sorted[0] > lpData.baseline
            ? " ⚠️ 実際の記録は " + sorted[0] + " からです。それ以前は空白になります。" : ""))
       : "基準日は未設定です（グラフは直近30日・「基準」列は出ません）。";
+    renderLpRoles();
   }
   $("lpSaveBase").onclick = async () => {
     try {
@@ -1059,6 +1114,319 @@ tr:last-child td{border-bottom:none}
     await loadLp();
     toast(`LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
   };
+
+  /* =============================================================
+     並び順（Discordのロールを並べ替える）
+
+     ・ロールの一覧は Worker 経由で Discord から読む（Botトークン使用）。
+       取れないときは、ボードのメンバー／LPデータに残っているロールで代用する。
+     ・並び順は Firestore の lboard_index/lp → groupOrder に保存する。
+     ============================================================= */
+  let gOrder = [];        // [{roleId, name, color, label, use}]
+  let gDirty = false;
+  let gRoleCounts = {};   // roleId → 人数
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+  function roleColorCss(c){
+    c = c | 0;
+    return c ? ("#" + c.toString(16).padStart(6, "0")) : "var(--border-strong)";
+  }
+
+  /* 手元にあるロールを集める（Discordが読めないときの代用） */
+  function localRoles(){
+    const seen = new Map();
+    const add = list => (list || []).forEach(r => {
+      if (r && r.id && !seen.has(r.id)) seen.set(r.id, { id:String(r.id), name:String(r.name||""), color:r.color|0 });
+    });
+    (store.state.roster || []).forEach(p => add(p.roles));
+    Object.values((lpData && lpData.members) || {}).forEach(m => add(m.roles));
+    return [...seen.values()];
+  }
+  /* 各ロールが何人いるか（LPデータ基準） */
+  function countRoles(){
+    const c = {};
+    Object.values((lpData && lpData.members) || {}).forEach(m => {
+      (m.roles || []).forEach(r => { if (r && r.id) c[r.id] = (c[r.id] || 0) + 1; });
+    });
+    gRoleCounts = c;
+  }
+
+  /* 保存済みの並び + まだ並びに入っていないロール を1つのリストにする */
+  function buildGroupList(allRoles){
+    const saved = C.lpGroupOrder(lpData);
+    const known = new Map(allRoles.map(r => [r.id, r]));
+    const out = [];
+    const used = new Set();
+    saved.forEach(g => {
+      const r = known.get(g.roleId) || { id:g.roleId, name:g.name || "（このサーバーに無いロール）", color:g.color };
+      out.push({ roleId:r.id, name:r.name, color:r.color|0, label:g.label || r.name, use:true });
+      used.add(r.id);
+    });
+    allRoles.forEach(r => {
+      if (used.has(r.id)) return;
+      out.push({ roleId:r.id, name:r.name, color:r.color|0, label:r.name, use:false });
+    });
+    return out;
+  }
+
+  function renderLpRoles(){
+    const box = $("lpGroupList");
+    if (!box) return;
+    countRoles();
+    if (!gOrder.length){
+      gOrder = buildGroupList(localRoles());
+      if ($("lpRoleHint").textContent === "—"){
+        $("lpRoleHint").textContent = gOrder.length
+          ? ("メンバーに残っているロール " + gOrder.length + "件を表示中。" +
+             "サーバー全体のロールを出すには「Discordのロールを読み込む」を押してください。")
+          : "まだロールがありません。「Discordのロールを読み込む」を押してください。";
+      }
+    }
+
+    box.innerHTML = "";
+    if (!gOrder.length){
+      box.innerHTML = '<div class="hint">まだロールを読み込めていません。' +
+        '上の「🔄 Discordのロールを読み込む」を押すか、メンバーがDiscordでログインすると出ます。</div>';
+      $("lpGroupSave").style.display = "none";
+      return;
+    }
+
+    gOrder.forEach((g, i) => {
+      const row = document.createElement("div");
+      row.className = "grow" + (g.use ? "" : " off");
+      row.dataset.i = i;
+
+      const hd = document.createElement("span");
+      hd.className = "handle";
+      hd.textContent = "⠿";
+      hd.title = "ドラッグして並び替え";
+      row.appendChild(hd);
+
+      const ck = document.createElement("label");
+      ck.className = "chk";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!g.use;
+      cb.onchange = () => { g.use = cb.checked; markGDirty(); renderLpRoles(); };
+      ck.appendChild(cb);
+      ck.appendChild(document.createTextNode("使う"));
+      row.appendChild(ck);
+
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = roleColorCss(g.color);
+      row.appendChild(dot);
+
+      const rn = document.createElement("span");
+      rn.className = "rn";
+      rn.textContent = g.name || "（名前不明）";
+      rn.title = g.name || "";
+      row.appendChild(rn);
+
+      const cnt = document.createElement("span");
+      cnt.className = "cnt";
+      cnt.textContent = (gRoleCounts[g.roleId] || 0) + "人";
+      cnt.title = "このロールを持つ人の数（LPデータ基準）";
+      row.appendChild(cnt);
+
+      const lb = document.createElement("div");
+      lb.className = "lbl";
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.value = g.label || g.name || "";
+      inp.placeholder = "見出し名（例: 生徒）";
+      inp.title = "LPランキングに出るセクション名。隣どうしで同じ名前にするとまとまります";
+      inp.oninput = () => { g.label = inp.value; markGDirty(); };
+      inp.disabled = !g.use;
+      lb.appendChild(inp);
+      row.appendChild(lb);
+
+      const ord = document.createElement("div");
+      ord.className = "ord";
+      const up = document.createElement("button");
+      up.className = "ordbtn"; up.textContent = "▲"; up.disabled = (i === 0);
+      up.onclick = () => moveG(i, -1);
+      const dn = document.createElement("button");
+      dn.className = "ordbtn"; dn.textContent = "▼"; dn.disabled = (i === gOrder.length - 1);
+      dn.onclick = () => moveG(i, 1);
+      ord.appendChild(up); ord.appendChild(dn);
+      row.appendChild(ord);
+
+      box.appendChild(row);
+    });
+
+    const other = document.createElement("div");
+    other.className = "gother";
+    other.textContent = "↓ これ以外のロールの人／ロールが無い人は「その他」にまとまります";
+    box.appendChild(other);
+
+    // プレビュー
+    const used = gOrder.filter(g => g.use);
+    const secs = [];
+    used.forEach(g => { if (!secs.length || secs[secs.length-1] !== g.label) secs.push(g.label); });
+    const pv = document.createElement("div");
+    pv.className = "hint";
+    pv.style.marginTop = "9px";
+    pv.style.marginBottom = "46px";   // 下の保存バーに隠れないように
+    pv.innerHTML = secs.length
+      ? "LPランキングの見出し: <b>" + secs.map(esc).join("</b> → <b>") + "</b> → <b>その他</b>"
+      : "「使う」にチェックしたロールがありません。グループ分けせず1つの並びになります。";
+    box.appendChild(pv);
+
+    $("lpGroupSave").style.display = "";
+    $("lpGroupSave").classList.toggle("dirty", gDirty);
+  }
+
+  function markGDirty(){ gDirty = true; $("lpGroupSave").classList.add("dirty"); }
+  function moveG(i, d){
+    const j = i + d;
+    if (j < 0 || j >= gOrder.length) return;
+    const t = gOrder[i]; gOrder[i] = gOrder[j]; gOrder[j] = t;
+    markGDirty(); renderLpRoles();
+  }
+
+  $("lpGroupApply").onclick = async () => {
+    const btn = $("lpGroupApply");
+    btn.disabled = true;
+    try {
+      await C.saveLpGroups(gOrder.filter(g => g.use).map(g => ({
+        roleId: g.roleId, name: g.name, color: g.color, label: g.label
+      })));
+      gDirty = false;
+      await loadLp();
+      gOrder = [];              // 保存後の状態で作り直す
+      renderLpRoles();
+      toast("並び順を保存しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+  $("lpGroupReset").onclick = () => {
+    gOrder = []; gDirty = false;
+    $("lpGroupSave").classList.remove("dirty");
+    renderLpRoles();
+    toast("保存されている並び順に戻しました");
+  };
+
+  $("lpLoadRoles").onclick = async () => {
+    const btn = $("lpLoadRoles");
+    btn.disabled = true;
+    try {
+      const roles = await C.DiscordAuth.rolesCached(true);
+      if (!roles.length) throw new Error("ロールが0件でした");
+      gOrder = buildGroupList(roles.map(r => ({ id:String(r.id), name:String(r.name||""), color:r.color|0 })));
+      gDirty = false;
+      renderLpRoles();
+      $("lpRoleHint").textContent = "Discordから " + roles.length + "件のロールを読み込みました";
+    } catch(e){
+      $("lpRoleHint").textContent = "Discordから読めませんでした（" + e.message +
+        "）。メンバーに残っているロールで代用しています。";
+      gOrder = buildGroupList(localRoles());
+      renderLpRoles();
+    }
+    btn.disabled = false;
+  };
+
+  $("lpSyncRoles").onclick = async () => {
+    const targets = (store.state.roster || []).filter(p => p && p.id);
+    if (!targets.length){ toast("このボードにメンバーがいません"); return; }
+    const btn = $("lpSyncRoles");
+    btn.disabled = true;
+    try {
+      const n = await C.syncLpRoles(targets);
+      await loadLp();
+      gOrder = [];
+      renderLpRoles();
+      toast(n + "人のロール情報を更新しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+
+  /* ---- 行のドラッグ&ドロップ（LPタブの並び順）----
+     大会画面の組卓と同じ作り。タッチは長押しで掴む。 */
+  (function setupGroupDnd(){
+    const HOLD_MS = 200, MOUSE_SLOP = 5, TOUCH_SLOP = 12;
+    let d = null;
+
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("touchmove", e => { if (d && d.active) e.preventDefault(); }, { passive:false });
+
+    function onDown(e){
+      if (d) return;
+      if (e.button != null && e.button > 0) return;
+      const row = e.target.closest ? e.target.closest(".grow") : null;
+      if (!row || !$("lpGroupList").contains(row)) return;
+      // 入力欄やボタンの上では掴まない（ハンドル以外からでも掴めるようにしている）
+      if (e.target.closest("input,button,label")) return;
+      d = { from:+row.dataset.i, el:row, sx:e.clientX, sy:e.clientY, x:e.clientX, y:e.clientY,
+            touch:(e.pointerType === "touch"), active:false, card:null, over:null, timer:null };
+      if (d.touch) d.timer = setTimeout(() => { if (d) begin(); }, HOLD_MS);
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+      document.addEventListener("pointercancel", cleanup);
+    }
+    function onMove(e){
+      if (!d) return;
+      d.x = e.clientX; d.y = e.clientY;
+      const dist = Math.hypot(e.clientX - d.sx, e.clientY - d.sy);
+      if (!d.active){
+        if (d.touch){ if (dist > TOUCH_SLOP) cleanup(); return; }
+        if (dist < MOUSE_SLOP) return;
+        begin();
+      }
+      d.card.style.transform = "translate(" + d.x + "px," + d.y + "px) translate(-50%,-50%) rotate(-1.5deg)";
+      const el = document.elementFromPoint(d.x, d.y);
+      const row = el && el.closest ? el.closest(".grow") : null;
+      if (row !== d.over){
+        if (d.over) d.over.classList.remove("dropline");
+        d.over = (row && row !== d.el) ? row : null;
+        if (d.over) d.over.classList.add("dropline");
+      }
+      const M = 70;
+      if (d.y < M) window.scrollBy(0, -12);
+      else if (d.y > window.innerHeight - M) window.scrollBy(0, 12);
+    }
+    function begin(){
+      if (!d || d.active) return;
+      clearTimeout(d.timer); d.timer = null;
+      d.active = true;
+      const g = gOrder[d.from];
+      const c = document.createElement("div");
+      c.className = "gdragcard";
+      c.textContent = (g && (g.label || g.name)) || "ロール";
+      c.style.transform = "translate(" + d.x + "px," + d.y + "px) translate(-50%,-50%) rotate(-1.5deg)";
+      document.body.appendChild(c);
+      d.card = c;
+      document.body.classList.add("gdragging");
+      d.el.classList.add("ghosted");
+      if (navigator.vibrate) { try { navigator.vibrate(10); } catch(err){} }
+    }
+    function onUp(){
+      if (!d) return;
+      const active = d.active, from = d.from;
+      const to = d.over ? +d.over.dataset.i : -1;
+      cleanup();
+      if (!active || to < 0 || to === from) { if (active) renderLpRoles(); return; }
+      const item = gOrder.splice(from, 1)[0];
+      gOrder.splice(to, 0, item);
+      markGDirty();
+      renderLpRoles();
+    }
+    function cleanup(){
+      if (!d) return;
+      clearTimeout(d.timer);
+      if (d.card && d.card.parentNode) d.card.remove();
+      if (d.el) d.el.classList.remove("ghosted");
+      if (d.over) d.over.classList.remove("dropline");
+      document.body.classList.remove("gdragging");
+      d = null;
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", cleanup);
+    }
+  })();
 
   /* =============================================================
      接続設定

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.6">
+<link rel="stylesheet" href="ui.css?v=3.8">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -77,6 +77,18 @@
 .dv.down{color:var(--danger)}
 .dv.flat{color:var(--muted)}
 .ldelta .scale{font-family:"Space Grotesk",sans-serif;font-size:8.5px;font-weight:700;color:var(--muted)}
+
+/* グループ見出し（生徒 → 先生 → 校長・副校長） */
+.ghead{display:flex;align-items:center;gap:9px;padding:9px 16px 7px;
+  background:color-mix(in srgb,var(--accent) 9%,var(--surface-2));
+  border-bottom:1px solid var(--border);border-top:1px solid var(--border)}
+.ghead:first-child{border-top:none}
+.ghead .gname{font-size:12px;font-weight:900;letter-spacing:.04em}
+.ghead .gcount{font-family:"Space Grotesk",sans-serif;font-size:10px;font-weight:700;color:var(--muted)}
+.rolewarn{padding:11px 16px;font-size:11.5px;line-height:1.7;
+  background:color-mix(in srgb,var(--warn) 12%,var(--surface));
+  border-bottom:1px solid var(--border)}
+.rolewarn b{color:var(--ink)}
 
 /* 日付のものさし。全行のグラフがこの目盛りにそろっている */
 .ruler{display:flex;align-items:center;gap:11px;padding:7px 15px 6px;
@@ -200,6 +212,11 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       <div class="pad-dl">LPの増減</div>
     </div>
 
+    <div class="rolewarn" id="roleWarn" style="display:none">
+      ⚠️ <b>全員が「その他」に入っています。</b>
+      LPデータにまだDiscordロールが入っていないためです。
+      管理コンソール →「📈 LP」タブ →「👥 メンバーのロール情報を更新」を1回押すと直ります。
+    </div>
     <div id="rows"></div>
     <div class="tabledata" id="tableData"></div>
     <div class="note" id="note"></div>
@@ -221,15 +238,15 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.6"></script>
-<script src="home-common.js?v=3.6"></script>
+<script src="core.js?v=3.8"></script>
+<script src="home-common.js?v=3.8"></script>
 <script>
 (function(){
   const C = window.LBCore;
   const $ = id => document.getElementById(id);
 
   /* core.js が古いと lpRange が無く、グラフが1本も出ない。先に知らせる。 */
-  if (!C || typeof C.lpRange !== "function"){
+  if (!C || typeof C.lpGroupOrder !== "function"){
     document.body.innerHTML =
       '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;' +
       'font-family:sans-serif;line-height:1.9">' +
@@ -250,6 +267,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   let range = null;         // {from, to, anchored}
   let sameScale = false;    // 縦幅を全員そろえるか
   let sortBy = "lp";
+  let order = [];           // 管理コンソールで並べ替えたロールの順
 
   const MIN_VSPAN = 150;    // これより狭くはしない（小さな揺れを誇張しないため）
   const H_BAND = 58;        // 通常のバンドの高さ(px)
@@ -291,6 +309,9 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   }
 
+  /* 並びは「グループ（生徒 → 先生 → 校長・副校長）」が最優先。
+     その中を、右上のセレクトで選んだ順に並べる。
+     グループが config.js で未設定のときは、グループ分けせず1つの並びになる。 */
   function sortRows(){
     const key = m => {
       const st = C.lpStats(lp, m.id);
@@ -298,7 +319,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       if (sortBy === "day")  return st.dayDelta;
       return null;
     };
-    rows.sort((a, b) => {
+    const inner = (a, b) => {
       if (sortBy === "name") return String(a.name).localeCompare(String(b.name), "ja");
       if (sortBy === "lp") return (b.abs || -1) - (a.abs || -1) ||
         String(a.name).localeCompare(String(b.name), "ja");
@@ -307,6 +328,15 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       if (ka == null) return 1;
       if (kb == null) return -1;
       return kb - ka;
+    };
+    rows.sort((a, b) => (a._g - b._g) || inner(a, b));   // _g は assignGroups で振る
+  }
+  // 各メンバーにセクション番号を振る（0,1,2… / その他は最後）
+  function assignGroups(){
+    order = C.lpGroupOrder(lp);
+    rows.forEach(m => {
+      m._g = order.length ? C.lpGroupIndex(m, order) : 0;
+      m._label = order.length ? C.lpSectionLabel(m._g, order) : "";
     });
   }
 
@@ -352,11 +382,22 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       common = round50(common);
     }
 
-    let drawn = 0;
-    panels.forEach((p, i) => {
+    let drawn = 0, curLabel = null, nInGroup = 0, noRole = 0;
+    panels.forEach(p => {
       if (p.pts.length) drawn++;
-      box.appendChild(buildRow(p, i, sameScale ? common : round50(spanOf(p.pts))));
+      // 見出し名が変わったら新しいセクション。
+      // 隣どうしで同じ見出し名にしてあるロールは、ここで自然に1つにまとまる。
+      if (order.length && p.m._label !== curLabel){
+        curLabel = p.m._label;
+        nInGroup = 0;
+        box.appendChild(groupHead(curLabel, panels.filter(x => x.m._label === curLabel).length));
+      }
+      nInGroup++;
+      if (order.length && p.m._g >= order.length) noRole++;
+      box.appendChild(buildRow(p, nInGroup, sameScale ? common : round50(spanOf(p.pts))));
     });
+    // ロール情報がまだ入っていない人が居ると、全員「その他」に落ちる
+    $("roleWarn").style.display = (order.length && noRole >= rows.length) ? "" : "none";
 
     // 日付のものさし（グラフ列の真上）
     const mid = C.shiftDay(range.from, Math.round(days / 2));
@@ -375,6 +416,20 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     drawAll();
   }
 
+  /* グループの見出し（生徒 / 先生 / 校長・副校長 / その他） */
+  function groupHead(label, count){
+    const h = document.createElement("div");
+    h.className = "ghead";
+    const nm = document.createElement("span");
+    nm.className = "gname";
+    nm.textContent = label;
+    const ct = document.createElement("span");
+    ct.className = "gcount";
+    ct.textContent = count + "人";
+    h.appendChild(nm); h.appendChild(ct);
+    return h;
+  }
+
   function buildRow(p, idx, vspan){
     const m = p.m, st = C.lpStats(lp, m.id);
     const row = document.createElement("div");
@@ -383,7 +438,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 
     const rk = document.createElement("div");
     rk.className = "lrk";
-    rk.textContent = idx + 1;
+    rk.textContent = idx;
     row.appendChild(rk);
 
     const who = document.createElement("div");
@@ -625,7 +680,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     $("scaleBtn").classList.toggle("on", sameScale);
     render();
   };
-  $("sortSel").onchange = () => { sortBy = $("sortSel").value; sortRows(); render(); };
+  $("sortSel").onchange = () => { sortBy = $("sortSel").value; assignGroups(); sortRows(); render(); };
   document.querySelectorAll(".rbtn[data-mode]").forEach(b => {
     b.onclick = () => {
       const v = b.dataset.mode;
@@ -683,7 +738,22 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     });
   }
 
-
+  function renderNote(){
+    const n = $("note");
+    const baseTxt = lp.baseline
+      ? "基準日は <b>" + lp.baseline + "</b>。「基準日から」を選ぶと、この日がグラフの<b>いちばん左</b>に固定されます" +
+        "（管理コンソールの「📈 LP」タブで変更できます）。"
+      : "<b>基準日が未設定です。</b>管理コンソールの「📈 LP」タブで合宿の開始日などを指定すると、" +
+        "その日がグラフの左端に固定され、そこからの増減も出ます。";
+    n.innerHTML =
+      baseTxt +
+      "<br>グラフは<b>1人につき1本の横長のバンド</b>。横軸（期間）はどの行も共通で、上の日付ものさしにそろっています。" +
+      "<b>行をクリックすると大きく開いて</b>、日付とLPの数字まで見えます。" +
+      "<br>縦の幅は既定ではその人に合わせて自動（右はしに「縦◯◯LP」と表示）。" +
+      "<b>「縦をそろえる」</b>を押すと全員同じ縦幅になり、伸びの傾きをそのまま見比べられます。" +
+      "<br>「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" +
+      "LPはティアをまたいで比べられるよう、IRON IV 0LP を 0 とした通し数値に換算しています。";
+  }
 
   /* ---------- 起動 ---------- */
   C.loadLpData().then(data => {
@@ -694,6 +764,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       document.querySelectorAll(".rbtn[data-mode]").forEach(x =>
         x.classList.toggle("on", x.dataset.mode === "30"));
     }
+    assignGroups();
     sortRows();
     render(); renderCheer(); renderNote();
   }).catch(e => {

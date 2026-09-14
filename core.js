@@ -1162,6 +1162,11 @@
         division: String(m.division || ""),
         lp: m.lp | 0,
         abs: (typeof m.abs === "number") ? m.abs : null,
+        // ★ 並び（生徒 → 先生 → 校長…）のためにDiscordロールも持っておく
+        roles: Array.isArray(m.roles)
+          ? m.roles.filter(r => r && r.id).map(r => ({
+              id: String(r.id), name: String(r.name || ""), color: r.color | 0 }))
+          : [],
         updatedAt: m.updatedAt || 0
       };
     });
@@ -1176,6 +1181,15 @@
     return {
       members, hist,
       baseline: /^\d{4}-\d{2}-\d{2}$/.test(raw.baseline) ? raw.baseline : "",
+      // ★ LPランキングの並び順（管理コンソールで並び替えたもの）
+      groupOrder: Array.isArray(raw.groupOrder)
+        ? raw.groupOrder.filter(g => g && g.roleId).map(g => ({
+            roleId: String(g.roleId),
+            name: String(g.name || ""),
+            color: g.color | 0,
+            label: String(g.label || "").trim()
+          }))
+        : [],
       updatedAt: raw.updatedAt || 0
     };
   }
@@ -1210,6 +1224,7 @@
       division: (rank && rank.division) || "",
       lp: (rank && rank.lp) | 0,
       abs: abs,
+      roles: rolesOf(player),
       updatedAt: Date.now()
     };
     const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
@@ -1239,6 +1254,135 @@
     const r = await recordLp(p);
     try { if (r) localStorage.setItem(flag, "1"); } catch (e) { }
     return !!r;
+  }
+
+  /* =============================================================
+     LPランキングの並び（グループ）
+
+     config.js:
+       roles: { lpGroups: [
+         { name: "生徒",         roleIds: ["..."] },
+         { name: "先生",         roleIds: ["..."] },
+         { name: "校長・副校長", roleIds: ["...", "..."] }
+       ] }
+
+     ここに書いた順にグループが上から並びます。
+     ★ 複数のグループのロールを持っている人は、
+        「リストの下のほう（あとに書いたグループ）」に入ります。
+        校長が生徒ロールも持っている、というケースを想定しています。
+     どのグループにも当てはまらない人は、いちばん下の「その他」にまとまります。
+     lpGroups が未設定なら、グループ分けはせず1つの並びになります。
+     ============================================================= */
+  function rolesOf(x) {
+    const r = (x && Array.isArray(x.roles)) ? x.roles
+      : ((x && x.discord && Array.isArray(x.discord.roles)) ? x.discord.roles : []);
+    return r.filter(v => v && v.id).map(v => ({
+      id: String(v.id), name: String(v.name || ""), color: v.color | 0 }));
+  }
+
+  /* 並び順（Firestore の lboard_index/lp → groupOrder）を取り出す。
+     1要素 = Discordのロール1つ。
+     label が同じ要素が隣り合っていると、1つの見出しにまとまる。
+       [{roleId:"A", label:"生徒"}, {roleId:"B", label:"校長・副校長"},
+        {roleId:"C", label:"校長・副校長"}]  → 見出しは「生徒」「校長・副校長」の2つ
+
+     まだ保存されていなければ、旧仕様（config.js の roles.lpGroups）を読む。 */
+  function lpGroupOrder(lp) {
+    const saved = (lp && Array.isArray(lp.groupOrder)) ? lp.groupOrder : [];
+    if (saved.length) {
+      return saved.filter(g => g && g.roleId).map(g => ({
+        roleId: String(g.roleId),
+        name: String(g.name || ""),
+        color: g.color | 0,
+        label: String(g.label || "").trim() || String(g.name || "").trim() || "グループ"
+      }));
+    }
+    // 旧仕様のフォールバック（config.js に書いてあれば読む）
+    const out = [];
+    (((CFG.roles || {}).lpGroups) || []).forEach(g => {
+      const label = String((g && g.name) || "").trim() || "グループ";
+      (((g && g.roleIds) || [])).forEach(id => {
+        id = String(id).trim();
+        if (id) out.push({ roleId: id, name: label, color: 0, label: label });
+      });
+    });
+    return out;
+  }
+  /* 戻り値: 0..n-1 = その要素 / n = その他（どのロールも持たない） / -1 = 並び順が未設定 */
+  function lpGroupIndex(member, order) {
+    order = order || [];
+    if (!order.length) return -1;
+    const ids = rolesOf(member).map(r => r.id);
+    if (ids.length) {
+      // ★ 下にあるものほど優先。校長が生徒ロールも持っている場合に校長側へ入れるため。
+      for (let i = order.length - 1; i >= 0; i--) {
+        if (ids.indexOf(order[i].roleId) >= 0) return i;
+      }
+    }
+    return order.length;
+  }
+  function lpSectionLabel(i, order) {
+    order = order || [];
+    if (i < 0) return "";
+    return i < order.length ? order[i].label : "その他";
+  }
+
+  /* 並び順を保存（管理者のみ）。 */
+  async function saveLpGroups(order) {
+    if (!isAdmin()) throw new Error("並び順の変更は管理者のみです");
+    const clean = (order || []).filter(g => g && g.roleId).map(g => ({
+      roleId: String(g.roleId),
+      name: String(g.name || ""),
+      color: g.color | 0,
+      label: String(g.label || "").trim() || String(g.name || "").trim() || "グループ"
+    }));
+    const db = openDb();
+    try {
+      if (db) {
+        await db.collection("lboard_index").doc(LP_DOC)
+          .set({ groupOrder: clean, updatedAt: Date.now() }, { merge: true });
+      } else {
+        const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
+        cur.groupOrder = clean;
+        cur.updatedAt = Date.now();
+        localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) {
+      throw new Error("並び順を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return clean;
+  }
+
+  /* ロール情報だけをLPデータに書き戻す（Riot APIを呼ばないので速い）。
+     グループ分けは members[].roles を見るので、
+     まだロールが入っていない人がいるときに使う。 */
+  async function syncLpRoles(players) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const list = (players || []).filter(p => p && p.id);
+    if (!list.length) return 0;
+    const patch = { members: {}, updatedAt: Date.now() };
+    list.forEach(p => {
+      patch.members[p.id] = {
+        name: p.name || "—",
+        avatar: (p.discord && p.discord.avatar) || p.avatar || "",
+        roles: rolesOf(p)
+      };
+    });
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(LP_DOC).set(patch, { merge: true });
+      else {
+        const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
+        list.forEach(p => {
+          cur.members[p.id] = Object.assign({}, cur.members[p.id] || { id: p.id }, patch.members[p.id]);
+        });
+        cur.updatedAt = Date.now();
+        localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) {
+      throw new Error("ロール情報を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return list.length;
   }
 
   async function setLpBaseline(date) {
@@ -1603,7 +1747,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "3.6",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "3.8",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -1616,7 +1760,8 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, tierLines, dayKey, shiftDay,
     loadLpData, recordLp, recordLpForSelf, setLpBaseline, lpSeries, lpStats,
-    lpRange, daysBetween,
+    lpRange, daysBetween, syncLpRoles,
+    lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,
