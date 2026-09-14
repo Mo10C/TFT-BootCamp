@@ -10,8 +10,8 @@
    ============================================================= */
 :root{
   /* 背景・面 */
-  --bg:#E9F4FB;          /* 空の淡い水色 */
-  --bg-2:#D5EAF7;
+  --bg:#DCEDF9;          /* 空の淡い水色 */
+  --bg-2:#C2E0F3;
   --surface:#FFFFFF;     /* 雲の白 */
   --surface-2:#F2F8FC;
   --border:#D8E8F2;
@@ -30,7 +30,7 @@
   /* タイル用の色（管理コンソールの「色」プルダウンと対応） */
   --gold:#EFA317;
   --sky:#2E9BC9;
-  --leaf:#7BA64E;        /* ハッシュテイルの背景緑 */
+  --leaf:#85A856;        /* ハッシュテイルの背景緑 */
   --mint:#37BFA8;        /* ハッシュテイルの尾 */
   --coral:#EE7A63;       /* ピンクの子 */
   --navy:#4A5A73;        /* 制服 */
@@ -39,6 +39,8 @@
   --ok:#5F9E3C;
   --warn:#EFA317;
   --danger:#DF5B4C;
+  --cloud-1:rgba(255,255,255,.78);--cloud-2:rgba(255,255,255,.62);
+  --cloud-3:rgba(255,255,255,.46);--cloud-4:rgba(255,255,255,.36);
 
   /* 旧名の互換（既存CSSが var(--pink) / var(--cyan) を参照しているため） */
   --pink:var(--accent);
@@ -77,6 +79,8 @@
     --ok:#7BC456;
     --warn:#F7BE47;
     --danger:#F27A6C;
+  --cloud-1:rgba(92,190,228,.10);--cloud-2:rgba(92,190,228,.07);
+  --cloud-3:rgba(150,125,210,.06);--cloud-4:rgba(92,190,228,.05);
     --grad:linear-gradient(135deg,#F7BE47,#EE8A3C);
     --grad-sky:linear-gradient(135deg,#5CBEE4,#3A8FBE);
     --shadow:0 18px 38px -20px rgba(0,0,0,.72);
@@ -106,6 +110,8 @@
   --ok:#7BC456;
   --warn:#F7BE47;
   --danger:#F27A6C;
+  --cloud-1:rgba(92,190,228,.10);--cloud-2:rgba(92,190,228,.07);
+  --cloud-3:rgba(150,125,210,.06);--cloud-4:rgba(92,190,228,.05);
   --grad:linear-gradient(135deg,#F7BE47,#EE8A3C);
   --grad-sky:linear-gradient(135deg,#5CBEE4,#3A8FBE);
   --shadow:0 18px 38px -20px rgba(0,0,0,.72);
@@ -118,10 +124,10 @@
 body{
   font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
   background:
-    radial-gradient(620px 260px at 12% 8%, rgba(255,255,255,.85), transparent 70%),
-    radial-gradient(520px 220px at 78% 2%, rgba(255,255,255,.72), transparent 72%),
-    radial-gradient(760px 300px at 92% 34%, rgba(255,255,255,.55), transparent 70%),
-    radial-gradient(560px 240px at 4% 52%, rgba(255,255,255,.45), transparent 72%),
+    radial-gradient(620px 260px at 12% 8%, var(--cloud-1), transparent 70%),
+    radial-gradient(520px 220px at 78% 2%, var(--cloud-2), transparent 72%),
+    radial-gradient(760px 300px at 92% 34%, var(--cloud-3), transparent 70%),
+    radial-gradient(560px 240px at 4% 52%, var(--cloud-4), transparent 72%),
     linear-gradient(178deg, var(--bg-2) 0%, var(--bg) 42%, var(--bg) 100%);
   background-attachment:fixed;
   color:var(--ink);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -140,6 +146,18 @@ button{font-family:inherit;cursor:pointer}
   clip-path:polygon(25% 5%,75% 5%,100% 50%,75% 95%,25% 95%,0 50%);
   display:grid;place-items:center;color:#fff;font-weight:900;font-size:16px;
   text-shadow:0 1px 2px rgba(120,60,0,.45)}
+
+/* 校章（盾のエンブレム）。assets/emblem.png を使い、
+   読み込めなかったときだけ CSS で盾の形を描いて代替する。 */
+.brandmark{width:42px;height:53px;flex:none;position:relative;display:grid;place-items:center}
+.brandmark img{width:100%;height:100%;object-fit:contain;display:block;
+  filter:drop-shadow(0 2px 3px rgba(35,70,105,.28))}
+.brandmark.noimg{
+  background:var(--leaf);
+  clip-path:polygon(4% 3%,96% 3%,96% 60%,50% 97%,4% 60%);
+  box-shadow:inset 0 0 0 1.5px rgba(245,230,211,.9)}
+.brandmark.noimg::after{content:"C";color:#F5E6D3;font-weight:900;font-size:17px;
+  transform:translateY(-3px)}
 .brand h1{font-size:16.5px;font-weight:900;letter-spacing:.02em}
 .brand .sub{font-size:10.5px;color:var(--muted)}
 .badge{font-size:11px;font-weight:900;padding:4px 12px;border-radius:999px;

@@ -12,11 +12,13 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  --bg:#E9F4FB;--bg-2:#D5EAF7;--surface:#FFFFFF;--surface-2:#F2F8FC;
+  --bg:#DCEDF9;--bg-2:#C2E0F3;--surface:#FFFFFF;--surface-2:#F2F8FC;
   --border:#D8E8F2;--border-strong:#BBD7E8;--ink:#23384D;--muted:#6D8699;
   --accent:#EFA317;--accent-deep:#D3860A;--accent-2:#2E9BC9;--accent-2-deep:#1E7FAA;
-  --gold:#EFA317;--sky:#2E9BC9;--leaf:#7BA64E;--mint:#37BFA8;--coral:#EE7A63;--navy:#4A5A73;
+  --gold:#EFA317;--sky:#2E9BC9;--leaf:#85A856;--mint:#37BFA8;--coral:#EE7A63;--navy:#4A5A73;
   --ok:#5F9E3C;--warn:#EFA317;--danger:#DF5B4C;
+  --cloud-1:rgba(255,255,255,.78);--cloud-2:rgba(255,255,255,.62);
+  --cloud-3:rgba(255,255,255,.46);--cloud-4:rgba(255,255,255,.36);
   --pink:var(--accent);--pink-deep:var(--accent-deep);--pink-soft:#F7D9A0;
   --cyan:var(--accent-2);--cyan-deep:var(--accent-2-deep);--cyan-soft:#BFE4F3;
   --grad:linear-gradient(135deg,#F5B731,#E97E2C);
@@ -29,6 +31,8 @@
   --accent:#F7BE47;--accent-deep:#F0A317;--accent-2:#5CBEE4;--accent-2-deep:#8FD6F0;
   --gold:#F7BE47;--sky:#5CBEE4;--leaf:#9BC96C;--mint:#55D8C0;--coral:#F49482;--navy:#8FA3BE;
   --ok:#7BC456;--warn:#F7BE47;--danger:#F27A6C;
+  --cloud-1:rgba(92,190,228,.10);--cloud-2:rgba(92,190,228,.07);
+  --cloud-3:rgba(150,125,210,.06);--cloud-4:rgba(92,190,228,.05);
   --pink:var(--accent);--pink-deep:var(--accent-deep);--pink-soft:#6B5225;
   --cyan:var(--accent-2);--cyan-deep:var(--accent-2-deep);--cyan-soft:#1E4C63;
   --grad:linear-gradient(135deg,#F7BE47,#EE8A3C);
@@ -38,10 +42,10 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
   background:
-    radial-gradient(620px 260px at 12% 8%, rgba(255,255,255,.85), transparent 70%),
-    radial-gradient(520px 220px at 78% 2%, rgba(255,255,255,.72), transparent 72%),
-    radial-gradient(760px 300px at 92% 34%, rgba(255,255,255,.55), transparent 70%),
-    radial-gradient(560px 240px at 4% 52%, rgba(255,255,255,.45), transparent 72%),
+    radial-gradient(620px 260px at 12% 8%, var(--cloud-1), transparent 70%),
+    radial-gradient(520px 220px at 78% 2%, var(--cloud-2), transparent 72%),
+    radial-gradient(760px 300px at 92% 34%, var(--cloud-3), transparent 70%),
+    radial-gradient(560px 240px at 4% 52%, var(--cloud-4), transparent 72%),
     linear-gradient(178deg, var(--bg-2) 0%, var(--bg) 42%, var(--bg) 100%);
   background-attachment:fixed;
   color:var(--ink);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -173,6 +177,14 @@ body.viewer .pop{cursor:default}
   padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
 #toast.show{opacity:.96}
 .section-gap{height:6px}
+
+.brandmark{width:42px;height:53px;flex:none;position:relative;display:grid;place-items:center}
+.brandmark img{width:100%;height:100%;object-fit:contain;display:block;
+  filter:drop-shadow(0 2px 3px rgba(35,70,105,.28))}
+.brandmark.noimg{background:var(--leaf);
+  clip-path:polygon(4% 3%,96% 3%,96% 60%,50% 97%,4% 60%);
+  box-shadow:inset 0 0 0 1.5px rgba(245,230,211,.9)}
+.brandmark.noimg::after{content:"C";color:#F5E6D3;font-weight:900;font-size:17px;transform:translateY(-3px)}
 </style>
 </head>
 <body>
@@ -192,7 +204,7 @@ body.viewer .pop{cursor:default}
 
   <div class="top">
     <div class="brand">
-      <div class="hex">C</div>
+      <div class="brandmark"><img src="assets/emblem.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
         <h1 id="boardTitle">TFT リーダーボード</h1>
         <div class="sub">クラウドハッシュテイル校 ｜ <span id="boardIdLabel" class="num">default</span></div>
@@ -266,7 +278,7 @@ body.viewer .pop{cursor:default}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.0"></script>
+<script src="core.js?v=3.1"></script>
 <script>
 (function(){
   const C = window.LBCore;
