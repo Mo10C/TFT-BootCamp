@@ -22,7 +22,7 @@ window.MCC_LB_CONFIG = {
      この一式の worker.js を「新しい Worker」としてデプロイした URL を貼る。
      既存の tft-riot-proxy とは別 Worker にしてください（OAuth 機能が増えているため）。
      例: "https://mcc-login-board.moto-moto-tennis.workers.dev" */
-  workerUrl: "",
+  workerUrl: "https://tft-riot-proxy.moto-moto-tennis.workers.dev",
 
   /* ---- 3. Riot ルーティング ----
      region   = account / match API（asia / americas / europe）
@@ -34,7 +34,7 @@ window.MCC_LB_CONFIG = {
      認証処理自体は Worker 側で完結します（Client ID / Secret は Worker のシークレット）。
      ここは「未参加の人向けにサーバー招待リンクを出す」などの表示用途のみ。 */
   discord: {
-    guildName: "マウンテンチョンク校",
+    guildName: "クラウドハッシュテイル校",
     inviteUrl: ""              // 例: "https://discord.gg/xxxx"（空なら非表示）
   },
 
