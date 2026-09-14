@@ -11,8 +11,10 @@
   //   npx wrangler secret put DISCORD_CLIENT_SECRET
   //   npx wrangler secret put DISCORD_BOT_TOKEN
   //   npx wrangler secret put CRON_KEY          （/collect の手動実行用・任意）
-  // 毎日 23:45 JST = 14:45 UTC にLPを一斉集計
-  "triggers": { "crons": ["45 14 * * *"] },
+  // Cron は2本（どちらもUTC表記。Cloudflareの入力欄はUTCです）
+  //   45 14 * * *  → 23:45 JST  LPの一斉集計
+  //    0  0 * * *  →  9:00 JST  きょうの予定をDiscordの談話室へ
+  "triggers": { "crons": ["45 14 * * *", "0 0 * * *"] },
 
   "vars": {
     // クラウドハッシュテイル校サーバーのID（Discordの開発者モードでコピー）
@@ -24,6 +26,8 @@
     "FIREBASE_API_KEY": "AIzaSyCyZ7IbKh02V8fvILTCDTgLPKRuoNFS78Y",
     "RIOT_PLATFORM": "jp1",
     // ランクアップのお祝いを投げるチャンネルID（談話室）。空なら投稿しない
-    "DISCORD_ANNOUNCE_CHANNEL_ID": ""
+    "DISCORD_ANNOUNCE_CHANNEL_ID": "",
+    // 予定表の当日通知を投げるチャンネルID（連絡事項）
+    "DISCORD_SCHEDULE_CHANNEL_ID": "1540780799564062720"
   }
 }

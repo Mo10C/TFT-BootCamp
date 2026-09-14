@@ -967,7 +967,7 @@
       subtitle: "Discordログイン式ホーム",
       tiles: [
         { id: "boards",   icon: "🏆", name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "gold",  enabled: true, soon: false, roleIds: [] },
-        { id: "schedule", icon: "🗓", name: "予定表",       desc: "大会・合宿・コーチングの日程をまとめて確認。", url: "schedule.html", tint: "sky",   enabled: true, soon: true,  roleIds: [] },
+        { id: "schedule", icon: "🗓", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "sky",   enabled: true, soon: false, roleIds: [] },
         { id: "members",  icon: "👥", name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf",  enabled: true, soon: true,  roleIds: [] },
         { id: "lp",       icon: "📈", name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "mint",  enabled: true, soon: true,  roleIds: [] }
       ],
@@ -1466,6 +1466,150 @@
   }
 
   /* =============================================================
+     予定表（スケジュール）
+
+     保存先: lboard_index/schedule
+       { title, events: [{date:"2026-10-25", name:"開校式", star:true, note:""}],
+         notify: true, updatedAt }
+
+     ・date は YYYY-MM-DD（日本時間の日付）
+     ・star を付けると予定表で強調され、Discord通知でも先頭に出る
+     ・notify を false にすると、当日9時のDiscord通知を止められる
+
+     まだ一度も保存していないときは、下の既定（＝もらった予定表の画像の内容）を返す。
+     ============================================================= */
+  const SCHED_DOC = "schedule";
+  const SCHED_LS_KEY = "mcc-lb2-schedule";
+
+  function defaultSchedule() {
+    return {
+      title: "クラウドハッシュテイル校　スケジュール表",
+      notify: true,
+      events: [
+        { date: "2026-10-25", name: "開校式", star: true, note: "" },
+        { date: "2026-10-25", name: "校内イベント 〜謎解き〜", star: false, note: "" },
+        { date: "2026-10-28", name: "校内イベント 〜garticphone〜", star: false, note: "" },
+        { date: "2026-10-31", name: "校内イベント 〜みんなのおすすめゲーム〜", star: false, note: "" },
+        { date: "2026-10-31", name: "先生スナップショット①", star: false, note: "" },
+        { date: "2026-11-07", name: "先生スナップショット②", star: false, note: "" },
+        { date: "2026-11-08", name: "先生対抗戦", star: true, note: "" },
+        { date: "2026-11-14", name: "校内チーム戦練習", star: false, note: "" },
+        { date: "2026-11-15", name: "学校対抗戦", star: true, note: "" },
+        { date: "2026-11-15", name: "校内後夜祭", star: false, note: "" }
+      ],
+      updatedAt: 0
+    };
+  }
+
+  function normSchedule(raw) {
+    raw = raw || {};
+    const events = (Array.isArray(raw.events) ? raw.events : [])
+      .filter(e => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date) && String(e.name || "").trim())
+      .map(e => ({
+        date: String(e.date),
+        name: String(e.name).trim(),
+        star: !!e.star,
+        note: String(e.note || "").trim()
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date) || (b.star - a.star));
+    return {
+      title: String(raw.title || "").trim() || "スケジュール表",
+      notify: raw.notify !== false,
+      events,
+      updatedAt: raw.updatedAt || 0
+    };
+  }
+
+  async function loadSchedule() {
+    const db = openDb();
+    try {
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(SCHED_DOC).get();
+        if (snap.exists) {
+          const s = normSchedule(snap.data());
+          if (s.events.length) return s;
+        }
+      } else {
+        const raw = localStorage.getItem(SCHED_LS_KEY);
+        if (raw) {
+          const s = normSchedule(JSON.parse(raw));
+          if (s.events.length) return s;
+        }
+      }
+    } catch (e) { console.warn("予定表の読み込みに失敗", e); }
+    // まだ保存されていない → 画像からおこした既定の予定表を出す
+    const d = normSchedule(defaultSchedule());
+    d.isDefault = true;
+    return d;
+  }
+
+  async function saveSchedule(sch) {
+    if (!isAdmin()) throw new Error("予定表の編集は管理者のみです");
+    const s = normSchedule(sch);
+    s.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(SCHED_DOC).set(s);
+      else localStorage.setItem(SCHED_LS_KEY, JSON.stringify(s));
+    } catch (e) {
+      throw new Error("予定表を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return s;
+  }
+
+  /* ---- 日付まわり ---- */
+  const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
+  function weekdayOf(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d).getDay();     // 0=日
+  }
+  function startOfWeek(key) { return shiftDay(key, -weekdayOf(key)); }
+  function endOfWeek(key) { return shiftDay(key, 6 - weekdayOf(key)); }
+
+  function eventsOn(sch, key) {
+    return (sch.events || []).filter(e => e.date === key);
+  }
+
+  /* カレンダー（日〜土の7列）を組む。
+     予定のある最初の日の週の日曜 〜 最後の日の週の土曜 までを並べる。
+     期間の外側の日は inRange:false（画像と同じく薄く出す）。 */
+  function scheduleWeeks(sch) {
+    const ev = sch.events || [];
+    if (!ev.length) return { weeks: [], first: "", last: "" };
+    const first = ev[0].date, last = ev[ev.length - 1].date;
+    const from = startOfWeek(first), to = endOfWeek(last);
+    const weeks = [];
+    let cur = from;
+    let guard = 0;
+    while (cur <= to && guard++ < 60) {
+      const row = [];
+      for (let i = 0; i < 7; i++) {
+        const key = shiftDay(cur, i);
+        row.push({
+          date: key,
+          day: Number(key.slice(8)),
+          month: Number(key.slice(5, 7)),
+          firstOfMonth: key.slice(8) === "01" || key === from,
+          dow: i,
+          inRange: (key >= first && key <= last),
+          today: key === dayKey(),
+          events: eventsOn(sch, key)
+        });
+      }
+      weeks.push(row);
+      cur = shiftDay(cur, 7);
+    }
+    return { weeks, first, last };
+  }
+
+  /* 今日以降の予定を近い順に（予定表の下に出す一覧用） */
+  function upcomingEvents(sch, limit) {
+    const today = dayKey();
+    const out = (sch.events || []).filter(e => e.date >= today);
+    return limit ? out.slice(0, limit) : out;
+  }
+
+  /* =============================================================
      集計・ヘルパー
      ============================================================= */
   function playerById(state, id) { return state.roster.find(p => p.id === id) || null; }
@@ -1747,7 +1891,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "3.8",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "3.9",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -1762,6 +1906,8 @@
     loadLpData, recordLp, recordLpForSelf, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
+    defaultSchedule, normSchedule, loadSchedule, saveSchedule,
+    scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

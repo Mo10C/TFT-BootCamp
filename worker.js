@@ -49,7 +49,7 @@
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
 const ALLOWED_PLATFORMS = ["jp1", "kr", "na1", "euw1", "eun1", "oc1", "br1", "la1", "la2", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"];
 const DISCORD_API = "https://discord.com/api/v10";
-const WORKER_VERSION = "3.0";
+const WORKER_VERSION = "3.2";
 
 // ブラウザからのAPI呼び出しを許可するオリジン（"*" か "https://mo10c.github.io" 等）
 const ALLOW_ORIGIN = "*";
@@ -80,6 +80,7 @@ export default {
         case "/member":        return await guildMember(url, env);
         case "/diag":          return await diagnostics(env);
         case "/collect":       return await collectEndpoint(url, env);
+        case "/notify":        return await notifyEndpoint(url, env);
         default:               return json({ error: "unknown endpoint: " + path }, 404);
       }
     } catch (e) {
@@ -95,10 +96,25 @@ export default {
      または wrangler.jsonc の triggers.crons で "45 14 * * *" を設定すると
      毎日 23:45(JST) に走る。 */
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(collectLp(env).then(
-      r => console.log("LP集計 完了", JSON.stringify(r)),
-      e => console.error("LP集計 失敗", e && e.message)
-    ));
+    // Cron Trigger は2本ある。どちらが鳴ったかで処理を分ける。
+    //   45 14 * * *  → 23:45 JST  LPの一斉集計
+    //    0  0 * * *  →  9:00 JST  きょうの予定をDiscordへ
+    const cron = String((event && event.cron) || "").trim();
+    if (cron === "0 0 * * *") {
+      ctx.waitUntil(announceToday(env).then(
+        r => console.log("予定の通知 完了", JSON.stringify(r)),
+        e => console.error("予定の通知 失敗", e && e.message)
+      ));
+      return;
+    }
+    if (cron === "45 14 * * *" || !cron) {
+      ctx.waitUntil(collectLp(env).then(
+        r => console.log("LP集計 完了", JSON.stringify(r)),
+        e => console.error("LP集計 失敗", e && e.message)
+      ));
+      return;
+    }
+    console.warn("知らないCronが鳴りました: " + cron);
   }
 };
 
@@ -275,6 +291,74 @@ async function collectEndpoint(url, env) {
 }
 
 /* =============================================================
+   きょうの予定を Discord の「連絡事項」チャンネルへ（毎朝9:00 JST）
+
+   Firestore の lboard_index/schedule を読み、
+   きょうの日付（JST）の予定があれば1通だけ投稿する。
+   予定が無い日は何もしない（毎朝おはようだけ流れると邪魔なので）。
+
+   ★ 投稿先は DISCORD_SCHEDULE_CHANNEL_ID（連絡事項）。
+      ランクアップのお祝いは DISCORD_ANNOUNCE_CHANNEL_ID（談話室）で別枠。
+      SCHEDULE 側が未設定のときだけ、談話室にフォールバックする。
+   ============================================================= */
+async function announceToday(env) {
+  const today = jstDayKey();
+  const doc = await fsGet(env, "lboard_index/schedule");
+  if (!doc) return { ok: true, date: today, note: "予定表がまだ保存されていません", posted: 0 };
+  if (doc.notify === false) return { ok: true, date: today, note: "通知がオフです", posted: 0 };
+
+  const all = Array.isArray(doc.events) ? doc.events : [];
+  const todays = all.filter(e => e && String(e.date) === today && String(e.name || "").trim());
+  if (!todays.length) return { ok: true, date: today, note: "きょうは予定なし", posted: 0 };
+
+  // ★（大きな行事）を先に
+  todays.sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0));
+
+  const title = String(doc.title || "").trim();
+  const wd = ["日", "月", "火", "水", "木", "金", "土"][jstWeekday(today)];
+  const head = "🗓 **きょう " + Number(today.slice(5, 7)) + "/" + Number(today.slice(8)) +
+    "（" + wd + "）の予定**" + (title ? "　― " + title : "");
+  const lines = todays.map(e =>
+    (e.star ? "⭐ **" : "・**") + String(e.name).trim() + "**" +
+    (String(e.note || "").trim() ? "　" + String(e.note).trim() : ""));
+  const content = head + "\n" + lines.join("\n") + "\n\nみなさん参加おまちしています！";
+
+  const ch = env.DISCORD_SCHEDULE_CHANNEL_ID || env.DISCORD_ANNOUNCE_CHANNEL_ID;
+  const ok = await postTo(env, ch, content);
+  return { ok: true, date: today, posted: ok ? todays.length : 0,
+           channel: env.DISCORD_SCHEDULE_CHANNEL_ID ? "連絡事項" : "談話室（連絡事項が未設定のため）",
+           events: todays.map(e => e.name), discord: ok ? "投稿しました" : "投稿できませんでした" };
+}
+
+function jstWeekday(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/* ---- 指定チャンネルへ1通投げる（お祝いと予定で共用）---- */
+async function postTo(env, ch, content) {
+  if (!ch || !env.DISCORD_BOT_TOKEN) {
+    console.warn("チャンネルID / DISCORD_BOT_TOKEN が未設定のため投稿しません");
+    return false;
+  }
+  const r = await fetch(DISCORD_API + "/channels/" + enc(ch) + "/messages", {
+    method: "POST",
+    headers: { Authorization: "Bot " + String(env.DISCORD_BOT_TOKEN).trim(), "Content-Type": "application/json" },
+    body: JSON.stringify({ content: String(content).slice(0, 1900) })
+  });
+  if (!r.ok) { console.error("Discord投稿に失敗", r.status, (await r.text()).slice(0, 200)); return false; }
+  return true;
+}
+
+/* ---- 手動実行用。CRON_KEY を知っている人だけ ---- */
+async function notifyEndpoint(url, env) {
+  if (!env.CRON_KEY) return json({ error: "CRON_KEY が未設定のため手動実行は無効です" }, 403);
+  if (url.searchParams.get("key") !== env.CRON_KEY) return json({ error: "key が違います" }, 403);
+  const r = await announceToday(env);
+  return json(r);
+}
+
+/* =============================================================
    /diag — 設定の自己診断
    シークレットの中身は絶対に返さない。「入っているか」と
    「Discord に通るか」だけを返す。
@@ -339,6 +423,30 @@ async function diagnostics(env) {
   out.checks.announce = present("DISCORD_ANNOUNCE_CHANNEL_ID")
     ? "OK: ランクアップを投稿します"
     : "DISCORD_ANNOUNCE_CHANNEL_ID 未設定のため、お祝い投稿は行いません";
+
+  // 予定表の当日通知（毎朝9:00 JST → 連絡事項チャンネル）
+  const schCh = present("DISCORD_SCHEDULE_CHANNEL_ID") || present("DISCORD_ANNOUNCE_CHANNEL_ID");
+  const needSch = ["FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "DISCORD_BOT_TOKEN"]
+    .filter(k => !present(k)).concat(schCh ? [] : ["DISCORD_SCHEDULE_CHANNEL_ID"]);
+  out.checks.scheduleNotify = needSch.length
+    ? "未設定のため当日通知は動きません: " + needSch.join(", ")
+    : "OK: 当日9:00の予定通知に必要な設定は揃っています（Cron Trigger \"0 0 * * *\" の登録も必要）";
+  out.checks.scheduleChannel = present("DISCORD_SCHEDULE_CHANNEL_ID")
+    ? "予定は DISCORD_SCHEDULE_CHANNEL_ID（連絡事項）へ投稿します"
+    : (present("DISCORD_ANNOUNCE_CHANNEL_ID")
+        ? "⚠️ DISCORD_SCHEDULE_CHANNEL_ID が未設定のため、予定も談話室へ投稿されます"
+        : "投稿先が未設定です");
+  try {
+    if (present("FIREBASE_PROJECT_ID") && present("FIREBASE_API_KEY")) {
+      const doc = await fsGet(env, "lboard_index/schedule");
+      const n = (doc && Array.isArray(doc.events)) ? doc.events.length : 0;
+      out.checks.scheduleSaved = doc
+        ? ("保存済み: " + n + "件" + (doc.notify === false ? "（通知オフ）" : ""))
+        : "予定表がまだ保存されていません（管理コンソール →「🗓 予定表」で保存してください）";
+    }
+  } catch (e) {
+    out.checks.scheduleSaved = "読み取り失敗: " + String((e && e.message) || e);
+  }
 
   return json(out);
 }

@@ -7,7 +7,76 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.8">
+<link rel="stylesheet" href="ui.css?v=3.9">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;
+  box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:14px}
+.panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px 17px;border-bottom:1px solid var(--border)}
+.panel-head h2{font-size:15px;font-weight:900}
+.panel-head .sub{font-size:10.5px;color:var(--muted)}
+.spacer{flex:1}
+
+/* ---- カレンダー ---- */
+.calwrap{overflow-x:auto;padding:0}
+table.cal{width:100%;border-collapse:collapse;table-layout:fixed;min-width:720px}
+table.cal th{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:.08em;text-align:center;padding:9px 4px;
+  border-bottom:1.5px solid var(--border-strong);color:var(--ink);background:var(--surface-2)}
+table.cal th.sun{color:var(--danger)}
+table.cal th.sat{color:var(--accent-2-deep)}
+table.cal td{border:1px solid var(--border);vertical-align:top;padding:7px 8px 10px;
+  height:104px;width:14.28%}
+td.out{background:var(--surface-2)}
+td.out .dnum{color:var(--muted);opacity:.5}
+td.today{background:color-mix(in srgb,var(--accent) 10%,var(--surface));
+  box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 55%,transparent)}
+.dnum{font-family:"Space Grotesk",sans-serif;font-size:14px;font-weight:700;
+  font-variant-numeric:tabular-nums;line-height:1.2;margin-bottom:5px}
+.dnum .md{font-size:14px}
+td.sun .dnum{color:var(--danger)}
+td.sat .dnum{color:var(--accent-2-deep)}
+.todaytag{font-family:"Zen Kaku Gothic New",sans-serif;font-size:8.5px;font-weight:900;
+  color:#fff;background:var(--grad);border-radius:999px;padding:1px 7px;margin-left:5px;
+  vertical-align:2px}
+.ev{font-size:11px;line-height:1.45;margin-bottom:5px;word-break:break-word}
+.ev.star{font-weight:900}
+.ev .st{color:var(--accent-deep)}
+.ev .note{display:block;font-size:9.5px;color:var(--muted)}
+
+/* ---- これからの予定 ---- */
+.uplist{padding:4px 0}
+.uprow{display:flex;align-items:flex-start;gap:12px;padding:11px 17px;
+  border-bottom:1px solid var(--border)}
+.uprow:last-child{border-bottom:none}
+.uprow.soon{background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.update{flex:none;width:112px;font-family:"Space Grotesk",sans-serif;
+  font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.35}
+.update .wd{font-family:"Zen Kaku Gothic New",sans-serif;font-size:11px;font-weight:700;margin-left:5px}
+.update .wd.sun{color:var(--danger)}
+.update .wd.sat{color:var(--accent-2-deep)}
+.upname{flex:1;min-width:0;font-size:13px;font-weight:900;line-height:1.45}
+.upname .note{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:2px}
+.upin{flex:none;font-family:"Space Grotesk",sans-serif;font-size:11.5px;font-weight:700;
+  color:var(--muted);white-space:nowrap}
+.upin.today{color:var(--accent-deep)}
+.empty{padding:30px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
+
+.notice{padding:11px 17px;font-size:11.5px;line-height:1.75;
+  background:color-mix(in srgb,var(--warn) 12%,var(--surface));
+  border-bottom:1px solid var(--border)}
+.notice b{color:var(--ink)}
+.note{font-size:11.5px;color:var(--muted);padding:12px 17px 15px;line-height:1.75;
+  border-top:1px solid var(--border)}
+.note b{color:var(--ink)}
+
+@media (max-width:620px){
+  .update{width:92px;font-size:12px}
+  .upname{font-size:12.5px}
+}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -23,35 +92,152 @@
     <span class="badge" id="roleBadge">—</span>
     <div class="spacer"></div>
     <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
-  <div class="soon-wrap">
-    <div class="big" style="color:var(--cyan)">🗓</div>
-    <h2>予定表</h2>
-    <p>大会・合宿・コーチングの日程をここに集約する予定です。</p>
-    <p><b>この画面はまだ準備中です。</b></p>
-
-    <div class="soon-list">
-      <div class="soon-item"><span>・</span><div><b>大会カレンダー</b><br>月表示で、開催予定の大会と締切を一覧。</div></div>
-      <div class="soon-item"><span>・</span><div><b>参加登録</b><br>Discordログインのまま、その場で参加表明。</div></div>
-      <div class="soon-item"><span>・</span><div><b>リマインド</b><br>開催前にDiscordへ自動通知（既存Botと連携）。</div></div>
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2 id="calTitle">読み込み中…</h2>
+        <div class="sub" id="calSub">—</div>
+      </div>
     </div>
+    <div class="notice" id="defaultNotice" style="display:none">
+      ⚠️ これは<b>初期データ</b>です（まだ保存されていません）。
+      管理コンソール →「🗓 予定表」で <b>保存</b> すると、全員に共有され、
+      <b>当日9:00のDiscord通知（連絡事項チャンネル）</b>も動くようになります。
+    </div>
+    <div class="calwrap" id="calWrap"></div>
+    <div class="note" id="calNote"></div>
+  </div>
 
-    <a class="mini grad" href="home.html">🏠 HOME に戻る</a>
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>これからの予定</h2>
+        <div class="sub" id="upSub">—</div>
+      </div>
+    </div>
+    <div class="uplist" id="uplist"></div>
   </div>
 
 </div>
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.8"></script>
-<script src="home-common.js?v=3.8"></script>
+<script src="core.js?v=3.9"></script>
+<script src="home-common.js?v=3.9"></script>
 <script>
 (function(){
-  const session = window.LBCore.Session.require();
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  if (!C || typeof C.loadSchedule !== "function"){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;' +
+      'font-family:sans-serif;line-height:1.9">' +
+      '<b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      'core.js を新しいものに差し替えてから、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+
+  const session = C.Session.require();
   if (!session) return;
   window.MCCHome.boot(session);
+
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+  /* ---------- カレンダー ---------- */
+  function renderCal(sch){
+    const { weeks, first, last } = C.scheduleWeeks(sch);
+    $("calTitle").textContent = sch.title;
+    const box = $("calWrap");
+    if (!weeks.length){
+      box.innerHTML = '<div class="empty">まだ予定が登録されていません。<br>' +
+        '管理コンソールの「🗓 予定表」から追加できます。</div>';
+      $("calSub").textContent = "0件";
+      return;
+    }
+    $("calSub").textContent =
+      fmtMd(first) + " 〜 " + fmtMd(last) + " ・ 全" + sch.events.length + "件";
+
+    let html = '<table class="cal"><tr>' +
+      ["SUN","MON","TUE","WED","THU","FRI","SAT"].map((d, i) =>
+        '<th class="' + (i === 0 ? "sun" : i === 6 ? "sat" : "") + '">' + d + "</th>").join("") +
+      "</tr>";
+
+    weeks.forEach(row => {
+      html += "<tr>";
+      row.forEach(cell => {
+        const cls = [
+          cell.inRange ? "" : "out",
+          cell.dow === 0 ? "sun" : (cell.dow === 6 ? "sat" : ""),
+          cell.today ? "today" : ""
+        ].filter(Boolean).join(" ");
+        // 月初と表の先頭だけ「10/25」のように月を出す（画像と同じ）
+        const num = cell.firstOfMonth
+          ? (cell.month + "/" + cell.day)
+          : String(cell.day);
+        html += '<td class="' + cls + '">' +
+          '<div class="dnum"><span class="md">' + num + "</span>" +
+          (cell.today ? '<span class="todaytag">今日</span>' : "") + "</div>" +
+          cell.events.map(e =>
+            '<div class="ev' + (e.star ? " star" : "") + '">' +
+            (e.star ? '<span class="st">★</span>' : "") + esc(e.name) +
+            (e.note ? '<span class="note">' + esc(e.note) + "</span>" : "") +
+            "</div>").join("") +
+          "</td>";
+      });
+      html += "</tr>";
+    });
+    box.innerHTML = html + "</table>";
+
+    $("calNote").innerHTML =
+      "★ は大きな行事です。" +
+      (sch.notify
+        ? "予定のある日は <b>朝9:00にDiscordの「連絡事項」チャンネルへ自動でお知らせ</b> が流れます。"
+        : "<b>当日のDiscord通知は今オフになっています。</b>（管理コンソールで切り替えられます）");
+  }
+  function fmtMd(k){ return k ? (Number(k.slice(5,7)) + "/" + Number(k.slice(8))) : ""; }
+
+  /* ---------- これからの予定 ---------- */
+  function renderUpcoming(sch){
+    const box = $("uplist");
+    const list = C.upcomingEvents(sch);
+    const today = C.dayKey();
+    if (!list.length){
+      box.innerHTML = '<div class="empty">これからの予定はありません。<br>' +
+        'すべて終了しているか、まだ登録されていません。</div>';
+      $("upSub").textContent = "0件";
+      return;
+    }
+    $("upSub").textContent = list.length + "件";
+    box.innerHTML = list.map(e => {
+      const d = C.daysBetween(today, e.date);
+      const dow = C.weekdayOf(e.date);
+      const wcls = dow === 0 ? "sun" : (dow === 6 ? "sat" : "");
+      const inTxt = d === 0 ? "今日" : (d === 1 ? "あす" : "あと" + d + "日");
+      return '<div class="uprow' + (d <= 1 ? " soon" : "") + '">' +
+        '<div class="update">' + fmtMd(e.date) +
+          '<span class="wd ' + wcls + '">(' + C.WEEK_JA[dow] + ")</span></div>" +
+        '<div class="upname">' + (e.star ? "★ " : "") + esc(e.name) +
+          (e.note ? '<span class="note">' + esc(e.note) + "</span>" : "") + "</div>" +
+        '<div class="upin' + (d === 0 ? " today" : "") + '">' + inTxt + "</div>" +
+        "</div>";
+    }).join("");
+  }
+
+  /* ---------- 起動 ---------- */
+  C.loadSchedule().then(sch => {
+    $("defaultNotice").style.display = sch.isDefault ? "" : "none";
+    renderCal(sch);
+    renderUpcoming(sch);
+  }).catch(e => {
+    console.error(e);
+    $("calWrap").innerHTML = '<div class="empty">予定表を読み込めませんでした。</div>';
+  });
 })();
 </script>
 </body>

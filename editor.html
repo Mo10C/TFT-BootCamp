@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.8">
+<link rel="stylesheet" href="ui.css?v=3.9">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -67,6 +67,21 @@ tr:last-child td{border-bottom:none}
 .chk input{accent-color:var(--pink)}
 .rolefield{border-top:1px dashed var(--border-strong);padding-top:8px;margin-top:2px}
 .rolefield .lbl{font-size:10.5px;font-weight:700;color:var(--muted);margin-bottom:5px}
+
+/* 予定表 */
+.srow{display:flex;align-items:center;gap:9px;background:var(--surface-2);
+  border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:7px;flex-wrap:wrap}
+.srow input[type=date]{flex:none;padding:6px 9px;font-size:12.5px}
+.srow .nm{flex:1;min-width:170px}
+.srow .nm input{width:100%;padding:6px 9px;font-size:12.5px}
+.srow .nt{flex:1;min-width:130px}
+.srow .nt input{width:100%;padding:6px 9px;font-size:11.5px}
+.srow .wd{font-size:11px;font-weight:900;flex:none;width:26px;text-align:center}
+.srow .wd.sun{color:var(--danger)}
+.srow .wd.sat{color:var(--cyan)}
+.srow.past{opacity:.5}
+.srow .del{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 40%,var(--border-strong))}
+.sgroup{font-size:11px;font-weight:900;color:var(--muted);margin:12px 0 5px;padding-left:3px}
 
 /* LPの並び順（ロールの並べ替え） */
 .grow{display:flex;align-items:center;gap:10px;background:var(--surface-2);
@@ -156,6 +171,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <button class="tab" data-panel="p-board">🏆 このボード</button>
     <button class="tab" data-panel="p-boards">🗂 大会の管理</button>
     <button class="tab" data-panel="p-members">👥 メンバー</button>
+    <button class="tab" data-panel="p-sched">🗓 予定表</button>
     <button class="tab" data-panel="p-lp">📈 LP</button>
     <button class="tab" data-panel="p-conn">🔌 接続設定</button>
     <button class="tab" data-panel="p-data">💾 データ</button>
@@ -353,6 +369,64 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     </div>
   </div>
 
+  <!-- ================= 予定表 ================= -->
+  <div class="panel" id="p-sched">
+    <div class="card">
+      <h2>予定表</h2>
+      <div class="lead">
+        ここで登録した予定が <a href="schedule.html" target="_blank" rel="noopener">予定表ページ</a> に
+        カレンダーで並びます。<br>
+        <b>予定のある日は、当日の朝9:00にDiscordの「連絡事項」チャンネルへ自動でお知らせが流れます。</b>
+        （Worker の Cron Trigger <code>0 0 * * *</code> が必要です）
+      </div>
+      <div class="row">
+        <label style="min-width:72px">タイトル</label>
+        <input type="text" id="schTitle" style="flex:1;min-width:220px"
+               placeholder="クラウドハッシュテイル校　スケジュール表">
+      </div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="schNotify" checked>当日9:00に「連絡事項」へ通知する</label>
+        <span class="hint">オフにすると通知だけ止まります（予定表の表示はそのまま）</span>
+      </div>
+      <div class="hint" id="schState" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <h2>予定の一覧</h2>
+      <div class="lead">
+        日付・内容を入れてください。<b>★</b> を付けると予定表で強調され、通知でも先頭に出ます。<br>
+        同じ日にいくつでも登録できます。並び順は日付順に自動でそろえます。
+      </div>
+      <div id="schList"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="mini" id="schAdd">＋ 予定を追加</button>
+        <button class="mini" id="schSeed">📋 初期データ（開校式〜学校対抗戦）を読み込む</button>
+        <button class="mini" id="schClean">🧹 終わった予定を消す</button>
+      </div>
+      <div class="sticky-save" id="schSave">
+        <span class="dirty-dot"></span>
+        <b style="font-size:12.5px">予定表</b>
+        <div class="spacer" style="flex:1"></div>
+        <button class="mini" id="schReset">もとに戻す</button>
+        <button class="mini grad" id="schApply">💾 保存</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>通知のテスト</h2>
+      <div class="lead">
+        きょうの予定を、いますぐDiscordの「連絡事項」チャンネルへ投げてみます（毎朝9:00に走る処理と同じもの）。<br>
+        予定が無い日は「投稿なし」と返ります。
+      </div>
+      <div class="row">
+        <button class="mini" id="schNotifyTest">🔔 いますぐ通知してみる</button>
+        <input type="text" id="schCronKey" placeholder="CRON_KEY" style="min-width:170px">
+        <span class="hint">Worker に設定した CRON_KEY を入れてください</span>
+      </div>
+      <textarea id="schNotifyOut" style="margin-top:10px;display:none;min-height:110px" readonly></textarea>
+    </div>
+  </div>
+
   <!-- ================= 接続設定 ================= -->
   <div class="panel" id="p-conn">
     <div class="card">
@@ -409,8 +483,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.8"></script>
-<script src="home-common.js?v=3.8"></script>
+<script src="core.js?v=3.9"></script>
+<script src="home-common.js?v=3.9"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -467,6 +541,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     loadCatalog();
     loadHome();
     loadLp();
+    loadSched();
   });
   store.onChange(render);
 
@@ -1427,6 +1502,177 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       document.removeEventListener("pointercancel", cleanup);
     }
   })();
+
+  /* =============================================================
+     予定表
+     ============================================================= */
+  let schData = null;     // 保存済み（もとに戻す用）
+  let schEdit = null;     // 編集中
+  let schDirty = false;
+
+  async function loadSched(){
+    try { schData = await C.loadSchedule(); }
+    catch(e){ toast("予定表の読み込みに失敗: " + e.message); return; }
+    schEdit = JSON.parse(JSON.stringify(schData));
+    schDirty = false;
+    fillSched();
+  }
+  function fillSched(){
+    $("schTitle").value = schEdit.title || "";
+    $("schNotify").checked = schEdit.notify !== false;
+    $("schState").textContent = schData && schData.isDefault
+      ? "⚠️ まだ保存されていません（画面には初期データが出ています）。「💾 保存」を押すと全員に共有され、当日9:00の通知も動き出します。"
+      : ("保存済み: " + (schEdit.events || []).length + "件" +
+         (schData && schData.updatedAt ? "（最終更新 " + new Date(schData.updatedAt).toLocaleString("ja-JP") + "）" : ""));
+    renderSched();
+  }
+  function markSchDirty(){ schDirty = true; $("schSave").classList.add("dirty"); }
+
+  function renderSched(){
+    const box = $("schList");
+    box.innerHTML = "";
+    const list = schEdit.events || [];
+    if (!list.length){
+      box.innerHTML = '<div class="hint">まだ予定がありません。「＋ 予定を追加」か「📋 初期データを読み込む」を押してください。</div>';
+      return;
+    }
+    const today = C.dayKey();
+    let lastMonth = "";
+    list.forEach((e, i) => {
+      const mon = e.date ? e.date.slice(0, 7) : "";
+      if (mon && mon !== lastMonth){
+        lastMonth = mon;
+        const h = document.createElement("div");
+        h.className = "sgroup";
+        h.textContent = Number(mon.slice(5)) + "月";
+        box.appendChild(h);
+      }
+      const row = document.createElement("div");
+      row.className = "srow" + (e.date && e.date < today ? " past" : "");
+
+      const d = document.createElement("input");
+      d.type = "date"; d.value = e.date || "";
+      d.onchange = () => { e.date = d.value; markSchDirty(); sortSched(); renderSched(); };
+      row.appendChild(d);
+
+      const wd = document.createElement("span");
+      wd.className = "wd";
+      if (e.date && /^\d{4}-\d{2}-\d{2}$/.test(e.date)){
+        const w = C.weekdayOf(e.date);
+        wd.textContent = C.WEEK_JA[w];
+        if (w === 0) wd.classList.add("sun");
+        if (w === 6) wd.classList.add("sat");
+      } else wd.textContent = "—";
+      row.appendChild(wd);
+
+      const star = document.createElement("label");
+      star.className = "chk";
+      star.title = "大きな行事（予定表で強調され、通知でも先頭に出ます）";
+      const sc = document.createElement("input");
+      sc.type = "checkbox"; sc.checked = !!e.star;
+      sc.onchange = () => { e.star = sc.checked; markSchDirty(); };
+      star.appendChild(sc); star.appendChild(document.createTextNode("★"));
+      row.appendChild(star);
+
+      const nm = document.createElement("div");
+      nm.className = "nm";
+      const ni = document.createElement("input");
+      ni.type = "text"; ni.value = e.name || ""; ni.placeholder = "予定の名前（例: 開校式）";
+      ni.oninput = () => { e.name = ni.value; markSchDirty(); };
+      nm.appendChild(ni); row.appendChild(nm);
+
+      const nt = document.createElement("div");
+      nt.className = "nt";
+      const ti = document.createElement("input");
+      ti.type = "text"; ti.value = e.note || ""; ti.placeholder = "メモ（時間・集合場所など・任意）";
+      ti.oninput = () => { e.note = ti.value; markSchDirty(); };
+      nt.appendChild(ti); row.appendChild(nt);
+
+      const del = document.createElement("button");
+      del.className = "mini del"; del.textContent = "削除";
+      del.onclick = () => {
+        schEdit.events.splice(i, 1);
+        markSchDirty(); renderSched();
+      };
+      row.appendChild(del);
+
+      box.appendChild(row);
+    });
+  }
+  function sortSched(){
+    (schEdit.events || []).sort((a, b) =>
+      String(a.date).localeCompare(String(b.date)) || ((b.star?1:0) - (a.star?1:0)));
+  }
+
+  $("schTitle").oninput = () => { schEdit.title = $("schTitle").value; markSchDirty(); };
+  $("schNotify").onchange = () => { schEdit.notify = $("schNotify").checked; markSchDirty(); };
+  $("schAdd").onclick = () => {
+    const last = (schEdit.events || []).length ? schEdit.events[schEdit.events.length-1].date : C.dayKey();
+    schEdit.events = schEdit.events || [];
+    schEdit.events.push({ date: last, name: "", star: false, note: "" });
+    markSchDirty(); renderSched();
+    const inputs = $("schList").querySelectorAll('input[type=text]');
+    if (inputs.length) inputs[inputs.length - 2].focus();
+  };
+  $("schSeed").onclick = () => {
+    if ((schEdit.events || []).length &&
+        !confirm("いまの一覧を、初期データ（開校式〜学校対抗戦）で置きかえますか？")) return;
+    const d = C.defaultSchedule();
+    schEdit.title = d.title;
+    schEdit.events = d.events;
+    markSchDirty(); fillSched();
+    toast("初期データを読み込みました。内容を確認して「💾 保存」を押してください");
+  };
+  $("schClean").onclick = () => {
+    const today = C.dayKey();
+    const before = (schEdit.events || []).length;
+    schEdit.events = (schEdit.events || []).filter(e => e.date >= today);
+    const n = before - schEdit.events.length;
+    if (!n){ toast("終わった予定はありません"); return; }
+    markSchDirty(); renderSched();
+    toast(n + "件を一覧から外しました（保存するまで確定しません）");
+  };
+  $("schApply").onclick = async () => {
+    const bad = (schEdit.events || []).filter(e => !String(e.name || "").trim());
+    if (bad.length && !confirm("名前が空の予定が" + bad.length + "件あります。保存すると消えます。続けますか？")) return;
+    const btn = $("schApply");
+    btn.disabled = true;
+    try {
+      sortSched();
+      schData = await C.saveSchedule(schEdit);
+      schEdit = JSON.parse(JSON.stringify(schData));
+      schDirty = false;
+      $("schSave").classList.remove("dirty");
+      fillSched();
+      toast("予定表を保存しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+  $("schReset").onclick = () => {
+    if (schDirty && !confirm("編集中の内容を捨てて、保存されている予定表に戻しますか？")) return;
+    schEdit = JSON.parse(JSON.stringify(schData));
+    schDirty = false;
+    $("schSave").classList.remove("dirty");
+    fillSched();
+  };
+  $("schNotifyTest").onclick = async () => {
+    const key = $("schCronKey").value.trim();
+    if (!key){ toast("CRON_KEY を入れてください"); return; }
+    const out = $("schNotifyOut");
+    const btn = $("schNotifyTest");
+    btn.disabled = true;
+    out.style.display = "";
+    out.value = "送信中…";
+    try {
+      const base = C.RiotConfig.effective().workerUrl;
+      if (!base) throw new Error("Worker URL が未設定です");
+      const r = await fetch(base + "/notify?key=" + encodeURIComponent(key));
+      const t = await r.text();
+      out.value = t;
+      if (!r.ok) out.value += "\n\n/notify は worker.js v3.1 以降で使えます。Worker のコードが古い可能性があります。";
+    } catch(e){ out.value = "失敗: " + e.message; }
+    btn.disabled = false;
+  };
 
   /* =============================================================
      接続設定

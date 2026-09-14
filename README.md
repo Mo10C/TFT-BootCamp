@@ -57,6 +57,21 @@ HOMEの設定は Firestore の `lboard_index/home` に保存されます（既�
 - メンバー一覧・LPランキングにも**出ない**
 - ただし記録自体は残るので、**管理コンソール →「👥 メンバー」→「大会に参加」をONにすれば普通の参加者になる**（本人が再ログインしてもこの設定は消えません）
 
+## 予定表と当日通知
+
+| 何が | どこで |
+|---|---|
+| 予定の追加・編集 | 管理コンソール →「🗓 予定表」 |
+| みんなが見る画面 | `schedule.html`（HOMEの「予定表」タイル） |
+| 当日9:00の通知 | Worker の Cron Trigger `0 0 * * *`（UTC。= 9:00 JST）→ **連絡事項** チャンネル |
+| 通知のテスト | 管理コンソール →「🗓 予定表」→「🔔 いますぐ通知してみる」 |
+
+保存先は Firestore の `lboard_index/schedule`。**一度「💾 保存」を押すまでは初期データが表示されているだけ**で、
+通知は動きません（Worker は Firestore を見るため）。最初に一度保存してください。
+
+> Cloudflare の Cron 入力欄は **UTC** です。`0 0 * * *` と入れると日本時間の9:00に鳴ります。
+> `0 9 * * *` と入れると日本時間の18:00になってしまうので注意してください。
+
 ## LPランキングの仕組み
 
 ### 並び順（セクション）の設定 — 管理コンソールだけで完結します
@@ -109,7 +124,8 @@ HOMEの設定は Firestore の `lboard_index/home` に保存されます（既�
 | `FIREBASE_PROJECT_ID` | Text | `tft-leaderboard-f6897` |
 | `FIREBASE_API_KEY` | Text | config.js の `apiKey` と同じ |
 | `RIOT_PLATFORM` | Text | `jp1` |
-| `DISCORD_ANNOUNCE_CHANNEL_ID` | Text | お祝いを投げるチャンネルID（空なら投稿しない） |
+| `DISCORD_ANNOUNCE_CHANNEL_ID` | Text | **ランクアップのお祝い**を投げるチャンネルID（談話室） |
+| `DISCORD_SCHEDULE_CHANNEL_ID` | Text | **予定の当日通知**を投げるチャンネルID（連絡事項） |
 | `CRON_KEY` | Secret | `/collect` の手動実行用（任意） |
 
 さらに **Cloudflare → Worker → Settings → Triggers → Cron Triggers** に `45 14 * * *` を登録します。
@@ -261,6 +277,32 @@ service cloud.firestore {
 ---
 
 # 変更履歴
+
+## v3.9.1（2026-09）— 予定の通知先を「連絡事項」チャンネルへ
+
+- 予定の当日通知の投稿先を **`DISCORD_SCHEDULE_CHANNEL_ID`（連絡事項）** に分離
+  （ランクアップのお祝いは今までどおり `DISCORD_ANNOUNCE_CHANNEL_ID`＝談話室）
+- `DISCORD_SCHEDULE_CHANNEL_ID` が未設定のときだけ、談話室にフォールバックします
+- `/diag` に `scheduleChannel` を追加（どちらに飛ぶかが確認できます）
+
+
+## v3.9（2026-09）— 予定表と当日9:00のDiscord通知
+
+- **予定表ページ（`schedule.html`）を実装**（「準備中」画面を置きかえ）
+  - 日〜土のカレンダー表示。★の行事は強調、今日のマスは色付き、期間外の日は薄く表示
+  - 下に「これからの予定」を近い順で一覧（あと◯日つき）
+  - 初期データとして、開校式（10/25）〜 学校対抗戦・校内後夜祭（11/15）を内蔵
+- **管理コンソールに「🗓 予定表」タブを追加**
+  - 日付・★・名前・メモ の行を足す／消す。日付順に自動でそろえます
+  - 「📋 初期データを読み込む」「🧹 終わった予定を消す」「🔔 いますぐ通知してみる」
+  - 保存先は Firestore（`lboard_index/schedule`）
+- **当日9:00にDiscordの「連絡事項」チャンネルへ自動でお知らせ**（`worker.js` v3.2）
+  - Cron Trigger を2本立てに: `45 14 * * *`（LP集計）と **`0 0 * * *`（= 9:00 JST の予定通知）**
+  - 予定が無い日は投稿しません
+  - `/notify?key=<CRON_KEY>` で手動テストできます
+  - `/diag` に `scheduleNotify` / `scheduleSaved` を追加
+- HOME の「予定表」タイルを準備中（soon）から通常表示に変更
+
 
 ## v3.8（2026-09）— 並び順を管理コンソールで設定
 
