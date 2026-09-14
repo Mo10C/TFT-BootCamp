@@ -1,6 +1,6 @@
 /* =============================================================
    worker.js — Cloudflare Worker
-   マウンテンチョンク校 ログイン式リーダーボード用バックエンド
+   クラウドハッシュテイル校 ログイン式リーダーボード用バックエンド
 
    役割:
      1) Riot API 中継（APIキー秘匿・CORS回避）
@@ -21,7 +21,7 @@
      DISCORD_CLIENT_SECRET DiscordアプリのClient Secret
      DISCORD_BOT_TOKEN     ロール名・色の解決用（Botをサーバーに入れておく）
    必要な変数（Text でOK）:
-     DISCORD_GUILD_ID      マウンテンチョンク校サーバーのID
+     DISCORD_GUILD_ID      クラウドハッシュテイル校サーバーのID
      RETURN_ORIGINS        戻り先として許可するオリジン（カンマ区切り）
                            例: "https://mo10c.github.io,http://localhost:8000"
 

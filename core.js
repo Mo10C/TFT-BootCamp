@@ -116,6 +116,8 @@
     const a = CFG.admins || {};
     return {
       discordIds: (a.discordIds || []).map(x => String(x).trim()).filter(Boolean),
+      // Discordのユーザー名（@のあとの一意な名前）。大文字小文字は無視。
+      usernames: (a.usernames || []).map(x => String(x).trim().toLowerCase().replace(/^@/, "")).filter(Boolean),
       riotIds: (a.riotIds || []).map(x => String(x).trim().toLowerCase()).filter(Boolean),
       roleIds: (((CFG.roles || {}).adminRoleIds) || []).map(x => String(x).trim()).filter(Boolean)
     };
@@ -123,7 +125,7 @@
   // 管理者が1人も設定されていない = 誰でも操作できてしまう状態
   function isAdminConfigured() {
     const c = adminConfig();
-    return !!(c.discordIds.length || c.riotIds.length || c.roleIds.length);
+    return !!(c.discordIds.length || c.usernames.length || c.riotIds.length || c.roleIds.length);
   }
   function isAdmin(session) {
     const s = session || Session.get();
@@ -133,6 +135,9 @@
 
     const did = s.discord && s.discord.id ? String(s.discord.id) : "";
     if (did && c.discordIds.includes(did)) return true;
+
+    const uname = (s.discord && s.discord.username ? String(s.discord.username) : "").toLowerCase();
+    if (uname && c.usernames.includes(uname)) return true;
 
     const riot = Session.riotIdOf(s).toLowerCase();
     if (riot && riot !== "#" && c.riotIds.includes(riot)) return true;
@@ -836,7 +841,7 @@
 
   function defaultHomeConfig() {
     return {
-      title: "マウンテンチョンク校 TOOLS",
+      title: "クラウドハッシュテイル校 TOOLS",
       subtitle: "Discordログイン式ホーム",
       tiles: [
         { id: "boards",   icon: "🏆", name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "pink",   enabled: true, soon: false, roleIds: [] },
@@ -1196,6 +1201,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
+    VERSION: "2.9",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,

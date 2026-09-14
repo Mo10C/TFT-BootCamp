@@ -1,4 +1,4 @@
-# マウンテンチョンク校 TFT ログイン式リーダーボード
+# クラウドハッシュテイル校 TFT ログイン式リーダーボード
 
 URLを踏むとまず **ログインページ** が開き、
 ① Riot ID（サモナー情報＋TFTランク取得）② Discord（アイコン・名前・**ロール**取得）
@@ -97,7 +97,7 @@ roles: {
 2. **OAuth2** ページで
    - `CLIENT ID` と `CLIENT SECRET` を控える
    - **Redirects** に `https://<WorkerのURL>/auth/callback` を追加（Workerデプロイ後に確定）
-3. **Bot** タブで Bot を作成し `TOKEN` を控える → サーバー（マウンテンチョンク校）に招待
+3. **Bot** タブで Bot を作成し `TOKEN` を控える → サーバー（クラウドハッシュテイル校）に招待
    - 権限は不要（ロール一覧の読み取りだけに使用）。招待URL例:
      `https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions=0`
    - ※ 既存のランク表示Botを使い回してもOK（同じサーバーに入っていれば良い）
@@ -151,7 +151,7 @@ service cloud.firestore {
 このフォルダ一式（`login.html` `index.html` `editor.html` `core.js` `config.js`）をリポジトリの任意フォルダへ。
 アバター画像を使う場合は `assets/moto-hero.png` も同じ階層の `assets/` に置いてください（無ければ自動で非表示）。
 
-> ポータル（マウンテンチョンク校TOOLS）へ載せる場合は、運用ルール通り **ポータルの editor.html からツール追加** で `login.html` へのリンクを登録してください。
+> ポータル（クラウドハッシュテイル校TOOLS）へ載せる場合は、運用ルール通り **ポータルの editor.html からツール追加** で `login.html` へのリンクを登録してください。
 
 ## 6. 使い方
 

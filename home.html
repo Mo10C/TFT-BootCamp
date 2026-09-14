@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="ui.css?v=2.9">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
@@ -17,9 +17,10 @@
 
   <div class="top">
     <div class="brand">
-      <div class="hex">M</div>
+      <div class="hex">C</div>
       <div>
         <h1 id="homeTitle">クラウドハッシュテイル校 TOOLS</h1>
+        <div class="sub" id="homeSub">Discordログイン式ホーム</div>
       </div>
     </div>
     <span class="badge" id="roleBadge">—</span>
@@ -35,6 +36,7 @@
     <div class="who">
       <div class="nm" id="meName">—</div>
       <div class="rid num" id="meRiot">—</div>
+      <div class="rid num" id="meDid" style="cursor:pointer" title="クリックでコピー"></div>
       <div class="rank" id="meRank">—</div>
       <div class="roles" id="meRoles"></div>
     </div>
@@ -55,8 +57,8 @@
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js"></script>
-<script src="home-common.js"></script>
+<script src="core.js?v=2.9"></script>
+<script src="home-common.js?v=2.9"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -67,6 +69,26 @@
   const session = C.Session.require();
   if (!session) return;
   const ctx = H.boot(session);
+
+  /* 自分の Discord ユーザー名とID（config.js の admins に入れる値）。
+     Discord アプリで開発者モードをONにして探さなくても、ここからコピーできる。 */
+  (function(){
+    const el = $("meDid");
+    const d = session.discord || {};
+    if (!d.id) return;
+    el.textContent = "@" + (d.username || "?") + " ・ ID: " + d.id;
+    el.onclick = () => {
+      const copy = t => {
+        if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
+        const ta = document.createElement("textarea");
+        ta.value = t; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch(e){}
+        document.body.removeChild(ta);
+        return Promise.resolve();
+      };
+      copy(d.id).then(() => ctx.toast("ユーザーIDをコピーしました: " + d.id));
+    };
+  })();
 
   let boardMetaEl = null;
 
@@ -153,6 +175,26 @@
       box.appendChild(a);
     });
     $("toolsSec").style.display = shown ? "" : "none";
+  }
+
+  /* ---- core.js が古いと関数が無く、ここで落ちてタイルが1枚も出ない。
+         黙って白画面にせず、原因と対処を画面に出す。---- */
+  const NEED = ["cachedHomeConfig", "homeConfigKey", "defaultHomeConfig", "loadHomeConfig", "canSeeEntry"];
+  const missing = NEED.filter(k => typeof C[k] !== "function");
+  if (missing.length){
+    const box = $("pops");
+    box.innerHTML =
+      '<div class="empty" style="grid-column:1/-1;text-align:left;line-height:1.8">' +
+      '<b style="color:var(--gold)">⚠️ core.js が古いバージョンです</b><br>' +
+      'このページが必要とする機能がありません（' + missing.join(", ") + '）。<br><br>' +
+      '<b>対処</b><br>' +
+      '① 最新の <code>core.js</code> をアップロードしているか確認<br>' +
+      '② <b>Ctrl/⌘ + Shift + R</b> でスーパーリロード（ブラウザのキャッシュが原因のことが多いです）<br><br>' +
+      '<span style="color:var(--muted);font-size:11.5px">読み込まれている core.js: ' +
+      (C.VERSION ? "v" + C.VERSION : "バージョン表記なし（v2.6以前）") + ' ／ このページの想定: v2.9 以降</span>' +
+      '</div>';
+    console.error("[HOME] core.js が古いため描画を中止しました。不足:", missing);
+    return;
   }
 
   /* 初回描画は「前回このブラウザで見た内容」から行う。

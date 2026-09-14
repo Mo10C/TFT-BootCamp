@@ -1,6 +1,10 @@
 /* =============================================================
-   マウンテンチョンク校 TFT ログイン式リーダーボード - 設定ファイル
-   ここだけ書き換えればOK。login.html / index.html / editor.html が参照します。
+   クラウドハッシュテイル校 TFT ログイン式リーダーボード - 設定ファイル
+
+   ⚠️ このファイルは「あなた専用の設定」です。
+      配布ZIPを展開して全ファイルを上書きすると、ここも上書きされます。
+      更新時は、下の ★ が付いた項目が消えていないか必ず確認してください。
+      （特に admins.discordIds — 消えると全員が管理者になります）
    ============================================================= */
 
 window.MCC_LB_CONFIG = {
@@ -18,10 +22,10 @@ window.MCC_LB_CONFIG = {
     measurementId: "G-T14B3XQY8R"
   },
 
-  /* ---- 2. Cloudflare Worker（Riot API 中継 ＋ Discord OAuth）----
-     この一式の worker.js を「新しい Worker」としてデプロイした URL を貼る。
-     既存の tft-riot-proxy とは別 Worker にしてください（OAuth 機能が増えているため）。
-     例: "https://mcc-login-board.moto-moto-tennis.workers.dev" */
+  /* ---- 2. ★ Cloudflare Worker（Riot API 中継 ＋ Discord OAuth）----
+     worker.js をデプロイした Worker の URL。末尾のスラッシュは付けない。
+     ※ パスは各機能が自動で付けるので、ここはドメインまで。
+       （"/health" などを付けると unknown endpoint になります） */
   workerUrl: "https://tft-riot-proxy.moto-moto-tennis.workers.dev",
 
   /* ---- 3. Riot ルーティング ----
@@ -44,7 +48,7 @@ window.MCC_LB_CONFIG = {
     tableCount: 2    // 卓数
   },
 
-  /* ---- 6. ★管理者（ここが権限ロックの心臓部）----
+  /* ---- 6. ★★ 管理者（ここが権限ロックの心臓部）----
      ここに載っている人だけが
        ・試合数 / 卓数 / 大会名の変更
        ・組卓・席の配置・順位の入力・自動取得
@@ -58,8 +62,20 @@ window.MCC_LB_CONFIG = {
      riotIds は Name#TAG（大文字小文字は無視）。
      discordIds が最も確実（Discordの開発者モード → 自分を右クリック → ユーザーIDをコピー）。 */
   admins: {
-    discordIds: [],              // 例: ["123456789012345678"] ← 推奨。判明したら追加
-    riotIds: ["Mo10C#819"]       // Riot ID での指定（ログイン時に入力したIDと照合）
+    // ★★ Discord の「ユーザー名」で指定（一番手軽）。@ は付けても付けなくてもOK。
+    //     大文字小文字は区別しません。
+    usernames: ["mo10c"],
+
+    // ★★ Discord の「ユーザーID」で指定（最も確実・推奨）。
+    //     ユーザー名は本人が変更できるため、厳密にやるならこちら。
+    //     調べ方: 開発者モードON → 自分のアイコンを右クリック → ユーザーIDをコピー
+    //     HOME画面の自分のカードにも表示されるので、そこからコピーできます。
+    discordIds: [],              // 例: ["123456789012345678"]
+
+    // riotIds は空のままを推奨。
+    // Riot ID はログイン画面で誰でも自由に入力できる文字列で、Worker は所有者確認を
+    // していないため、ここに入れると「その Riot ID を打った人」が誰でも管理者になれます。
+    riotIds: []
   },
 
   /* ---- 7. HOME（home.html）に並べるツール ----
@@ -68,7 +84,7 @@ window.MCC_LB_CONFIG = {
      roleIds を指定すると、そのロールを持つ人にだけ表示されます（管理者は常に表示）。 */
   home: {
     tools: [
-      // { name: "マウンテンチョンク校 TOOLS", url: "https://mo10c.github.io/portal/", icon: "🏫",
+      // { name: "クラウドハッシュテイル校 TOOLS", url: "https://mo10c.github.io/portal/", icon: "🏫",
       //   desc: "既存のポータル", external: true },
       // { name: "オーグメント図鑑", url: "../augument.html", icon: "📖", desc: "オーグメントの一覧と評価" },
       // { name: "合宿コンテンツ", url: "../camp/", icon: "⛺", desc: "クラウドハッシュテイル校",
