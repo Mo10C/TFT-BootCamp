@@ -198,6 +198,12 @@ button{font-family:inherit;cursor:pointer}
 .pop .ico{width:54px;height:54px;border-radius:18px;display:grid;place-items:center;font-size:26px;
   background:color-mix(in srgb,var(--tint,var(--accent)) 15%,var(--surface));
   border:1.5px solid color-mix(in srgb,var(--tint,var(--accent)) 38%,var(--border));margin-bottom:4px}
+/* 画像アイコン（校章タイプ）。枠と背景は付けず、絵柄をそのまま出す */
+.pop .ico.img{width:66px;height:66px;background:none;border:none;border-radius:0;
+  margin-bottom:2px;padding:0;overflow:visible}
+.pop .ico.img img{width:100%;height:100%;object-fit:contain;display:block;
+  filter:drop-shadow(0 6px 10px rgba(35,70,105,.18))}
+:root[data-theme="dark"] .pop .ico.img img{filter:drop-shadow(0 6px 12px rgba(0,0,0,.55))}
 .pop .pt{font-size:17px;font-weight:900;letter-spacing:.01em}
 .pop .pd{font-size:11.5px;color:var(--muted);line-height:1.55}
 .pop .meta{margin-top:8px;font-size:11px;font-weight:900;
@@ -288,3 +294,7 @@ button{font-family:inherit;cursor:pointer}
   padding:11px 22px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;
   transition:opacity .2s;z-index:99;max-width:88vw;text-align:center;box-shadow:var(--shadow)}
 #toast.show{opacity:.97}
+
+/* ツールカードの画像アイコン（.tcard .ico の後に置いて上書きする） */
+.tcard .ico.img{background:none;border:none;border-radius:0;padding:0}
+.tcard .ico.img img{width:100%;height:100%;object-fit:contain;display:block}

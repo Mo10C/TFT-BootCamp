@@ -966,20 +966,33 @@
       title: "クラウドハッシュテイル校 TOOLS",
       subtitle: "Discordログイン式ホーム",
       tiles: [
-        { id: "boards",   icon: "🏆", name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "gold",  enabled: true, soon: false, roleIds: [] },
-        { id: "schedule", icon: "🗓", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "sky",   enabled: true, soon: false, roleIds: [] },
-        { id: "members",  icon: "👥", name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf",  enabled: true, soon: true,  roleIds: [] },
-        { id: "lp",       icon: "📈", name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "mint",  enabled: true, soon: true,  roleIds: [] }
+        { id: "boards",   icon: "🏆", img: "assets/tile-boards.png",   name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "leaf", enabled: true, soon: false, roleIds: [] },
+        { id: "schedule", icon: "🗓", img: "assets/tile-schedule.png", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "leaf", enabled: true, soon: false, roleIds: [] },
+        { id: "members",  icon: "👥", img: "assets/tile-members.png",  name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf", enabled: true, soon: true,  roleIds: [] },
+        { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] }
       ],
       tools: (((CFG.home || {}).tools) || []).slice(),
       updatedAt: 0
     };
   }
+  /* タイルの既定アイコン画像（idごと）。
+     すでにHOME設定を保存してある場合、そこには img が入っていないので、
+     ここを見て自動で補う。絵文字に戻したいときは img に "none" を入れる。 */
+  const TILE_IMG = {
+    boards: "assets/tile-boards.png",
+    schedule: "assets/tile-schedule.png",
+    members: "assets/tile-members.png",
+    lp: "assets/tile-lp.png"
+  };
+
   function normTile(t, i) {
     t = t || {};
     return {
       id: String(t.id || ("tile" + i)),
       icon: String(t.icon || "🔗").slice(0, 4),
+      // ★ 画像アイコン。空なら icon（絵文字）を使う。
+      //   読み込みに失敗したときも絵文字に戻るので、消えたままにはならない。
+      img: String(t.img || TILE_IMG[String(t.id || "")] || "").slice(0, 300),
       name: String(t.name || "無題").slice(0, 40),
       desc: String(t.desc || "").slice(0, 120),
       url: String(t.url || "#").slice(0, 300),
@@ -994,6 +1007,7 @@
     return {
       id: String(t.id || ("tool" + i)),
       icon: String(t.icon || "🔗").slice(0, 4),
+      img: String(t.img || "").slice(0, 300),
       name: String(t.name || "無題").slice(0, 40),
       desc: String(t.desc || "").slice(0, 120),
       url: String(t.url || "#").slice(0, 300),
@@ -2024,7 +2038,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.0",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.1",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.8">
+<link rel="stylesheet" href="ui.css?v=4.1">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
@@ -57,8 +57,8 @@
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.8"></script>
-<script src="home-common.js?v=3.8"></script>
+<script src="core.js?v=4.1"></script>
+<script src="home-common.js?v=4.1"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -92,6 +92,28 @@
 
   let boardMetaEl = null;
 
+  /* アイコン。画像があれば画像、無ければ絵文字。
+     画像の読み込みに失敗したときも絵文字に戻すので、白いマスにはならない。 */
+  function iconEl(t){
+    const ic = document.createElement("div");
+    const src = String(t.img || "");
+    if (!src || src === "none"){
+      ic.className = "ico";
+      ic.textContent = t.icon;
+      return ic;
+    }
+    ic.className = "ico img";
+    const im = document.createElement("img");
+    im.src = src;
+    im.alt = "";
+    im.onerror = function(){
+      ic.className = "ico";
+      ic.textContent = t.icon;
+    };
+    ic.appendChild(im);
+    return ic;
+  }
+
   function renderTiles(home){
     $("homeTitle").textContent = home.title;
     $("homeSub").textContent = home.subtitle;
@@ -114,9 +136,7 @@
         tag.textContent = "準備中";
         a.appendChild(tag);
       }
-      const ic = document.createElement("div");
-      ic.className = "ico";
-      ic.textContent = t.icon;
+      const ic = iconEl(t);
       const nm = document.createElement("div");
       nm.className = "pt";
       nm.textContent = t.name;
@@ -157,9 +177,7 @@
       a.className = "tcard";
       a.href = t.url || "#";
       if (t.external){ a.target = "_blank"; a.rel = "noopener"; }
-      const ic = document.createElement("div");
-      ic.className = "ico";
-      ic.textContent = t.icon;
+      const ic = iconEl(t);
       const d = document.createElement("div");
       const tt = document.createElement("div");
       tt.className = "tt";
