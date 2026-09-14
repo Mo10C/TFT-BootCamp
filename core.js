@@ -1612,6 +1612,137 @@
   }
 
   /* =============================================================
+     先生スナップショット
+
+     保存先: lboard_index/snapshot
+       { enabled, label, roleIds:[対象ロール], topN, points:[4,3,2,1],
+         dates:["2026-10-31","2026-11-07"], finalTitle:"代表先生", finalN:4,
+         results: { "2026-10-31": { at, rows:[{id,name,tier,division,lp,abs,rank,point}] } },
+         final: [...], finalAt, updatedAt }
+
+     ・指定日の 23:45（LP一斉集計と同じタイミング）に Worker が実行する
+     ・対象ロールを持つ人のうち、そのときのLPが高い順に topN 人へ points を配る
+     ・最終日には、全回の合計ポイントの上位 finalN 人を「代表先生」として表彰する
+     ============================================================= */
+  const SNAP_DOC = "snapshot";
+  const SNAP_LS_KEY = "mcc-lb2-snapshot";
+
+  function defaultSnapshot() {
+    return {
+      enabled: true,
+      label: "先生スナップショット",
+      roleIds: [],                       // 先生ロール（管理コンソールで選ぶ）
+      topN: 4,
+      points: [4, 3, 2, 1],              // 1位から順に
+      dates: ["2026-10-31", "2026-11-07"],
+      finalTitle: "代表先生",
+      finalN: 4,
+      results: {},
+      final: [],
+      finalAt: 0,
+      updatedAt: 0
+    };
+  }
+
+  function normSnapshot(raw) {
+    raw = raw || {};
+    const dates = (Array.isArray(raw.dates) ? raw.dates : [])
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).map(String).sort();
+    const points = (Array.isArray(raw.points) ? raw.points : [4, 3, 2, 1])
+      .map(x => x | 0);
+    const results = {};
+    Object.entries(raw.results || {}).forEach(([d, v]) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !v) return;
+      results[d] = {
+        at: v.at || 0,
+        rows: (Array.isArray(v.rows) ? v.rows : []).map(r => ({
+          id: String(r.id || ""), name: String(r.name || "—"),
+          tier: String(r.tier || ""), division: String(r.division || ""),
+          lp: r.lp | 0, abs: r.abs | 0, rank: r.rank | 0, point: r.point | 0
+        }))
+      };
+    });
+    return {
+      enabled: raw.enabled !== false,
+      label: String(raw.label || "").trim() || "先生スナップショット",
+      roleIds: (Array.isArray(raw.roleIds) ? raw.roleIds : []).map(x => String(x).trim()).filter(Boolean),
+      topN: Math.max(1, (raw.topN | 0) || 4),
+      points: points.length ? points : [4, 3, 2, 1],
+      dates,
+      finalTitle: String(raw.finalTitle || "").trim() || "代表先生",
+      finalN: Math.max(1, (raw.finalN | 0) || 4),
+      results,
+      final: Array.isArray(raw.final) ? raw.final : [],
+      finalAt: raw.finalAt || 0,
+      updatedAt: raw.updatedAt || 0
+    };
+  }
+
+  async function loadSnapshot() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(SNAP_DOC).get();
+        if (snap.exists) return normSnapshot(snap.data());
+      } else {
+        const raw = localStorage.getItem(SNAP_LS_KEY);
+        if (raw) return normSnapshot(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("スナップショット設定の読み込みに失敗", e); }
+    const d = normSnapshot(defaultSnapshot());
+    d.isDefault = true;
+    return d;
+  }
+
+  async function saveSnapshot(cfg) {
+    if (!isAdmin()) throw new Error("スナップショットの設定は管理者のみです");
+    const s = normSnapshot(cfg);
+    s.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      // results は Worker が書くので、設定だけを上書きする
+      const patch = {
+        enabled: s.enabled, label: s.label, roleIds: s.roleIds, topN: s.topN,
+        points: s.points, dates: s.dates, finalTitle: s.finalTitle, finalN: s.finalN,
+        updatedAt: s.updatedAt
+      };
+      if (db) await db.collection("lboard_index").doc(SNAP_DOC).set(patch, { merge: true });
+      else {
+        const cur = normSnapshot(JSON.parse(localStorage.getItem(SNAP_LS_KEY) || "{}"));
+        localStorage.setItem(SNAP_LS_KEY, JSON.stringify(Object.assign(cur, patch)));
+      }
+    } catch (e) {
+      throw new Error("設定を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return s;
+  }
+
+  /* 全回の合計ポイント順。同点なら最後に測ったLPが高いほう → 名前順 */
+  function snapshotStandings(snap) {
+    const tally = {};
+    Object.keys(snap.results || {}).sort().forEach(d => {
+      (snap.results[d].rows || []).forEach(r => {
+        const t = tally[r.id] || (tally[r.id] = { id: r.id, name: r.name, total: 0, per: {}, lastAbs: 0 });
+        t.total += r.point | 0;
+        t.per[d] = r.point | 0;
+        t.name = r.name;
+        t.lastAbs = r.abs | 0;
+      });
+    });
+    return Object.values(tally).sort((a, b) =>
+      (b.total - a.total) || (b.lastAbs - a.lastAbs) ||
+      String(a.name).localeCompare(String(b.name), "ja"));
+  }
+  // 「第◯回」（実施日の並びの何番目か）
+  function snapshotRound(snap, date) {
+    const i = (snap.dates || []).indexOf(date);
+    return i < 0 ? 0 : i + 1;
+  }
+  function snapshotDone(snap) {
+    return (snap.dates || []).filter(d => (snap.results || {})[d]).length;
+  }
+
+  /* =============================================================
      集計・ヘルパー
      ============================================================= */
   function playerById(state, id) { return state.roster.find(p => p.id === id) || null; }
@@ -1893,7 +2024,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "3.9.2",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.0",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -1910,6 +2041,8 @@
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
+    defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
+    snapshotStandings, snapshotRound, snapshotDone,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

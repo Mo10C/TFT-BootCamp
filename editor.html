@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.9">
+<link rel="stylesheet" href="ui.css?v=4.0">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -173,6 +173,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <button class="tab" data-panel="p-members">👥 メンバー</button>
     <button class="tab" data-panel="p-sched">🗓 予定表</button>
     <button class="tab" data-panel="p-lp">📈 LP</button>
+    <button class="tab" data-panel="p-snap">🏅 先生スナップショット</button>
     <button class="tab" data-panel="p-conn">🔌 接続設定</button>
     <button class="tab" data-panel="p-data">💾 データ</button>
   </nav>
@@ -427,6 +428,93 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     </div>
   </div>
 
+  <!-- ================= 先生スナップショット ================= -->
+  <div class="panel" id="p-snap">
+    <div class="card">
+      <h2>先生スナップショット</h2>
+      <div class="lead">
+        指定した日の <b>23:45（LPの一斉集計と同じタイミング）</b> に、対象ロールの人のLPを見て
+        上位にポイントを配り、<b>談話室チャンネル</b>へ結果を投稿します。<br>
+        <b>最終回には、全回の合計ポイントの上位◯人を「代表先生」として表彰</b>するメッセージも投げます。
+      </div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="snapEnabled" checked>この機能を使う</label>
+        <span class="hint">オフにすると、実施日が来ても何もしません</span>
+      </div>
+      <div class="row">
+        <label style="min-width:86px">呼び名</label>
+        <input type="text" id="snapLabel" style="flex:1;min-width:200px" placeholder="先生スナップショット">
+        <span class="hint">投稿の見出しに使います（例:「📸 先生スナップショット①」）</span>
+      </div>
+      <div class="rolefield" id="snapRoleField"></div>
+      <div class="hint" id="snapState" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>実施日</h2>
+      <div class="lead">
+        この日の23:45に実行します。<b>いちばん後ろの日</b>が最終回になり、そこで表彰も出ます。<br>
+        予定表の「先生スナップショット①②」と同じ日付にしておくと分かりやすいです。
+      </div>
+      <div id="snapDates"></div>
+      <div class="row" style="margin-top:9px">
+        <button class="mini" id="snapAddDate">＋ 実施日を追加</button>
+        <button class="mini" id="snapSeedDates">📋 10/31 と 11/7 を入れる</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ポイント</h2>
+      <div class="lead">1位から順に配るポイントです。人数は「上位何人まで」で決まります。</div>
+      <div class="row">
+        <label style="min-width:86px">上位何人まで</label>
+        <input type="number" id="snapTopN" min="1" max="8" style="width:74px">
+        <span class="hint">この人数ぶんポイント欄が出ます</span>
+      </div>
+      <div class="row" id="snapPoints" style="gap:12px"></div>
+      <div class="row" style="margin-top:4px">
+        <label style="min-width:86px">表彰の名前</label>
+        <input type="text" id="snapFinalTitle" style="min-width:150px" placeholder="代表先生">
+        <label style="margin-left:8px">上位</label>
+        <input type="number" id="snapFinalN" min="1" max="8" style="width:70px">
+        <span class="hint">合計ポイントのこの人数を「代表先生」として表彰します</span>
+      </div>
+      <div class="sticky-save" id="snapSave">
+        <span class="dirty-dot"></span>
+        <b style="font-size:12.5px">スナップショットの設定</b>
+        <div class="spacer" style="flex:1"></div>
+        <button class="mini" id="snapReset">もとに戻す</button>
+        <button class="mini grad" id="snapApply">💾 保存</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>結果</h2>
+      <div class="lead">実施が終わると、ここに各回の順位と合計ポイントが出ます。</div>
+      <div id="snapResults"></div>
+    </div>
+
+    <div class="card">
+      <h2>手動で実行する</h2>
+      <div class="lead">
+        本番と同じ処理を今すぐ走らせます（<b>談話室に本当に投稿されます</b>）。<br>
+        「日付」を入れると、その回として実行します。やり直したいときは「もう一度やる」をONにしてください。
+      </div>
+      <div class="row">
+        <input type="text" id="snapCronKey" placeholder="CRON_KEY" style="min-width:170px">
+        <label>日付</label>
+        <input type="date" id="snapRunDate">
+        <label class="chk"><input type="checkbox" id="snapForce">もう一度やる（実施済みでも上書き）</label>
+        <label class="chk"><input type="checkbox" id="snapFinal">表彰も出す</label>
+      </div>
+      <div class="row">
+        <button class="mini grad" id="snapRun">🏅 いますぐ実行する</button>
+        <span class="hint">実施日でない日に試すときは「もう一度やる」をONに</span>
+      </div>
+      <textarea id="snapOut" style="margin-top:10px;display:none;min-height:130px" readonly></textarea>
+    </div>
+  </div>
+
   <!-- ================= 接続設定 ================= -->
   <div class="panel" id="p-conn">
     <div class="card">
@@ -483,8 +571,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.9"></script>
-<script src="home-common.js?v=3.9"></script>
+<script src="core.js?v=4.0"></script>
+<script src="home-common.js?v=4.0"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -542,17 +630,18 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     loadHome();
     loadLp();
     loadSched();
+    loadSnap();
   });
   store.onChange(render);
 
   /* =============================================================
      ロール選択フィールド（公開範囲・タイル・ツールで共用）
      ============================================================= */
-  function roleField(container, getIds, setIds){
+  function roleField(container, getIds, setIds, labelText){
     container.innerHTML = "";
     const lbl = document.createElement("div");
     lbl.className = "lbl";
-    lbl.textContent = "表示できるロール（未選択＝全員に表示）";
+    lbl.textContent = labelText || "表示できるロール（未選択＝全員に表示）";
     container.appendChild(lbl);
 
     const chips = document.createElement("div");
@@ -1670,6 +1759,233 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       const t = await r.text();
       out.value = t;
       if (!r.ok) out.value += "\n\n/notify は worker.js v3.1 以降で使えます。Worker のコードが古い可能性があります。";
+    } catch(e){ out.value = "失敗: " + e.message; }
+    btn.disabled = false;
+  };
+
+  /* =============================================================
+     先生スナップショット
+     ============================================================= */
+  let snapData = null;    // 保存済み
+  let snapEdit = null;    // 編集中
+  let snapDirty = false;
+
+  async function loadSnap(){
+    try { snapData = await C.loadSnapshot(); }
+    catch(e){ toast("スナップショット設定の読み込みに失敗: " + e.message); return; }
+    snapEdit = JSON.parse(JSON.stringify(snapData));
+    snapDirty = false;
+    fillSnap();
+  }
+  function markSnapDirty(){ snapDirty = true; $("snapSave").classList.add("dirty"); }
+
+  function fillSnap(){
+    $("snapEnabled").checked = snapEdit.enabled !== false;
+    $("snapLabel").value = snapEdit.label || "";
+    $("snapTopN").value = snapEdit.topN || 4;
+    $("snapFinalTitle").value = snapEdit.finalTitle || "";
+    $("snapFinalN").value = snapEdit.finalN || 4;
+    roleField($("snapRoleField"),
+      () => snapEdit.roleIds || [],
+      ids => { snapEdit.roleIds = ids; markSnapDirty(); },
+      "対象にするロール（未選択＝メンバー全員が対象）");
+    $("snapState").textContent = snapData && snapData.isDefault
+      ? "⚠️ まだ保存されていません。「💾 保存」を押すと有効になります（Workerはここを見て動きます）。"
+      : ("保存済み ／ 実施 " + C.snapshotDone(snapEdit) + "/" + (snapEdit.dates || []).length + "回" +
+         (snapData && snapData.updatedAt
+            ? "（最終更新 " + new Date(snapData.updatedAt).toLocaleString("ja-JP") + "）" : ""));
+    renderSnapDates();
+    renderSnapPoints();
+    renderSnapResults();
+    if (!$("snapRunDate").value) $("snapRunDate").value = C.dayKey();
+  }
+
+  function renderSnapDates(){
+    const box = $("snapDates");
+    box.innerHTML = "";
+    const list = snapEdit.dates || [];
+    if (!list.length){
+      box.innerHTML = '<div class="hint">実施日がありません。「＋ 実施日を追加」を押してください。</div>';
+      return;
+    }
+    list.forEach((d, i) => {
+      const row = document.createElement("div");
+      row.className = "srow";
+
+      const tag = document.createElement("span");
+      tag.className = "rn";
+      tag.style.minWidth = "56px";
+      tag.textContent = (["①","②","③","④","⑤","⑥"][i] || ("第" + (i+1) + "回")) +
+        (i === list.length - 1 ? "（最終）" : "");
+      row.appendChild(tag);
+
+      const inp = document.createElement("input");
+      inp.type = "date"; inp.value = d;
+      inp.onchange = () => {
+        snapEdit.dates[i] = inp.value;
+        snapEdit.dates = snapEdit.dates.filter(Boolean).sort();
+        markSnapDirty(); renderSnapDates();
+      };
+      row.appendChild(inp);
+
+      const wd = document.createElement("span");
+      wd.className = "wd";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d)){
+        const w = C.weekdayOf(d);
+        wd.textContent = C.WEEK_JA[w];
+        if (w === 0) wd.classList.add("sun");
+        if (w === 6) wd.classList.add("sat");
+      } else wd.textContent = "—";
+      row.appendChild(wd);
+
+      const st = document.createElement("span");
+      st.className = "cnt";
+      st.style.flex = "1";
+      const done = (snapEdit.results || {})[d];
+      st.textContent = done
+        ? ("実施済み（" + (done.rows || []).length + "人にポイント）")
+        : "まだ実施していません";
+      row.appendChild(st);
+
+      const del = document.createElement("button");
+      del.className = "mini del"; del.textContent = "削除";
+      del.onclick = () => {
+        if (done && !confirm("この回はすでに実施済みです。実施日から外しますか？（結果は残ります）")) return;
+        snapEdit.dates.splice(i, 1);
+        markSnapDirty(); renderSnapDates();
+      };
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  }
+
+  function renderSnapPoints(){
+    const box = $("snapPoints");
+    box.innerHTML = "";
+    const n = Math.max(1, Math.min(8, snapEdit.topN | 0 || 4));
+    snapEdit.points = snapEdit.points || [];
+    for (let i = 0; i < n; i++){
+      if (snapEdit.points[i] == null) snapEdit.points[i] = Math.max(1, n - i);
+      const wrap = document.createElement("label");
+      wrap.className = "chk";
+      wrap.style.gap = "6px";
+      wrap.appendChild(document.createTextNode((i + 1) + "位"));
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.min = "0"; inp.max = "99";
+      inp.style.width = "62px";
+      inp.value = snapEdit.points[i];
+      inp.oninput = () => { snapEdit.points[i] = inp.value | 0; markSnapDirty(); };
+      wrap.appendChild(inp);
+      wrap.appendChild(document.createTextNode("pt"));
+      box.appendChild(wrap);
+    }
+    snapEdit.points = snapEdit.points.slice(0, n);
+  }
+
+  function renderSnapResults(){
+    const box = $("snapResults");
+    const dates = Object.keys(snapEdit.results || {}).sort();
+    if (!dates.length){
+      box.innerHTML = '<div class="hint">まだ結果がありません。実施日の23:45を過ぎると、ここに出ます。</div>';
+      return;
+    }
+    let html = "";
+    dates.forEach(d => {
+      const r = snapEdit.results[d];
+      const idx = (snapEdit.dates || []).indexOf(d);
+      html += '<div class="sgroup">' + (["①","②","③","④","⑤","⑥"][idx] || "") + " " + d +
+        (r.at ? "（" + new Date(r.at).toLocaleString("ja-JP") + " 実施）" : "") + "</div>";
+      html += '<div class="tw"><table><tr><th>順位</th><th>名前</th><th>ランク</th><th style="text-align:right">ポイント</th></tr>';
+      (r.rows || []).forEach(x => {
+        html += "<tr><td>" + x.rank + "位</td><td>" + esc(x.name) + "</td><td>" +
+          esc(x.tier ? (x.tier + " " + (x.division || "") + " " + x.lp + "LP") : "—") +
+          '</td><td style="text-align:right">+' + x.point + "pt</td></tr>";
+      });
+      html += "</table></div>";
+    });
+
+    const st = C.snapshotStandings(snapEdit);
+    if (st.length){
+      const n = Math.max(1, snapEdit.finalN | 0 || 4);
+      html += '<div class="sgroup">合計ポイント（上位' + n + '人が「' +
+        esc(snapEdit.finalTitle || "代表先生") + '」になります）</div>';
+      html += '<div class="tw"><table><tr><th></th><th>名前</th>' +
+        dates.map(d => "<th>" + d.slice(5) + "</th>").join("") +
+        '<th style="text-align:right">合計</th></tr>';
+      st.forEach((t, i) => {
+        html += "<tr" + (i < n ? ' style="font-weight:900"' : "") + "><td>" +
+          (i < n ? (["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣"][i] || "") : "") +
+          (i + 1) + "</td><td>" + esc(t.name) + "</td>" +
+          dates.map(d => "<td>" + (t.per[d] != null ? "+" + t.per[d] : "—") + "</td>").join("") +
+          '<td style="text-align:right">' + t.total + "pt</td></tr>";
+      });
+      html += "</table></div>";
+      if (snapEdit.finalAt){
+        html += '<div class="hint" style="margin-top:8px">🏆 ' +
+          new Date(snapEdit.finalAt).toLocaleString("ja-JP") + " に表彰を投稿済みです。</div>";
+      }
+    }
+    box.innerHTML = html;
+  }
+
+  $("snapEnabled").onchange = () => { snapEdit.enabled = $("snapEnabled").checked; markSnapDirty(); };
+  $("snapLabel").oninput = () => { snapEdit.label = $("snapLabel").value; markSnapDirty(); };
+  $("snapFinalTitle").oninput = () => { snapEdit.finalTitle = $("snapFinalTitle").value; markSnapDirty(); };
+  $("snapFinalN").oninput = () => { snapEdit.finalN = $("snapFinalN").value | 0; markSnapDirty(); };
+  $("snapTopN").oninput = () => {
+    snapEdit.topN = Math.max(1, Math.min(8, $("snapTopN").value | 0));
+    markSnapDirty(); renderSnapPoints();
+  };
+  $("snapAddDate").onclick = () => {
+    snapEdit.dates = (snapEdit.dates || []).concat([C.dayKey()]);
+    snapEdit.dates.sort();
+    markSnapDirty(); renderSnapDates();
+  };
+  $("snapSeedDates").onclick = () => {
+    snapEdit.dates = ["2026-10-31", "2026-11-07"];
+    markSnapDirty(); renderSnapDates();
+    toast("予定表の①②と同じ日を入れました");
+  };
+  $("snapApply").onclick = async () => {
+    const btn = $("snapApply");
+    btn.disabled = true;
+    try {
+      snapData = await C.saveSnapshot(snapEdit);
+      snapEdit = JSON.parse(JSON.stringify(snapData));
+      snapDirty = false;
+      $("snapSave").classList.remove("dirty");
+      fillSnap();
+      toast("スナップショットの設定を保存しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+  $("snapReset").onclick = () => {
+    if (snapDirty && !confirm("編集中の内容を捨てて、保存されている設定に戻しますか？")) return;
+    snapEdit = JSON.parse(JSON.stringify(snapData));
+    snapDirty = false;
+    $("snapSave").classList.remove("dirty");
+    fillSnap();
+  };
+  $("snapRun").onclick = async () => {
+    const key = $("snapCronKey").value.trim();
+    if (!key){ toast("CRON_KEY を入れてください"); return; }
+    if (!confirm("本番と同じ処理を実行します。談話室に実際に投稿されますが、よろしいですか？")) return;
+    const out = $("snapOut");
+    const btn = $("snapRun");
+    btn.disabled = true;
+    out.style.display = "";
+    out.value = "実行中…";
+    try {
+      const base = C.RiotConfig.effective().workerUrl;
+      if (!base) throw new Error("Worker URL が未設定です");
+      const q = ["key=" + encodeURIComponent(key)];
+      if ($("snapRunDate").value) q.push("date=" + encodeURIComponent($("snapRunDate").value));
+      if ($("snapForce").checked) q.push("force=1");
+      if ($("snapFinal").checked) q.push("final=1");
+      const r = await fetch(base + "/snapshot?" + q.join("&"));
+      out.value = await r.text();
+      if (!r.ok) out.value += "\n\n/snapshot は worker.js v3.3 以降で使えます。Worker のコードが古い可能性があります。";
+      await loadSnap();
     } catch(e){ out.value = "失敗: " + e.message; }
     btn.disabled = false;
   };

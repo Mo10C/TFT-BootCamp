@@ -49,7 +49,7 @@
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
 const ALLOWED_PLATFORMS = ["jp1", "kr", "na1", "euw1", "eun1", "oc1", "br1", "la1", "la2", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"];
 const DISCORD_API = "https://discord.com/api/v10";
-const WORKER_VERSION = "3.2";
+const WORKER_VERSION = "3.3";
 
 // ブラウザからのAPI呼び出しを許可するオリジン（"*" か "https://mo10c.github.io" 等）
 const ALLOW_ORIGIN = "*";
@@ -81,6 +81,7 @@ export default {
         case "/diag":          return await diagnostics(env);
         case "/collect":       return await collectEndpoint(url, env);
         case "/notify":        return await notifyEndpoint(url, env);
+        case "/snapshot":      return await snapshotEndpoint(url, env);
         default:               return json({ error: "unknown endpoint: " + path }, 404);
       }
     } catch (e) {
@@ -108,10 +109,15 @@ export default {
       return;
     }
     if (cron === "45 14 * * *" || !cron) {
-      ctx.waitUntil(collectLp(env).then(
-        r => console.log("LP集計 完了", JSON.stringify(r)),
-        e => console.error("LP集計 失敗", e && e.message)
-      ));
+      // LPを集めてから、その日が実施日ならスナップショットを出す（順番が大事）
+      ctx.waitUntil(
+        collectLp(env)
+          .then(r => { console.log("LP集計 完了", JSON.stringify(r)); },
+                e => { console.error("LP集計 失敗", e && e.message); })
+          .then(() => runSnapshot(env, {}))
+          .then(r => console.log("先生スナップショット", JSON.stringify(r)),
+                e => console.error("先生スナップショット 失敗", e && e.message))
+      );
       return;
     }
     console.warn("知らないCronが鳴りました: " + cron);
@@ -359,6 +365,147 @@ async function notifyEndpoint(url, env) {
 }
 
 /* =============================================================
+   先生スナップショット（指定日の 23:45 JST・LP集計の直後）
+
+   lboard_index/snapshot の設定を読み、きょうが実施日なら
+     1) lboard_index/lp から「対象ロールを持つ人」を取り出す
+     2) そのときのLP（絶対LP）が高い順に topN 人へ points を配る
+     3) 談話室へ結果を投稿し、results[今日] に保存する
+     4) 最終回なら、全回の合計ポイントで「代表先生」を決めて表彰を投稿する
+   ============================================================= */
+async function runSnapshot(env, opts) {
+  opts = opts || {};
+  const today = opts.date || jstDayKey();
+  const doc = await fsGet(env, "lboard_index/snapshot");
+  if (!doc) return { ok: true, date: today, note: "スナップショットの設定がまだ保存されていません" };
+  if (doc.enabled === false) return { ok: true, date: today, note: "設定がオフです" };
+
+  const dates = (Array.isArray(doc.dates) ? doc.dates : []).map(String).sort();
+  if (!dates.length) return { ok: true, date: today, note: "実施日が設定されていません" };
+  if (dates.indexOf(today) < 0 && !opts.force) {
+    return { ok: true, date: today, note: "きょうは実施日ではありません", dates };
+  }
+  const results = doc.results || {};
+  if (results[today] && !opts.force) {
+    return { ok: true, date: today, note: "この日はすでに実施済みです（やり直すなら force=1）" };
+  }
+
+  // 1) 対象者を集める
+  const lp = await fsGet(env, "lboard_index/lp");
+  const members = (lp && lp.members) || {};
+  const roleIds = (Array.isArray(doc.roleIds) ? doc.roleIds : []).map(String);
+  const cand = Object.keys(members)
+    .map(id => Object.assign({ id }, members[id] || {}))
+    .filter(m => typeof m.abs === "number" && m.abs > 0)
+    .filter(m => !roleIds.length ||
+      (Array.isArray(m.roles) && m.roles.some(r => r && roleIds.indexOf(String(r.id)) >= 0)));
+  if (!cand.length) {
+    return { ok: false, date: today, error: "対象になる人がいません（ロール設定かLPデータを確認してください）" };
+  }
+  cand.sort((a, b) => (b.abs - a.abs) || String(a.name || "").localeCompare(String(b.name || "")));
+
+  // 2) ポイントを配る
+  const topN = Math.max(1, (doc.topN | 0) || 4);
+  const points = (Array.isArray(doc.points) && doc.points.length ? doc.points : [4, 3, 2, 1]).map(x => x | 0);
+  const rows = cand.slice(0, topN).map((m, i) => ({
+    id: String(m.id), name: String(m.name || "—"),
+    tier: String(m.tier || ""), division: String(m.division || ""),
+    lp: m.lp | 0, abs: m.abs | 0,
+    rank: i + 1, point: (points[i] != null ? points[i] : 0)
+  }));
+
+  // 3) 投稿して保存
+  const label = String(doc.label || "先生スナップショット");
+  const round = dates.indexOf(today) + 1;
+  const maru = ["", "①", "②", "③", "④", "⑤", "⑥"][round] || ("第" + round + "回");
+  const medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"];
+
+  let content = "📸 **" + label + maru + "**　" +
+    Number(today.slice(5, 7)) + "/" + Number(today.slice(8)) + " 23:45 時点\n";
+  content += rows.map(r =>
+    medal[r.rank - 1] + " **" + r.rank + "位　" + r.name + "**　" +
+    rankLabelW(r) + "　**+" + r.point + "pt**").join("\n");
+  content += "\n\nおつかれさまでした！";
+
+  const ch = env.DISCORD_ANNOUNCE_CHANNEL_ID;
+  const posted = await postTo(env, ch, content);
+
+  const patch = { results: Object.assign({}, results, { [today]: { at: Date.now(), rows } }),
+                  updatedAt: Date.now() };
+
+  // 4) 最終回なら表彰
+  let finalOut = null;
+  const isLast = opts.final != null ? !!opts.final : (today >= dates[dates.length - 1]);
+  if (isLast) {
+    const tally = {};
+    Object.keys(patch.results).sort().forEach(d => {
+      (patch.results[d].rows || []).forEach(r => {
+        const t = tally[r.id] || (tally[r.id] = { id: r.id, name: r.name, total: 0, per: {}, lastAbs: 0 });
+        t.total += r.point | 0;
+        t.per[d] = r.point | 0;
+        t.name = r.name;
+        t.lastAbs = r.abs | 0;
+      });
+    });
+    const finalN = Math.max(1, (doc.finalN | 0) || 4);
+    const finalTitle = String(doc.finalTitle || "代表先生");
+    const order = Object.keys(tally).map(k => tally[k]).sort((a, b) =>
+      (b.total - a.total) || (b.lastAbs - a.lastAbs) ||
+      String(a.name).localeCompare(String(b.name)));
+    const chosen = order.slice(0, finalN);
+
+    let msg = "🏆 **" + finalTitle + " 決定！** 🏆\n" +
+      dates.length + "回の" + label + "の合計ポイントで、" + finalTitle + finalN + "名が決まりました。\n\n";
+    msg += chosen.map((t, i) => {
+      const detail = dates.filter(d => t.per[d] != null)
+        .map((d, k) => (["①","②","③","④","⑤","⑥"][dates.indexOf(d)] || "") + (t.per[d] | 0) + "pt")
+        .join(" + ");
+      return (medal[i] || "✨") + " **" + t.name + "**　**" + t.total + "pt**" +
+        (detail ? "（" + detail + "）" : "");
+    }).join("\n");
+    msg += "\n\nおめでとうございます！ 代表としてよろしくお願いします 🎉";
+
+    const okF = await postTo(env, ch, msg);
+    patch.final = chosen;
+    patch.finalAt = Date.now();
+    finalOut = { posted: okF, chosen: chosen.map(t => t.name + " " + t.total + "pt") };
+  }
+
+  await fsPatch(env, "lboard_index/snapshot", patch);
+
+  return {
+    ok: true, date: today, round, label,
+    candidates: cand.length,
+    rows: rows.map(r => r.rank + "位 " + r.name + " +" + r.point + "pt"),
+    discord: posted ? "投稿しました" : "投稿できませんでした（チャンネルIDとBot権限を確認）",
+    final: finalOut
+  };
+}
+
+function rankLabelW(r) {
+  if (!r.tier) return "ランクなし";
+  const noDiv = /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(r.tier);
+  return r.tier + (noDiv ? "" : " " + (r.division || "")) + " " + (r.lp | 0) + "LP";
+}
+
+/* ---- 手動実行用。CRON_KEY を知っている人だけ ----
+   /snapshot?key=xxx                  … きょうが実施日なら実行
+   /snapshot?key=xxx&date=2026-10-31  … その日として実行
+   /snapshot?key=xxx&force=1          … 実施日でなくても / やり直しでも実行
+   /snapshot?key=xxx&final=1          … 表彰まで出す（テスト用） */
+async function snapshotEndpoint(url, env) {
+  if (!env.CRON_KEY) return json({ error: "CRON_KEY が未設定のため手動実行は無効です" }, 403);
+  if (url.searchParams.get("key") !== env.CRON_KEY) return json({ error: "key が違います" }, 403);
+  const date = url.searchParams.get("date");
+  const opts = { force: url.searchParams.get("force") === "1" };
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) opts.date = date;
+  if (url.searchParams.get("final") === "1") opts.final = true;
+  if (url.searchParams.get("final") === "0") opts.final = false;
+  const r = await runSnapshot(env, opts);
+  return json(r);
+}
+
+/* =============================================================
    /diag — 設定の自己診断
    シークレットの中身は絶対に返さない。「入っているか」と
    「Discord に通るか」だけを返す。
@@ -446,6 +593,24 @@ async function diagnostics(env) {
     }
   } catch (e) {
     out.checks.scheduleSaved = "読み取り失敗: " + String((e && e.message) || e);
+  }
+
+  // 先生スナップショット
+  try {
+    if (present("FIREBASE_PROJECT_ID") && present("FIREBASE_API_KEY")) {
+      const sd = await fsGet(env, "lboard_index/snapshot");
+      if (!sd) out.checks.snapshot = "未設定（管理コンソール →「🏅 先生スナップショット」で保存してください）";
+      else {
+        const ds = (sd.dates || []).map(String).sort();
+        const done = ds.filter(d => (sd.results || {})[d]).length;
+        out.checks.snapshot = (sd.enabled === false ? "オフ" : "オン") +
+          " ／ 実施日 " + (ds.join(", ") || "なし") +
+          " ／ 実施済み " + done + "/" + ds.length + "回" +
+          " ／ 対象ロール " + ((sd.roleIds || []).length ? (sd.roleIds || []).join(", ") : "未設定（全員が対象）");
+      }
+    }
+  } catch (e) {
+    out.checks.snapshot = "読み取り失敗: " + String((e && e.message) || e);
   }
 
   return json(out);
