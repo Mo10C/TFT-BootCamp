@@ -10,28 +10,39 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#F3F2FA;--bg-2:#E9E7F6;--surface:#FFFFFF;--surface-2:#F7F6FD;
-  --border:#E7E3F3;--border-strong:#D8D3EC;--ink:#2C2A47;--muted:#807D9C;
-  --pink:#D94E97;--pink-deep:#B83C7E;--pink-soft:#F4B7D6;
-  --cyan:#1FA3B4;--cyan-deep:#188A99;--cyan-soft:#A6E1E8;--danger:#E25563;--gold:#E0A52E;--ok:#2FAE62;
-  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
-  --shadow:0 16px 36px -22px rgba(70,50,110,.35);--shadow-soft:0 8px 22px -14px rgba(70,50,110,.28);
-  --hexline:rgba(120,90,170,.16);
+  --bg:#E9F4FB;--bg-2:#D5EAF7;--surface:#FFFFFF;--surface-2:#F2F8FC;
+  --border:#D8E8F2;--border-strong:#BBD7E8;--ink:#23384D;--muted:#6D8699;
+  --accent:#EFA317;--accent-deep:#D3860A;--accent-2:#2E9BC9;--accent-2-deep:#1E7FAA;
+  --gold:#EFA317;--sky:#2E9BC9;--leaf:#7BA64E;--mint:#37BFA8;--coral:#EE7A63;--navy:#4A5A73;
+  --ok:#5F9E3C;--warn:#EFA317;--danger:#DF5B4C;
+  --pink:var(--accent);--pink-deep:var(--accent-deep);--pink-soft:#F7D9A0;
+  --cyan:var(--accent-2);--cyan-deep:var(--accent-2-deep);--cyan-soft:#BFE4F3;
+  --grad:linear-gradient(135deg,#F5B731,#E97E2C);
+  --shadow:0 16px 34px -20px rgba(35,70,105,.35);--shadow-soft:0 8px 20px -14px rgba(35,70,105,.30);
+  --hexline:rgba(60,120,170,.16);
 }
 :root[data-theme="dark"]{
-  --bg:#16121F;--bg-2:#0F0C17;--surface:#1F1A2C;--surface-2:#272138;
-  --border:#352C49;--border-strong:#473A60;--ink:#EFEAF8;--muted:#9C95B4;
-  --pink:#F26DB0;--pink-deep:#F58CC2;--pink-soft:#7A3560;
-  --cyan:#4FD2DF;--cyan-deep:#7BE0E9;--cyan-soft:#1E5A64;--danger:#F2727F;--gold:#F2C661;--ok:#4ecb84;
-  --grad:linear-gradient(135deg,var(--pink),var(--cyan));
-  --shadow:0 18px 40px -22px rgba(0,0,0,.7);--shadow-soft:0 10px 26px -16px rgba(0,0,0,.6);
-  --hexline:rgba(180,150,230,.14);
+  --bg:#111C29;--bg-2:#0C141E;--surface:#1A2735;--surface-2:#152232;
+  --border:#2A3B4D;--border-strong:#3B5064;--ink:#E8F2F9;--muted:#93A9BC;
+  --accent:#F7BE47;--accent-deep:#F0A317;--accent-2:#5CBEE4;--accent-2-deep:#8FD6F0;
+  --gold:#F7BE47;--sky:#5CBEE4;--leaf:#9BC96C;--mint:#55D8C0;--coral:#F49482;--navy:#8FA3BE;
+  --ok:#7BC456;--warn:#F7BE47;--danger:#F27A6C;
+  --pink:var(--accent);--pink-deep:var(--accent-deep);--pink-soft:#6B5225;
+  --cyan:var(--accent-2);--cyan-deep:var(--accent-2-deep);--cyan-soft:#1E4C63;
+  --grad:linear-gradient(135deg,#F7BE47,#EE8A3C);
+  --shadow:0 18px 38px -20px rgba(0,0,0,.72);--shadow-soft:0 10px 24px -16px rgba(0,0,0,.62);
+  --hexline:rgba(140,190,230,.14);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN",sans-serif;
-  background:radial-gradient(900px 480px at 88% -8%,color-mix(in srgb,var(--pink) 14%,transparent),transparent 60%),
-    radial-gradient(820px 460px at -8% 6%,color-mix(in srgb,var(--cyan) 13%,transparent),transparent 58%),var(--bg);
-  color:var(--ink);min-height:100vh;line-height:1.65;-webkit-font-smoothing:antialiased}
+  background:
+    radial-gradient(620px 260px at 12% 8%, rgba(255,255,255,.85), transparent 70%),
+    radial-gradient(520px 220px at 78% 2%, rgba(255,255,255,.72), transparent 72%),
+    radial-gradient(760px 300px at 92% 34%, rgba(255,255,255,.55), transparent 70%),
+    radial-gradient(560px 240px at 4% 52%, rgba(255,255,255,.45), transparent 72%),
+    linear-gradient(178deg, var(--bg-2) 0%, var(--bg) 42%, var(--bg) 100%);
+  background-attachment:fixed;
+  color:var(--ink);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 button{font-family:inherit;cursor:pointer}
 .num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
@@ -170,7 +181,7 @@ button{font-family:inherit;cursor:pointer}
 </div>
 
 <script src="config.js"></script>
-<script src="core.js?v=2.9"></script>
+<script src="core.js?v=3.0"></script>
 <script>
 (function(){
   const { Riot, DiscordAuth, Session, rankLabel, rankColor, roleColorCss } = window.LBCore;

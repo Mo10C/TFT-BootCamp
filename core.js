@@ -837,17 +837,20 @@
      そのまま書けるので、セキュリティルールの追加は不要。
      ============================================================= */
   const HOME_LS_KEY = "mcc-lb2-home";
-  const TINTS = ["pink", "cyan", "violet", "gold", "ok", "danger"];
+  // キービジュアル準拠の色。ui.css の --gold / --sky / … と対応。
+  const TINTS = ["gold", "sky", "leaf", "mint", "coral", "navy"];
+  // v2.8以前に保存されたタイルの色名を読み替える（設定を作り直さなくて済むように）
+  const TINT_LEGACY = { pink: "gold", cyan: "sky", violet: "leaf", ok: "leaf", danger: "coral" };
 
   function defaultHomeConfig() {
     return {
       title: "クラウドハッシュテイル校 TOOLS",
       subtitle: "Discordログイン式ホーム",
       tiles: [
-        { id: "boards",   icon: "🏆", name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "pink",   enabled: true, soon: false, roleIds: [] },
-        { id: "schedule", icon: "🗓", name: "予定表",       desc: "大会・合宿・コーチングの日程をまとめて確認。", url: "schedule.html", tint: "cyan",   enabled: true, soon: true,  roleIds: [] },
-        { id: "members",  icon: "👥", name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "violet", enabled: true, soon: true,  roleIds: [] },
-        { id: "lp",       icon: "📈", name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "gold",   enabled: true, soon: true,  roleIds: [] }
+        { id: "boards",   icon: "🏆", name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "gold",  enabled: true, soon: false, roleIds: [] },
+        { id: "schedule", icon: "🗓", name: "予定表",       desc: "大会・合宿・コーチングの日程をまとめて確認。", url: "schedule.html", tint: "sky",   enabled: true, soon: true,  roleIds: [] },
+        { id: "members",  icon: "👥", name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf",  enabled: true, soon: true,  roleIds: [] },
+        { id: "lp",       icon: "📈", name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "mint",  enabled: true, soon: true,  roleIds: [] }
       ],
       tools: (((CFG.home || {}).tools) || []).slice(),
       updatedAt: 0
@@ -861,7 +864,7 @@
       name: String(t.name || "無題").slice(0, 40),
       desc: String(t.desc || "").slice(0, 120),
       url: String(t.url || "#").slice(0, 300),
-      tint: TINTS.includes(t.tint) ? t.tint : "pink",
+      tint: TINTS.includes(t.tint) ? t.tint : (TINT_LEGACY[t.tint] || "gold"),
       enabled: t.enabled !== false,
       soon: !!t.soon,
       roleIds: Array.isArray(t.roleIds) ? t.roleIds.map(String).filter(Boolean) : []
@@ -1201,7 +1204,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "2.9",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "3.0",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
