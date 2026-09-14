@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.4">
+<link rel="stylesheet" href="ui.css?v=3.6">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -238,10 +238,13 @@ tr:last-child td{border-bottom:none}
   <!-- ================= LP ================= -->
   <div class="panel" id="p-lp">
     <div class="card">
-      <h2>比較の基準日</h2>
+      <h2>比較の基準日（グラフの左端）</h2>
       <div class="lead">
-        LPランキングの「基準」列は、ここで指定した日からの増減です。合宿の開始日などを入れてください。<br>
-        空欄にすると「基準」列は表示されません。
+        合宿の開始日などを入れてください。この日が<b>LPランキングのグラフのいちばん左</b>になり、
+        右端が今日になります。「基準」列の増減もこの日からの差です。<br>
+        空欄にすると、グラフは「直近30日」表示になり、「基準」列も出ません。<br>
+        <b>※ グラフに出るのは、この日以降に記録された実測だけです。</b>
+        まだ記録がたまっていない期間は線が始まりません（さかのぼって取得することはできません）。
       </div>
       <div class="row">
         <label>基準日</label>
@@ -352,8 +355,8 @@ tr:last-child td{border-bottom:none}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.4"></script>
-<script src="home-common.js?v=3.4"></script>
+<script src="core.js?v=3.6"></script>
+<script src="home-common.js?v=3.6"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -996,8 +999,11 @@ tr:last-child td{border-bottom:none}
          (sorted.length ? "（" + sorted[0] + " 〜 " + sorted[sorted.length-1] + "）" : ""))
       : "まだ記録がありません。";
     $("lpBaseHint").textContent = lpData.baseline
-      ? ("現在の基準日: " + lpData.baseline)
-      : "基準日は未設定です（「基準」列は出ません）。";
+      ? ("現在の基準日: " + lpData.baseline +
+         "（LPランキングのグラフはこの日から今日までを表示します）" +
+         (sorted.length && sorted[0] > lpData.baseline
+           ? " ⚠️ 実際の記録は " + sorted[0] + " からです。それ以前は空白になります。" : ""))
+      : "基準日は未設定です（グラフは直近30日・「基準」列は出ません）。";
   }
   $("lpSaveBase").onclick = async () => {
     try {

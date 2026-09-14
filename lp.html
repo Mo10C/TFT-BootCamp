@@ -7,87 +7,112 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.4">
+<link rel="stylesheet" href="ui.css?v=3.6">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
-/* 系列の色。dataviz のリファレンス配色（検証済み）を使用。
-   ブランド色は明るすぎ・近すぎで categorical パレットの判定に落ちたため、
-   グラフの線だけは専用の色を使う。 */
+/* 1人1本の横長バンド。線の色は「誰か」を表さないので全員同じ1色。
+   dataviz の検証済み配色から1色だけ使う。 */
 .viz{
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
+  --line:#2a78d6;
+  --line-soft:color-mix(in srgb, #2a78d6 15%, transparent);
   --grid:color-mix(in srgb, var(--ink) 10%, transparent);
   --axis:color-mix(in srgb, var(--ink) 26%, transparent);
-  --faint:color-mix(in srgb, var(--ink) 17%, transparent);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .viz{
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --line:#3987e5;
+    --line-soft:color-mix(in srgb, #3987e5 20%, transparent);
     --grid:color-mix(in srgb, var(--ink) 14%, transparent);
     --axis:color-mix(in srgb, var(--ink) 32%, transparent);
-    --faint:color-mix(in srgb, var(--ink) 22%, transparent);
   }
 }
 :root[data-theme="dark"] .viz{
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --line:#3987e5;
+  --line-soft:color-mix(in srgb, #3987e5 20%, transparent);
   --grid:color-mix(in srgb, var(--ink) 14%, transparent);
   --axis:color-mix(in srgb, var(--ink) 32%, transparent);
-  --faint:color-mix(in srgb, var(--ink) 22%, transparent);
 }
-
-.lpwrap{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:14px;align-items:start}
-@media (max-width:880px){ .lpwrap{grid-template-columns:1fr} }
 
 .panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;
   box-shadow:var(--shadow-soft);overflow:hidden}
 .panel-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
   padding:13px 16px;border-bottom:1px solid var(--border)}
-.panel-head h2{font-size:13.5px;font-weight:900}
+.panel-head h2{font-size:14px;font-weight:900}
 .panel-head .sub{font-size:10.5px;color:var(--muted)}
+.spacer{flex:1}
 
-/* ---- 左: メンバー一覧 ---- */
-.mrow{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);
-  cursor:pointer;transition:background .1s}
-.mrow:last-child{border-bottom:none}
-.mrow:hover{background:var(--surface-2)}
-.mrow.on{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
-.mrow .swatch{width:4px;align-self:stretch;border-radius:99px;background:transparent;flex:none;min-height:30px}
-.mrow.on .swatch{background:var(--c)}
-.mrow .rk{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;color:var(--muted);
-  width:20px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
-.mrow img{width:30px;height:30px;border-radius:999px;object-fit:cover;flex:none;
-  border:1.5px solid var(--border-strong);background:var(--surface-2)}
-.mrow .who{flex:1;min-width:0}
-.mrow .nm{font-size:12.5px;font-weight:900;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mrow .tier{font-size:10px;font-weight:900;line-height:1.3}
-.deltas{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none;text-align:right}
-.dv{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;
-  white-space:nowrap;line-height:1.3}
-.dv .cap{font-size:8.5px;font-weight:700;color:var(--muted);margin-right:4px;letter-spacing:.04em}
+/* ===== 1人ぶんの横長バンド =====
+   左のはしら幅をすべての行でそろえてあるので、
+   グラフの左端（＝基準日）がどの行でも同じ位置にそろう。 */
+.lrow{display:flex;align-items:center;gap:11px;padding:9px 15px;
+  border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.lrow:last-child{border-bottom:none}
+.lrow:hover{background:var(--surface-2)}
+.lrow.open{background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+
+.lrk{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;color:var(--muted);
+  width:22px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.lwho{width:150px;flex:none;display:flex;align-items:center;gap:9px;min-width:0}
+.lwho .txt{min-width:0}
+.lwho .nm{font-size:12.5px;font-weight:900;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lwho .nm .meb{font-size:8.5px;font-weight:900;color:var(--accent-deep);
+  border:1.5px solid color-mix(in srgb,var(--accent) 55%,transparent);
+  border-radius:999px;padding:0 5px;margin-left:5px}
+.lwho .tier{font-size:10px;font-weight:900;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.lchart{flex:1;min-width:0}
+.lchart svg{display:block;width:100%}
+.lchart .none{font-size:10.5px;color:var(--muted);padding:14px 0;text-align:center;
+  border:1px dashed var(--border-strong);border-radius:10px}
+
+.ldelta{width:106px;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:1px;text-align:right}
+.dv{font-family:"Space Grotesk",sans-serif;font-size:12.5px;font-weight:700;
+  font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.35}
+.dv .cap{font-family:"Zen Kaku Gothic New",sans-serif;font-size:8.5px;font-weight:700;
+  color:var(--muted);margin-right:4px;letter-spacing:.04em}
 .dv.up{color:var(--ok)}
 .dv.down{color:var(--danger)}
 .dv.flat{color:var(--muted)}
+.ldelta .scale{font-family:"Space Grotesk",sans-serif;font-size:8.5px;font-weight:700;color:var(--muted)}
 
-/* ---- 右: グラフ ---- */
-.chartbox{padding:14px 16px 10px}
-.chart{width:100%;height:auto;display:block;touch-action:none}
-.chart text{font-family:"Space Grotesk","Zen Kaku Gothic New",sans-serif}
-.range{display:flex;gap:5px}
+/* 日付のものさし。全行のグラフがこの目盛りにそろっている */
+.ruler{display:flex;align-items:center;gap:11px;padding:7px 15px 6px;
+  border-bottom:1px solid var(--border);background:var(--surface-2)}
+.ruler .pad-rk{width:22px;flex:none}
+.ruler .pad-who{width:150px;flex:none;font-size:9.5px;font-weight:900;color:var(--muted)}
+.ruler .pad-dl{width:106px;flex:none;font-size:9.5px;font-weight:900;color:var(--muted);text-align:right}
+/* グラフ内側の余白（PAD.l / PAD.r）と同じだけ空けて、目盛りを線の始点・終点に合わせる */
+.ruler .bar{flex:1;min-width:0;display:flex;justify-content:space-between;
+  padding-left:30px;padding-right:46px;
+  font-family:"Space Grotesk",sans-serif;font-size:9.5px;font-weight:700;color:var(--muted)}
+.ruler .bar .mid{opacity:.75}
+.ruler .bar .base{color:var(--accent-deep)}
+
+/* 狭い画面では、名前の行の下にグラフを敷く */
+@media (max-width:760px){
+  .lrow{flex-wrap:wrap;gap:8px;padding:11px 13px}
+  .lwho{flex:1;width:auto}
+  .ldelta{width:auto;flex-direction:row;gap:9px;align-items:baseline}
+  .ldelta .scale{display:none}
+  .lchart{flex:1 1 100%;order:9}
+  .ruler{display:none}
+}
+
+.range{display:flex;gap:5px;flex-wrap:wrap}
 .rbtn{border:1.5px solid var(--border-strong);background:var(--surface);border-radius:999px;
   padding:4px 11px;font-size:11px;font-weight:900;color:var(--muted)}
 .rbtn.on{background:var(--grad);color:#fff;border-color:transparent}
-.legend{display:flex;flex-wrap:wrap;gap:10px;padding:0 16px 14px}
-.lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700}
-.lg i{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
-.tipbox{position:absolute;pointer-events:none;background:var(--ink);color:#fff;border-radius:10px;
-  padding:8px 11px;font-size:11.5px;line-height:1.6;box-shadow:var(--shadow);opacity:0;transition:opacity .1s;
-  z-index:10;white-space:nowrap}
+select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:4px 9px;font-size:11px;font-weight:900}
+.tipbox{position:fixed;pointer-events:none;background:var(--ink);color:#fff;border-radius:10px;
+  padding:7px 11px;font-size:11.5px;line-height:1.55;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .1s;z-index:60;white-space:nowrap}
 .tipbox.show{opacity:.97}
-.tipbox .td{font-weight:900;font-size:11px;margin-bottom:3px;opacity:.75}
-.tipbox .tr{display:flex;align-items:center;gap:6px}
-.tipbox .tr i{width:9px;height:9px;border-radius:2px;flex:none}
-.tipbox .tv{font-family:"Space Grotesk",sans-serif;font-weight:700;margin-left:auto;padding-left:10px}
-.relwrap{position:relative}
+.tipbox .td{font-weight:900;font-size:10.5px;opacity:.72}
+.tipbox .tv{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:12.5px}
 
 /* ---- 急上昇のお祝い ---- */
 .cheer{margin-top:14px;position:relative;overflow:hidden;
@@ -108,27 +133,28 @@
 .cheer-card .gain{font-family:"Space Grotesk",sans-serif;font-size:16px;font-weight:700;
   color:var(--ok);white-space:nowrap;flex:none}
 .cheer-empty{padding:4px 18px 18px;font-size:12px;color:var(--muted);line-height:1.8}
-.av{width:30px;height:30px;border-radius:999px;object-fit:cover;flex:none;
+.av{width:32px;height:32px;border-radius:999px;object-fit:cover;flex:none;
   border:1.5px solid var(--border-strong);background:var(--surface-2)}
-.avf{width:30px;height:30px;border-radius:999px;flex:none;display:grid;place-items:center;
-  font-size:12px;font-weight:900;color:#fff;background:var(--grad);
+.avf{width:32px;height:32px;border-radius:999px;flex:none;display:grid;place-items:center;
+  font-size:12.5px;font-weight:900;color:#fff;background:var(--grad);
   border:1.5px solid var(--border-strong)}
 .cheer-card .av,.cheer-card .avf{width:34px;height:34px;font-size:13px}
 
-.note{font-size:11.5px;color:var(--muted);padding:0 16px 14px;line-height:1.75}
+.note{font-size:11.5px;color:var(--muted);padding:12px 16px 15px;line-height:1.75;
+  border-top:1px solid var(--border)}
 .note b{color:var(--ink)}
-.tablebtn{margin-left:auto}
-.tabledata{display:none;padding:0 16px 14px}
+.tabledata{display:none;padding:0 16px 14px;overflow-x:auto}
 .tabledata.show{display:block}
 .tabledata table{width:100%;border-collapse:collapse;font-size:11.5px}
 .tabledata th,.tabledata td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;
-  font-variant-numeric:tabular-nums}
+  font-variant-numeric:tabular-nums;white-space:nowrap}
 .tabledata th:first-child,.tabledata td:first-child{text-align:left}
 .tabledata th{color:var(--muted);font-size:10px;font-weight:700}
+.empty{padding:34px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap viz">
 
   <div class="top">
     <div class="brand">
@@ -145,87 +171,94 @@
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
-  <div class="lpwrap viz">
-
-    <!-- 左: メンバー -->
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>メンバー</h2>
-          <div class="sub" id="memSub">読み込み中…</div>
-        </div>
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>LPの推移</h2>
+        <div class="sub" id="chartSub">読み込み中…</div>
       </div>
-      <div id="members"></div>
+      <div class="spacer"></div>
+      <select class="sortsel" id="sortSel" title="並び順">
+        <option value="lp">現在のLP順</option>
+        <option value="base">基準日からの伸び順</option>
+        <option value="day">前日からの伸び順</option>
+        <option value="name">名前順</option>
+      </select>
+      <div class="range">
+        <button class="rbtn on" data-mode="base">基準日から</button>
+        <button class="rbtn" data-mode="30">30日</button>
+        <button class="rbtn" data-mode="90">90日</button>
+      </div>
+      <button class="rbtn" id="scaleBtn" title="全員のグラフの縦幅を同じLP数にそろえて、伸びの傾きを見比べられるようにします">縦をそろえる</button>
+      <button class="rbtn" id="tableBtn">表で見る</button>
     </div>
 
-    <!-- 右: 推移 -->
-    <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>LPの推移</h2>
-          <div class="sub" id="chartSub">—</div>
-        </div>
-        <div class="spacer"></div>
-        <div class="range">
-          <button class="rbtn" data-days="7">7日</button>
-          <button class="rbtn on" data-days="30">30日</button>
-          <button class="rbtn" data-days="90">90日</button>
-        </div>
-        <button class="rbtn tablebtn" id="tableBtn">表で見る</button>
-      </div>
-      <div class="chartbox relwrap" id="chartBox">
-        <svg class="chart" id="chart" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet" role="img"
-             aria-label="選択したメンバーのLP推移"></svg>
-        <div class="tipbox" id="tip"></div>
-      </div>
-      <div class="legend" id="legend"></div>
-      <div class="tabledata" id="tableData"></div>
-      <div class="note" id="note"></div>
+    <div class="ruler" id="ruler" style="display:none">
+      <div class="pad-rk"></div>
+      <div class="pad-who">メンバー</div>
+      <div class="bar" id="rulerBar"></div>
+      <div class="pad-dl">LPの増減</div>
     </div>
 
-    <!-- 急上昇のお祝い（下の空きスペース） -->
-    <div class="cheer" id="cheer" style="grid-column:1/-1">
-      <div class="cheer-head">
-        <div>
-          <h2>🎉 今の急上昇プレイヤー</h2>
-          <div class="sub" id="cheerSub">—</div>
-        </div>
-      </div>
-      <div class="cheer-grid" id="cheerGrid"></div>
-    </div>
-
+    <div id="rows"></div>
+    <div class="tabledata" id="tableData"></div>
+    <div class="note" id="note"></div>
   </div>
+
+  <!-- 急上昇のお祝い -->
+  <div class="cheer" id="cheer">
+    <div class="cheer-head">
+      <div>
+        <h2>🎉 今の急上昇プレイヤー</h2>
+        <div class="sub" id="cheerSub">—</div>
+      </div>
+    </div>
+    <div class="cheer-grid" id="cheerGrid"></div>
+  </div>
+
 </div>
+<div class="tipbox" id="tip"></div>
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.4"></script>
-<script src="home-common.js?v=3.4"></script>
+<script src="core.js?v=3.6"></script>
+<script src="home-common.js?v=3.6"></script>
 <script>
 (function(){
   const C = window.LBCore;
   const $ = id => document.getElementById(id);
 
+  /* core.js が古いと lpRange が無く、グラフが1本も出ない。先に知らせる。 */
+  if (!C || typeof C.lpRange !== "function"){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;' +
+      'font-family:sans-serif;line-height:1.9">' +
+      '<b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      'core.js を新しいものに差し替えてから、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+
   const session = C.Session.require();
   if (!session) return;
   const ctx = window.MCCHome.boot(session);
-
-  const COLORS = ["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)"];
-  const MAX_SEL = COLORS.length;
+  const myId = "u_" + session.discord.id;
 
   let lp = null;
   let rows = [];            // 表示順のメンバー
-  let selected = [];        // 選択中のID（最大6・選んだ順で色が決まる）
-  let days = 30;
+  let opened = null;        // 開いて大きく見ている人のID
+  let mode = "base";        // "base" | 30 | 90
+  let range = null;         // {from, to, anchored}
+  let sameScale = false;    // 縦幅を全員そろえるか
+  let sortBy = "lp";
+
+  const MIN_VSPAN = 150;    // これより狭くはしない（小さな揺れを誇張しないため）
+  const H_BAND = 58;        // 通常のバンドの高さ(px)
+  const H_OPEN = 190;       // 開いたときの高さ(px)
 
   /* 自分のLPを1日1回記録（開くだけで履歴がたまる） */
   C.recordLpForSelf(session).catch(()=>{});
 
-  function colorOf(id){
-    const i = selected.indexOf(id);
-    return i >= 0 ? COLORS[i] : null;
-  }
-  /* アイコン。Discordのアバターが無い人は頭文字の丸で代用する（名前の横が空かないように） */
+  /* ---------- 小物 ---------- */
   function avatarEl(m){
     if (m.avatar){
       const img = document.createElement("img");
@@ -246,229 +279,335 @@
     d.title = m.name || "";
     return d;
   }
-
   function fmtDelta(v){
     if (v == null) return { txt:"—", cls:"flat" };
     if (v === 0) return { txt:"±0LP", cls:"flat" };
     return { txt:(v>0?"+":"−") + Math.abs(v) + "LP", cls: v>0?"up":"down" };
   }
+  function md(k){ return k ? k.slice(5).replace("-","/") : ""; }
+  function rankOf(m){ return m.tier ? { tier:m.tier, division:m.division, lp:m.lp } : null; }
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
 
-  /* ---------- 左のリスト ---------- */
-  function renderMembers(){
-    const box = $("members");
-    box.innerHTML = "";
-    if (!rows.length){
-      box.innerHTML = '<div class="note" style="padding:22px 16px">' +
-        'まだ誰も記録されていません。<br><b>メンバーがログインすると、その日のLPが自動で記録されます。</b><br>' +
-        '管理コンソールの「📈 LP」タブから、全員ぶんをまとめて取得することもできます。</div>';
-      $("memSub").textContent = "0人";
-      return;
-    }
-    $("memSub").textContent = rows.length + "人 ・ タップで推移を表示（最大" + MAX_SEL + "人）";
-
-    rows.forEach((m, i) => {
+  function sortRows(){
+    const key = m => {
       const st = C.lpStats(lp, m.id);
-      const on = selected.includes(m.id);
-      const row = document.createElement("div");
-      row.className = "mrow" + (on ? " on" : "");
-      if (on) row.style.setProperty("--c", colorOf(m.id));
-
-      const sw = document.createElement("div"); sw.className = "swatch";
-      const rk = document.createElement("div"); rk.className = "rk"; rk.textContent = (i+1);
-      const img = avatarEl(m);
-
-      const who = document.createElement("div"); who.className = "who";
-      const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = m.name;
-      const tr = document.createElement("div"); tr.className = "tier";
-      const rank = m.tier ? { tier:m.tier, division:m.division, lp:m.lp } : null;
-      tr.textContent = C.rankLabel(rank);
-      tr.style.color = C.rankColor(rank);
-      who.appendChild(nm); who.appendChild(tr);
-
-      const dl = document.createElement("div"); dl.className = "deltas";
-      const d1 = fmtDelta(st.dayDelta);
-      const e1 = document.createElement("div");
-      e1.className = "dv " + d1.cls;
-      e1.innerHTML = '<span class="cap">前日</span>' + d1.txt;
-      e1.title = st.prevDate ? ("前回計測 " + st.prevDate + " と比較") : "比較できる記録がまだありません";
-      dl.appendChild(e1);
-
-      if (lp.baseline){
-        const d2 = fmtDelta(st.baseDelta);
-        const e2 = document.createElement("div");
-        e2.className = "dv " + d2.cls;
-        e2.innerHTML = '<span class="cap">基準</span>' + d2.txt;
-        e2.title = st.baseDate ? ("基準 " + lp.baseline + "（実測 " + st.baseDate + "）と比較") : "";
-        dl.appendChild(e2);
-      }
-
-      row.appendChild(sw); row.appendChild(rk); row.appendChild(img);
-      row.appendChild(who); row.appendChild(dl);
-      row.onclick = () => toggle(m.id);
-      box.appendChild(row);
+      if (sortBy === "base") return st.baseDelta;
+      if (sortBy === "day")  return st.dayDelta;
+      return null;
+    };
+    rows.sort((a, b) => {
+      if (sortBy === "name") return String(a.name).localeCompare(String(b.name), "ja");
+      if (sortBy === "lp") return (b.abs || -1) - (a.abs || -1) ||
+        String(a.name).localeCompare(String(b.name), "ja");
+      const ka = key(a), kb = key(b);
+      if (ka == null && kb == null) return String(a.name).localeCompare(String(b.name), "ja");
+      if (ka == null) return 1;
+      if (kb == null) return -1;
+      return kb - ka;
     });
   }
 
-  function toggle(id){
-    const i = selected.indexOf(id);
-    if (i >= 0) selected.splice(i, 1);
-    else {
-      if (selected.length >= MAX_SEL){ ctx.toast("同時に表示できるのは" + MAX_SEL + "人までです"); return; }
-      selected.push(id);
-    }
-    renderMembers(); renderChart(); renderLegend(); renderTable();
-  }
+  /* =============================================================
+     描画
 
-  /* ---------- グラフ ---------- */
-  const W = 720, H = 340, PAD = { l:62, r:74, t:16, b:30 };
-  function renderChart(){
-    const svg = $("chart");
-    svg.innerHTML = "";
-    const NS = "http://www.w3.org/2000/svg";
-    const mk = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+     ★ 1人 = 横に長いバンド1本。
+        左から「順位・アイコン・名前」→「グラフ」→「LPの増減」。
+     ★ 左右のはしらの幅は固定なので、グラフの左端（＝基準日）は
+        どの行でも同じ位置にそろう。上の日付ものさしと一致する。
+     ★ 縦（LP）は既定では人ごとに自動。「縦をそろえる」で全員共通。
+     ============================================================= */
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const dayNum = k => { const [y,m,d] = k.split("-").map(Number); return Date.UTC(y, m-1, d) / 86400000; };
+  const spanOf = pts => {
+    if (!pts.length) return MIN_VSPAN;
+    const vs = pts.map(q => q.v);
+    return Math.max.apply(null, vs) - Math.min.apply(null, vs);
+  };
+  const round50 = v => Math.max(MIN_VSPAN, Math.ceil(v * 1.3 / 50) * 50);
 
-    // 描画対象: 選択があればそれ、無ければ上位6人を薄く
-    const shown = selected.length ? selected : rows.slice(0, MAX_SEL).map(m => m.id);
-    const seriesList = shown.map(id => ({ id, pts: C.lpSeries(lp, id, days) })).filter(s => s.pts.length);
+  function render(){
+    const box = $("rows");
+    box.innerHTML = "";
+    range = C.lpRange(lp, mode === "base" ? "base" : mode);
+    const days = C.daysBetween(range.from, range.to);
 
-    if (!seriesList.length){
-      const t = mk("text", { x:W/2, y:H/2, "text-anchor":"middle", "font-size":"13",
-        fill:"var(--muted)", "font-weight":"700" });
-      t.textContent = "この期間の記録がまだありません";
-      svg.appendChild(t);
-      $("chartSub").textContent = "—";
+    if (!rows.length){
+      $("ruler").style.display = "none";
+      box.innerHTML = '<div class="empty">まだ誰も記録されていません。<br>' +
+        '<b>メンバーがログインすると、その日のLPが自動で記録されます。</b><br>' +
+        '管理コンソールの「📈 LP」タブから、全員ぶんをまとめて取得することもできます。</div>';
+      $("chartSub").textContent = "0人";
       return;
     }
+    $("ruler").style.display = "";
 
-    // x: 期間の全日、y: 値域
-    const from = C.shiftDay(C.dayKey(), -(days - 1)), to = C.dayKey();
-    const dayNum = k => { const [y,m,d] = k.split("-").map(Number); return Date.UTC(y, m-1, d) / 86400000; };
-    const x0 = dayNum(from), x1 = dayNum(to);
-    let lo = Infinity, hi = -Infinity;
-    seriesList.forEach(s => s.pts.forEach(p => { lo = Math.min(lo, p.v); hi = Math.max(hi, p.v); }));
-    if (lo === hi){ lo -= 50; hi += 50; }
-    const pad = Math.max(20, (hi - lo) * 0.12);
-    lo = Math.max(0, lo - pad); hi = hi + pad;
+    const panels = rows.map(m => ({ m, pts: C.lpSeries(lp, m.id, range) }));
+    let common = 0;
+    if (sameScale){
+      panels.forEach(p => { common = Math.max(common, spanOf(p.pts)); });
+      common = round50(common);
+    }
 
-    const X = k => PAD.l + (dayNum(k) - x0) / Math.max(1, x1 - x0) * (W - PAD.l - PAD.r);
-    const Y = v => H - PAD.b - (v - lo) / (hi - lo) * (H - PAD.t - PAD.b);
+    let drawn = 0;
+    panels.forEach((p, i) => {
+      if (p.pts.length) drawn++;
+      box.appendChild(buildRow(p, i, sameScale ? common : round50(spanOf(p.pts))));
+    });
 
-    // ティア境界の補助線（この題材ならではの目盛り）
+    // 日付のものさし（グラフ列の真上）
+    const mid = C.shiftDay(range.from, Math.round(days / 2));
+    $("rulerBar").innerHTML =
+      '<span class="' + (range.anchored ? "base" : "") + '">' +
+        (range.anchored ? "★ " : "") + md(range.from) + '</span>' +
+      '<span class="mid">' + md(mid) + '</span>' +
+      '<span>' + md(range.to) + '</span>';
+
+    $("chartSub").textContent =
+      md(range.from) + " 〜 " + md(range.to) + "（" + (days + 1) + "日）" +
+      " ・ " + rows.length + "人中" + drawn + "人に記録あり" +
+      (sameScale ? " ・ 縦幅はどれも " + common + "LPぶん" : " ・ 縦幅は人ごとに自動") +
+      (range.anchored ? " ・ 左端＝基準日 " + lp.baseline : "");
+
+    drawAll();
+  }
+
+  function buildRow(p, idx, vspan){
+    const m = p.m, st = C.lpStats(lp, m.id);
+    const row = document.createElement("div");
+    row.className = "lrow" + (opened === m.id ? " open" : "");
+    row.dataset.pid = m.id;
+
+    const rk = document.createElement("div");
+    rk.className = "lrk";
+    rk.textContent = idx + 1;
+    row.appendChild(rk);
+
+    const who = document.createElement("div");
+    who.className = "lwho";
+    who.appendChild(avatarEl(m));
+    const txt = document.createElement("div"); txt.className = "txt";
+    const nm = document.createElement("div"); nm.className = "nm";
+    nm.appendChild(document.createTextNode(m.name));
+    if (m.id === myId){
+      const b = document.createElement("span"); b.className = "meb"; b.textContent = "あなた";
+      nm.appendChild(b);
+    }
+    const tier = document.createElement("div"); tier.className = "tier";
+    tier.textContent = C.rankLabel(rankOf(m));
+    tier.style.color = C.rankColor(rankOf(m));
+    txt.appendChild(nm); txt.appendChild(tier);
+    who.appendChild(txt);
+    row.appendChild(who);
+
+    const chart = document.createElement("div");
+    chart.className = "lchart";
+    chart._panel = p;                       // 幅が決まってから描くので、ここでは持たせるだけ
+    chart._vspan = vspan;
+    row.appendChild(chart);
+
+    const dl = document.createElement("div");
+    dl.className = "ldelta";
+    const d1 = fmtDelta(st.dayDelta);
+    const e1 = document.createElement("div");
+    e1.className = "dv " + d1.cls;
+    e1.innerHTML = '<span class="cap">前日</span>' + d1.txt;
+    e1.title = st.prevDate ? ("前回計測 " + st.prevDate + " と比較") : "比較できる記録がまだありません";
+    dl.appendChild(e1);
+    if (lp.baseline){
+      const d2 = fmtDelta(st.baseDelta);
+      const e2 = document.createElement("div");
+      e2.className = "dv " + d2.cls;
+      e2.innerHTML = '<span class="cap">基準</span>' + d2.txt;
+      e2.title = st.baseDate ? ("基準 " + lp.baseline + "（実測 " + st.baseDate + "）と比較") : "";
+      dl.appendChild(e2);
+    }
+    if (!sameScale && p.pts.length){
+      const sc = document.createElement("div");
+      sc.className = "scale";
+      sc.textContent = "縦" + vspan + "LP";
+      sc.title = "このグラフの縦の幅。人ごとに自動で決まります（「縦をそろえる」で全員共通にできます）";
+      dl.appendChild(sc);
+    }
+    row.appendChild(dl);
+
+    row.onclick = e => {
+      if (e.target.closest("a,button,select")) return;
+      opened = (opened === m.id) ? null : m.id;
+      render();
+    };
+    return row;
+  }
+
+  /* 実際の表示幅が決まってから SVG を作る。
+     ぴったりの幅で描くので、線が横に伸びて太さが崩れることがない。 */
+  function drawAll(){
+    document.querySelectorAll(".lchart").forEach(host => {
+      const p = host._panel;
+      if (!p) return;
+      const w = Math.max(140, Math.round(host.clientWidth));
+      host.innerHTML = "";
+      if (!p.pts.length){
+        const e = document.createElement("div");
+        e.className = "none";
+        e.textContent = "この期間の記録がまだありません";
+        host.appendChild(e);
+        return;
+      }
+      const open = (opened === p.m.id);
+      host.appendChild(drawChart(p, host._vspan, w, open ? H_OPEN : H_BAND, open));
+    });
+  }
+
+  function drawChart(p, vspan, w, h, detailed){
+    const m = p.m;
+    const PAD = { l:30, r:46, t:8, b: detailed ? 16 : 7 };
+
+    const vs = p.pts.map(q => q.v);
+    const mid = (Math.max.apply(null, vs) + Math.min.apply(null, vs)) / 2;
+    let lo = mid - vspan / 2, hi = mid + vspan / 2;
+    if (lo < 0){ hi -= lo; lo = 0; }
+
+    const x0 = dayNum(range.from), x1 = dayNum(range.to);
+    const X = k => PAD.l + (dayNum(k) - x0) / Math.max(1, x1 - x0) * (w - PAD.l - PAD.r);
+    const Y = v => h - PAD.b - (v - lo) / (hi - lo) * (h - PAD.t - PAD.b);
+
+    const svg = mk("svg", {
+      viewBox: "0 0 " + w + " " + h, width: w, height: h,
+      style: "height:" + h + "px", role: "img",
+      "aria-label": m.name + " のLP推移 " + range.from + " から " + range.to
+    });
+
+    // ティアの境目（この題材ならではの目盛り）
     C.tierLines(lo, hi).forEach(t => {
-      svg.appendChild(mk("line", { x1:PAD.l, x2:W-PAD.r, y1:Y(t.v), y2:Y(t.v),
+      svg.appendChild(mk("line", { x1:PAD.l, x2:w-PAD.r, y1:Y(t.v), y2:Y(t.v),
         stroke:"var(--grid)", "stroke-width":"1" }));
-      const lb = mk("text", { x:PAD.l-8, y:Y(t.v)+3.5, "text-anchor":"end", "font-size":"9.5",
+      const lb = mk("text", { x:PAD.l-5, y:Y(t.v)+3, "text-anchor":"end", "font-size":"7.5",
         fill:"var(--muted)", "font-weight":"700" });
-      lb.textContent = t.name;
+      lb.textContent = t.name.slice(0, 4);
       svg.appendChild(lb);
     });
-
-    // 軸
-    svg.appendChild(mk("line", { x1:PAD.l, x2:W-PAD.r, y1:H-PAD.b, y2:H-PAD.b, stroke:"var(--axis)", "stroke-width":"1" }));
-
-    // x目盛り（4つ）
-    for (let i = 0; i <= 3; i++){
-      const k = C.shiftDay(from, Math.round((days - 1) * i / 3));
-      const t = mk("text", { x:X(k), y:H-PAD.b+15, "text-anchor":"middle", "font-size":"9.5",
-        fill:"var(--muted)", "font-weight":"700" });
-      t.textContent = k.slice(5).replace("-", "/");
-      svg.appendChild(t);
+    // 下の軸
+    svg.appendChild(mk("line", { x1:PAD.l, x2:w-PAD.r, y1:h-PAD.b, y2:h-PAD.b,
+      stroke:"var(--axis)", "stroke-width":"1" }));
+    // 基準日の縦線（左端）
+    if (range.anchored){
+      svg.appendChild(mk("line", { x1:PAD.l, x2:PAD.l, y1:PAD.t, y2:h-PAD.b,
+        stroke:"var(--accent)", "stroke-width":"1.5", "stroke-dasharray":"3 3", opacity:".85" }));
     }
 
-    // 線
-    seriesList.forEach(s => {
-      const col = colorOf(s.id) || "var(--faint)";
-      const emph = !!colorOf(s.id);
-      const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p.d).toFixed(1) + " " + Y(p.v).toFixed(1)).join(" ");
-      svg.appendChild(mk("path", { d, fill:"none", stroke:col,
-        "stroke-width": emph ? "2" : "1.5", "stroke-linejoin":"round", "stroke-linecap":"round",
-        opacity: emph ? "1" : ".55" }));
+    // 面 → 線 の順（面が線を覆わないように）
+    const dLine = p.pts.map((q, i) => (i ? "L" : "M") + X(q.d).toFixed(1) + " " + Y(q.v).toFixed(1)).join(" ");
+    if (p.pts.length > 1){
+      const a = p.pts[0], z = p.pts[p.pts.length - 1];
+      svg.appendChild(mk("path", {
+        d: dLine + " L" + X(z.d).toFixed(1) + " " + (h-PAD.b) + " L" + X(a.d).toFixed(1) + " " + (h-PAD.b) + " Z",
+        fill:"var(--line-soft)", stroke:"none" }));
+    }
+    svg.appendChild(mk("path", { d:dLine, fill:"none", stroke:"var(--line)",
+      "stroke-width":"2", "stroke-linejoin":"round", "stroke-linecap":"round" }));
 
-      if (emph){
-        s.pts.forEach(p => {
-          svg.appendChild(mk("circle", { cx:X(p.d), cy:Y(p.v), r:"4",
-            fill:col, stroke:"var(--surface)", "stroke-width":"2" }));
-        });
-        // 線の右端に直接ラベル（色だけに頼らない）
-        const last = s.pts[s.pts.length - 1];
-        const m = lp.members[s.id] || { name:s.id };
-        const lbl = mk("text", { x:X(last.d)+9, y:Y(last.v)+3.5, "font-size":"10.5",
-          fill:"var(--ink)", "font-weight":"900" });
-        lbl.textContent = (m.name || "").slice(0, 7);
-        svg.appendChild(lbl);
-      }
+    // 点。詰まりすぎるときは両端だけ
+    const gap = (w - PAD.l - PAD.r) / Math.max(1, p.pts.length - 1);
+    const dots = (gap >= 11 || p.pts.length <= 2) ? p.pts : [p.pts[0], p.pts[p.pts.length - 1]];
+    dots.forEach(q => {
+      svg.appendChild(mk("circle", { cx:X(q.d), cy:Y(q.v), r: detailed ? "4" : "3.2",
+        fill:"var(--line)", stroke:"var(--surface)", "stroke-width":"2" }));
     });
 
-    // ホバー用の縦線と当たり判定
-    const cross = mk("line", { x1:0, x2:0, y1:PAD.t, y2:H-PAD.b, stroke:"var(--axis)",
+    // 右はしに現在のLPを直接ラベル（色だけに頼らない）
+    const last = p.pts[p.pts.length - 1];
+    const lbl = mk("text", { x: w - PAD.r + 6, y: Math.max(10, Math.min(h - PAD.b, Y(last.v) + 3.5)),
+      "font-size":"10", fill:"var(--ink)", "font-weight":"900" });
+    lbl.textContent = last.v >= 2800 ? ("M+" + (last.v - 2800)) : String(last.v);
+    svg.appendChild(lbl);
+
+    // 開いているときだけ、日付とLPの目盛りを足す
+    if (detailed){
+      const n = C.daysBetween(range.from, range.to);
+      for (let i = 0; i <= 3; i++){
+        const k = C.shiftDay(range.from, Math.round(n * i / 3));
+        const t = mk("text", { x:X(k), y:h-4,
+          "text-anchor": i === 0 ? "start" : (i === 3 ? "end" : "middle"),
+          "font-size":"8.5", fill:"var(--muted)", "font-weight":"700" });
+        t.textContent = md(k);
+        svg.appendChild(t);
+      }
+      p.pts.forEach((q, i) => {
+        if (i === p.pts.length - 1) return;      // 右はしの数字と重なるので最後は出さない
+        if (gap < 26) return;                    // 詰まりすぎるときは数字を出さない
+        const t = mk("text", { x:X(q.d), y:Y(q.v)-9, "text-anchor":"middle", "font-size":"8",
+          fill:"var(--muted)", "font-weight":"700" });
+        t.textContent = q.v;
+        svg.appendChild(t);
+      });
+    }
+
+    // ホバー
+    const cross = mk("line", { x1:0, x2:0, y1:PAD.t, y2:h-PAD.b, stroke:"var(--axis)",
       "stroke-width":"1", "stroke-dasharray":"3 3", opacity:"0" });
     svg.appendChild(cross);
-    const hit = mk("rect", { x:PAD.l, y:PAD.t, width:W-PAD.l-PAD.r, height:H-PAD.t-PAD.b,
+    const cur = mk("circle", { cx:0, cy:0, r:"5", fill:"var(--line)",
+      stroke:"var(--surface)", "stroke-width":"2.5", opacity:"0" });
+    svg.appendChild(cur);
+    const hit = mk("rect", { x:PAD.l, y:0, width:w-PAD.l-PAD.r, height:h,
       fill:"transparent", style:"cursor:crosshair" });
     svg.appendChild(hit);
 
     const tip = $("tip");
     function move(ev){
       const r = svg.getBoundingClientRect();
-      const px = (ev.clientX - r.left) / r.width * W;
-      const ratio = Math.max(0, Math.min(1, (px - PAD.l) / (W - PAD.l - PAD.r)));
-      const key = C.shiftDay(from, Math.round(ratio * (days - 1)));
-      cross.setAttribute("x1", X(key)); cross.setAttribute("x2", X(key));
-      cross.setAttribute("opacity", ".8");
-
-      const lines = [];
-      seriesList.forEach(s => {
-        const near = s.pts.filter(p => p.d <= key);
-        if (!near.length) return;
-        const p = near[near.length - 1];
-        const m = lp.members[s.id] || { name:s.id };
-        lines.push({ c: colorOf(s.id) || "var(--faint)", n: m.name, v: p.v, on: p.d === key });
-      });
-      if (!lines.length){ tip.classList.remove("show"); return; }
-      tip.innerHTML = '<div class="td">' + key + '</div>' +
-        lines.map(l => '<div class="tr"><i style="background:' + l.c + '"></i>' +
-          escapeHtml(l.n) + '<span class="tv">' + C.absToLabel(l.v) + '</span></div>').join("");
+      const px = (ev.clientX - r.left) / r.width * w;
+      let best = null, bd = Infinity;                       // いちばん近い実測点
+      p.pts.forEach(q => { const dd = Math.abs(X(q.d) - px); if (dd < bd){ bd = dd; best = q; } });
+      if (!best) return;
+      cross.setAttribute("x1", X(best.d)); cross.setAttribute("x2", X(best.d));
+      cross.setAttribute("opacity", ".7");
+      cur.setAttribute("cx", X(best.d)); cur.setAttribute("cy", Y(best.v)); cur.setAttribute("opacity", "1");
+      tip.innerHTML = '<div class="td">' + escapeHtml(m.name) + ' ・ ' + best.d + '</div>' +
+        '<div class="tv">' + C.absToLabel(best.v) + '</div>';
       tip.classList.add("show");
-      const bx = $("chartBox").getBoundingClientRect();
-      let left = ev.clientX - bx.left + 14;
-      if (left + tip.offsetWidth > bx.width - 8) left = ev.clientX - bx.left - tip.offsetWidth - 14;
+      let left = ev.clientX + 14;
+      if (left + tip.offsetWidth > window.innerWidth - 8) left = ev.clientX - tip.offsetWidth - 14;
       tip.style.left = Math.max(4, left) + "px";
-      tip.style.top = Math.max(4, ev.clientY - bx.top - 10) + "px";
+      tip.style.top = Math.max(4, ev.clientY - 48) + "px";
+    }
+    function leave(){
+      tip.classList.remove("show");
+      cross.setAttribute("opacity", "0");
+      cur.setAttribute("opacity", "0");
     }
     hit.addEventListener("mousemove", move);
     hit.addEventListener("touchmove", e => { if (e.touches[0]) move(e.touches[0]); });
-    hit.addEventListener("mouseleave", () => { tip.classList.remove("show"); cross.setAttribute("opacity","0"); });
+    hit.addEventListener("touchend", leave);
+    hit.addEventListener("mouseleave", leave);
 
-    $("chartSub").textContent = seriesList.length + "人 ・ " + from.slice(5).replace("-","/") +
-      " 〜 " + to.slice(5).replace("-","/") +
-      (selected.length ? "" : "（未選択のため上位" + seriesList.length + "人を表示）");
+    return svg;
   }
 
-  function renderLegend(){
-    const box = $("legend");
-    box.innerHTML = "";
-    if (selected.length < 2) return;   // 1系列なら凡例は不要（右端の直接ラベルで足りる）
-    selected.forEach(id => {
-      const m = lp.members[id] || { name:id };
-      const el = document.createElement("span");
-      el.className = "lg";
-      el.innerHTML = '<i style="background:' + colorOf(id) + '"></i>' + escapeHtml(m.name);
-      box.appendChild(el);
-    });
-  }
+  /* 画面幅が変わったら、グラフだけ描き直す（行は作り直さない） */
+  let rz = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(rz);
+    rz = setTimeout(drawAll, 140);
+  });
 
-  /* 表ビュー（色が見分けづらい場合の代替） */
+  /* 表ビュー（グラフが読みづらい場合の代替） */
   function renderTable(){
     const box = $("tableData");
-    const ids = selected.length ? selected : rows.slice(0, MAX_SEL).map(m => m.id);
+    if (!box.classList.contains("show")) return;
+    const ids = rows.map(m => m.id);
     const dates = new Set();
-    ids.forEach(id => C.lpSeries(lp, id, days).forEach(p => dates.add(p.d)));
+    ids.forEach(id => C.lpSeries(lp, id, range).forEach(p => dates.add(p.d)));
     const ds = [...dates].sort();
-    if (!ds.length){ box.innerHTML = '<div class="hint">データがありません</div>'; return; }
+    if (!ds.length){ box.innerHTML = '<div class="hint">この期間のデータがありません</div>'; return; }
     let html = "<table><tr><th>日付</th>" +
       ids.map(id => "<th>" + escapeHtml((lp.members[id]||{name:id}).name) + "</th>").join("") + "</tr>";
     ds.forEach(d => {
-      html += "<tr><td>" + d + "</td>" + ids.map(id => {
+      html += "<tr><td>" + d + (d === lp.baseline ? " ★基準" : "") + "</td>" + ids.map(id => {
         const h = (lp.hist[id] || {});
         return "<td>" + (h[d] != null ? C.absToLabel(h[d]) : "—") + "</td>";
       }).join("") + "</tr>";
@@ -479,25 +618,29 @@
     const el = $("tableData");
     el.classList.toggle("show");
     $("tableBtn").classList.toggle("on", el.classList.contains("show"));
-    if (el.classList.contains("show")) renderTable();
+    renderTable();
   };
-
-  document.querySelectorAll(".rbtn[data-days]").forEach(b => {
+  $("scaleBtn").onclick = () => {
+    sameScale = !sameScale;
+    $("scaleBtn").classList.toggle("on", sameScale);
+    render();
+  };
+  $("sortSel").onchange = () => { sortBy = $("sortSel").value; sortRows(); render(); };
+  document.querySelectorAll(".rbtn[data-mode]").forEach(b => {
     b.onclick = () => {
-      days = parseInt(b.dataset.days, 10);
-      document.querySelectorAll(".rbtn[data-days]").forEach(x => x.classList.toggle("on", x === b));
-      renderChart(); renderTable();
+      const v = b.dataset.mode;
+      mode = (v === "base") ? "base" : parseInt(v, 10);
+      document.querySelectorAll(".rbtn[data-mode]").forEach(x => x.classList.toggle("on", x === b));
+      render(); renderTable();
     };
   });
 
-  /* 急上昇: 「基準日から」を優先し、無ければ「前回比」で拾う。
-     お祝いなので上がった人だけを出す。 */
+  /* 急上昇: 「基準日から」を優先し、無ければ「前回比」。お祝いなので上がった人だけ。 */
   function renderCheer(){
     const useBase = !!lp.baseline;
     const list = rows.map(m => {
       const st = C.lpStats(lp, m.id);
-      const gain = useBase ? st.baseDelta : st.dayDelta;
-      return { m, st, gain };
+      return { m, st, gain: useBase ? st.baseDelta : st.dayDelta };
     }).filter(x => x.gain != null && x.gain > 0)
       .sort((a, b) => b.gain - a.gain)
       .slice(0, 6);
@@ -517,26 +660,24 @@
     list.forEach((x, i) => {
       const card = document.createElement("div");
       card.className = "cheer-card";
-
-      const md = document.createElement("div");
-      md.className = "medal";
-      md.textContent = medals[i] || "✨";
-
-      const av = avatarEl(x.m);
-
+      const mdl = document.createElement("div");
+      mdl.className = "medal";
+      mdl.textContent = medals[i] || "✨";
       const who = document.createElement("div"); who.className = "who";
       const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = x.m.name;
       const rs = document.createElement("div"); rs.className = "rs";
-      const rank = x.m.tier ? { tier:x.m.tier, division:x.m.division, lp:x.m.lp } : null;
-      rs.textContent = C.rankLabel(rank);
+      rs.textContent = C.rankLabel(rankOf(x.m));
       who.appendChild(nm); who.appendChild(rs);
-
       const g = document.createElement("div");
       g.className = "gain";
       g.textContent = "+" + x.gain + "LP";
-
-      card.appendChild(md); card.appendChild(av); card.appendChild(who); card.appendChild(g);
-      card.onclick = () => { if (!selected.includes(x.m.id)) toggle(x.m.id); };
+      card.appendChild(mdl); card.appendChild(avatarEl(x.m)); card.appendChild(who); card.appendChild(g);
+      card.onclick = () => {
+        opened = x.m.id;
+        render();
+        const el = document.querySelector('.lrow[data-pid="' + x.m.id + '"]');
+        if (el) el.scrollIntoView({ behavior:"smooth", block:"center" });
+      };
       card.style.cursor = "pointer";
       grid.appendChild(card);
     });
@@ -545,27 +686,31 @@
   function renderNote(){
     const n = $("note");
     const baseTxt = lp.baseline
-      ? "基準日は <b>" + lp.baseline + "</b>（管理コンソールの「📈 LP」タブで変更できます）。"
-      : "基準日が未設定です。管理コンソールの「📈 LP」タブで合宿の開始日などを指定すると、そこからの増減が出ます。";
+      ? "基準日は <b>" + lp.baseline + "</b>。「基準日から」を選ぶと、この日がグラフの<b>いちばん左</b>に固定されます" +
+        "（管理コンソールの「📈 LP」タブで変更できます）。"
+      : "<b>基準日が未設定です。</b>管理コンソールの「📈 LP」タブで合宿の開始日などを指定すると、" +
+        "その日がグラフの左端に固定され、そこからの増減も出ます。";
     n.innerHTML =
-      "「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" + baseTxt +
-      "<br>LPはティアをまたいで比べられるよう、IRON IV 0LP を 0 とした通し数値に換算しています。";
-  }
-
-  function escapeHtml(s){
-    return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
-      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+      baseTxt +
+      "<br>グラフは<b>1人につき1本の横長のバンド</b>。横軸（期間）はどの行も共通で、上の日付ものさしにそろっています。" +
+      "<b>行をクリックすると大きく開いて</b>、日付とLPの数字まで見えます。" +
+      "<br>縦の幅は既定ではその人に合わせて自動（右はしに「縦◯◯LP」と表示）。" +
+      "<b>「縦をそろえる」</b>を押すと全員同じ縦幅になり、伸びの傾きをそのまま見比べられます。" +
+      "<br>「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" +
+      "LPはティアをまたいで比べられるよう、IRON IV 0LP を 0 とした通し数値に換算しています。";
   }
 
   /* ---------- 起動 ---------- */
   C.loadLpData().then(data => {
     lp = data;
-    rows = Object.values(lp.members)
-      .sort((a, b) => (b.abs || -1) - (a.abs || -1) || String(a.name).localeCompare(String(b.name), "ja"));
-    // 既定で自分を選択しておく
-    const myId = "u_" + session.discord.id;
-    if (lp.members[myId]) selected = [myId];
-    renderMembers(); renderChart(); renderLegend(); renderCheer(); renderNote();
+    rows = Object.values(lp.members);
+    if (!lp.baseline){
+      mode = 30;   // 基準日が無いうちは直近30日で表示する
+      document.querySelectorAll(".rbtn[data-mode]").forEach(x =>
+        x.classList.toggle("on", x.dataset.mode === "30"));
+    }
+    sortRows();
+    render(); renderCheer(); renderNote();
   }).catch(e => {
     console.error(e);
     ctx.toast("LPデータの読み込みに失敗しました");

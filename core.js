@@ -548,12 +548,16 @@
     function assignSeat(matchIdx, tableIdx, seatIdx, pid) {
       if (!guard("席の配置")) return;
       const tb = state.matches[matchIdx].tables[tableIdx];
+      const kicked = tb.seats[seatIdx] || null;       // そこに座っていた人（居れば押し出される）
       // 同じ試合で既に座っていたら外す
       state.matches[matchIdx].tables.forEach(x => {
         const i = x.seats.indexOf(pid);
         if (i >= 0) x.seats[i] = null;
       });
       tb.seats[seatIdx] = pid;
+      if (kicked && kicked !== pid) {
+        state.matches[matchIdx].tables.forEach(x => { delete x.placements[kicked]; });
+      }
       save();
     }
     function clearSeat(matchIdx, tableIdx, seatIdx) {
@@ -562,6 +566,38 @@
       const pid = tb.seats[seatIdx];
       tb.seats[seatIdx] = null;
       if (pid) delete tb.placements[pid];
+      save();
+    }
+    /* ドラッグ&ドロップ用。
+       席 → 席 の移動。移動先に人が居たら入れ替える（＝席交換）。
+       卓をまたいだ場合は、その卓で入れた順位は意味を失うので消す。 */
+    function moveSeat(matchIdx, fromT, fromS, toT, toS) {
+      if (!guard("席の入れ替え")) return;
+      const mt = state.matches[matchIdx];
+      if (!mt) return;
+      const a = mt.tables[fromT], b = mt.tables[toT];
+      if (!a || !b) return;
+      if (fromT === toT && fromS === toS) return;
+      const pa = a.seats[fromS] || null;
+      const pb = b.seats[toS] || null;
+      a.seats[fromS] = pb;
+      b.seats[toS] = pa;
+      if (fromT !== toT) {
+        if (pa) { delete a.placements[pa]; delete b.placements[pa]; }
+        if (pb) { delete a.placements[pb]; delete b.placements[pb]; }
+      }
+      save();
+    }
+    /* ドラッグ&ドロップ用。その試合の席からこの選手を外す（参加者リストへ戻す）。 */
+    function unseatPlayer(matchIdx, pid) {
+      if (!guard("席から外す")) return;
+      const mt = state.matches[matchIdx];
+      if (!mt || !pid) return;
+      mt.tables.forEach(tb => {
+        const i = tb.seats.indexOf(pid);
+        if (i >= 0) tb.seats[i] = null;
+        delete tb.placements[pid];
+      });
       save();
     }
     function setPlacement(matchIdx, tableIdx, pid, rank) {
@@ -790,7 +826,7 @@
       get boardId() { return boardId; },
       setActor, getActor, canEdit,
       setSettings, upsertSelf, updatePlayer, setPlayerName, removePlayer, setOptIn,
-      assignSeat, clearSeat, setPlacement,
+      assignSeat, clearSeat, moveSeat, unseatPlayer, setPlacement,
       clearMatchSeats, clearAllResults, resetBoard, importState, loadBoardState,
       setPresent, setAllPresent, setPresentByRole, autoAssign,
       listBoards, setBoardTitle, setVisibility,
@@ -1225,12 +1261,38 @@
      latest : 最新の実測
      prev   : 今日より前で最も新しい実測（＝「前回計測」。毎日ログインしていない人でも比較できる）
      base   : 基準日以前で最も新しい実測。無ければ最古の実測 */
-  function lpSeries(lp, id, days) {
+  /* 表示期間を決める。
+     ★ mode "base"（既定）… 管理画面で指定した基準日をグラフの左端に固定する。
+        基準日が未設定、または未来の日付なら直近30日にフォールバック。
+     ★ mode が数値 … 「直近N日」（従来どおり）。 */
+  function lpRange(lp, mode) {
+    const to = dayKey();
+    if (typeof mode === "number" && mode > 0) {
+      return { from: shiftDay(to, -(mode - 1)), to, anchored: false };
+    }
+    const b = lp && lp.baseline;
+    if (b && /^\d{4}-\d{2}-\d{2}$/.test(b) && b <= to) {
+      return { from: b, to, anchored: true };
+    }
+    return { from: shiftDay(to, -29), to, anchored: false };
+  }
+  function daysBetween(from, to) {
+    const n = k => { const [y, m, d] = k.split("-").map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
+    return Math.max(0, Math.round(n(to) - n(from)));
+  }
+  /* opts は
+       数値            → 直近N日（従来の呼び方。互換のため残す）
+       {from, to}      → その区間
+       省略            → 全期間 */
+  function lpSeries(lp, id, opts) {
     const h = (lp.hist && lp.hist[id]) || {};
     let keys = Object.keys(h).sort();
-    if (days && days > 0) {
-      const from = shiftDay(dayKey(), -(days - 1));
+    if (typeof opts === "number" && opts > 0) {
+      const from = shiftDay(dayKey(), -(opts - 1));
       keys = keys.filter(k => k >= from);
+    } else if (opts && typeof opts === "object") {
+      if (opts.from) keys = keys.filter(k => k >= opts.from);
+      if (opts.to) keys = keys.filter(k => k <= opts.to);
     }
     return keys.map(k => ({ d: k, v: h[k] }));
   }
@@ -1541,7 +1603,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "3.4",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "3.6",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -1554,6 +1616,7 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, tierLines, dayKey, shiftDay,
     loadLpData, recordLp, recordLpForSelf, setLpBaseline, lpSeries, lpStats,
+    lpRange, daysBetween,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,
