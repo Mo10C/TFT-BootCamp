@@ -1195,8 +1195,10 @@
   }
 
   async function loadLpData() {
-    const db = openDb();
+    // ★ openDb() も try の中に入れる。
+    //    ここで例外が飛ぶと「読み込み失敗」になり、原因が分からなくなるため。
     try {
+      const db = openDb();
       if (db) {
         const snap = await db.collection("lboard_index").doc(LP_DOC).get();
         if (snap.exists) return normLp(snap.data());
@@ -1521,8 +1523,8 @@
   }
 
   async function loadSchedule() {
-    const db = openDb();
     try {
+      const db = openDb();
       if (db) {
         const snap = await db.collection("lboard_index").doc(SCHED_DOC).get();
         if (snap.exists) {
@@ -1891,7 +1893,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "3.9",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "3.9.2",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,

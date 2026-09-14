@@ -212,6 +212,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       <div class="pad-dl">LPの増減</div>
     </div>
 
+    <div class="rolewarn" id="errBox" style="display:none"></div>
     <div class="rolewarn" id="roleWarn" style="display:none">
       ⚠️ <b>全員が「その他」に入っています。</b>
       LPデータにまだDiscordロールが入っていないためです。
@@ -366,14 +367,14 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     const days = C.daysBetween(range.from, range.to);
 
     if (!rows.length){
-      $("ruler").style.display = "none";
+      if ($("ruler")) $("ruler").style.display = "none";
       box.innerHTML = '<div class="empty">まだ誰も記録されていません。<br>' +
         '<b>メンバーがログインすると、その日のLPが自動で記録されます。</b><br>' +
         '管理コンソールの「📈 LP」タブから、全員ぶんをまとめて取得することもできます。</div>';
       $("chartSub").textContent = "0人";
       return;
     }
-    $("ruler").style.display = "";
+    if ($("ruler")) $("ruler").style.display = "";
 
     const panels = rows.map(m => ({ m, pts: C.lpSeries(lp, m.id, range) }));
     let common = 0;
@@ -397,7 +398,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       box.appendChild(buildRow(p, nInGroup, sameScale ? common : round50(spanOf(p.pts))));
     });
     // ロール情報がまだ入っていない人が居ると、全員「その他」に落ちる
-    $("roleWarn").style.display = (order.length && noRole >= rows.length) ? "" : "none";
+    if ($("roleWarn")) $("roleWarn").style.display = (order.length && noRole >= rows.length) ? "" : "none";
 
     // 日付のものさし（グラフ列の真上）
     const mid = C.shiftDay(range.from, Math.round(days / 2));
@@ -738,23 +739,61 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     });
   }
 
+  function renderNote(){
+    const n = $("note");
+    if (!n) return;
+    const baseTxt = lp.baseline
+      ? "基準日は <b>" + lp.baseline + "</b>。「基準日から」を選ぶと、この日がグラフの<b>いちばん左</b>に固定されます" +
+        "（管理コンソールの「📈 LP」タブで変更できます）。"
+      : "<b>基準日が未設定です。</b>管理コンソールの「📈 LP」タブで合宿の開始日などを指定すると、" +
+        "その日がグラフの左端に固定され、そこからの増減も出ます。";
+    n.innerHTML =
+      baseTxt +
+      "<br>グラフは<b>1人につき1本の横長のバンド</b>。横軸（期間）はどの行も共通で、上の日付ものさしにそろっています。" +
+      "<b>行をクリックすると大きく開いて</b>、日付とLPの数字まで見えます。" +
+      "<br>縦の幅は既定ではその人に合わせて自動（右はしに「縦◯◯LP」と表示）。" +
+      "<b>「縦をそろえる」</b>を押すと全員同じ縦幅になり、伸びの傾きをそのまま見比べられます。" +
+      "<br>「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" +
+      "LPはティアをまたいで比べられるよう、IRON IV 0LP を 0 とした通し数値に換算しています。";
+  }
 
+  /* ---------- 起動 ----------
+     ★ 「読み込み」と「描画」を分けてある。
+        以前はどちらで転んでも「LPデータの読み込みに失敗しました」と出てしまい、
+        本当の原因が分からなかった。いまは、どこで・何が起きたかを画面に出す。
+        1か所が転んでも、他の部分はそのまま表示される。 */
+  function showErr(where, e){
+    const msg = String((e && (e.message || e.name)) || e || "不明なエラー");
+    console.error("[LP] " + where + " で失敗", e);
+    const box = $("errBox");
+    if (!box) { ctx.toast(where + ": " + msg); return; }
+    box.style.display = "";
+    box.innerHTML = "⚠️ <b>" + escapeHtml(where) + " でエラーが起きました。</b><br>" +
+      "<code>" + escapeHtml(msg) + "</code><br>" +
+      "他の部分はそのまま表示されています。直らないときは、この文章をそのまま伝えてください。";
+  }
+  function step(where, fn){
+    try { fn(); } catch(e){ showErr(where, e); }
+  }
 
-  /* ---------- 起動 ---------- */
-  C.loadLpData().then(data => {
-    lp = data;
-    rows = Object.values(lp.members);
+  function boot(data){
+    lp = data || { members:{}, hist:{}, baseline:"", groupOrder:[] };
+    rows = Object.values(lp.members || {});
     if (!lp.baseline){
       mode = 30;   // 基準日が無いうちは直近30日で表示する
       document.querySelectorAll(".rbtn[data-mode]").forEach(x =>
         x.classList.toggle("on", x.dataset.mode === "30"));
     }
-    assignGroups();
-    sortRows();
-    render(); renderCheer(); renderNote();
-  }).catch(e => {
-    console.error(e);
-    ctx.toast("LPデータの読み込みに失敗しました");
+    step("並び順の割り当て", assignGroups);
+    step("並べ替え",       sortRows);
+    step("グラフの描画",   render);
+    step("急上昇の集計",   renderCheer);
+    step("説明文の表示",   renderNote);
+  }
+
+  C.loadLpData().then(boot, e => {
+    showErr("LPデータの読み込み", e);
+    ctx.toast("LPデータを読み込めませんでした: " + String((e && e.message) || e));
   });
 })();
 </script>
