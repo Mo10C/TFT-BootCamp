@@ -35,6 +35,10 @@
          初回ログインの参加者が必ず consent_required で弾かれていた。
    v2.2  /member を追加（Botトークンで1人のロールを引く。管理コンソールの
          「全員のロールを再取得」用。本人の再ログインが不要になる）
+   v3.0  毎日23:45(JST)のLP一斉集計を追加（Cron Trigger: "45 14 * * *" = UTC）。
+         Firestore REST でメンバーを読み、Riotから最新ランクを取り、履歴に書き戻す。
+         ティアが上がった人は Discord の指定チャンネルへお祝いを自動投稿。
+         手動実行用に GET /collect?key=<CRON_KEY> も用意。
    v2.3  ★重要バグ修正: ルーティングの各 async 関数に await が無く、
          reject が try/catch の外へ抜けて Cloudflare の Error 1101 に
          なっていた。おかげで失敗理由（401/403/未設定など）が
@@ -45,7 +49,7 @@
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
 const ALLOWED_PLATFORMS = ["jp1", "kr", "na1", "euw1", "eun1", "oc1", "br1", "la1", "la2", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"];
 const DISCORD_API = "https://discord.com/api/v10";
-const WORKER_VERSION = "2.3";
+const WORKER_VERSION = "3.0";
 
 // ブラウザからのAPI呼び出しを許可するオリジン（"*" か "https://mo10c.github.io" 等）
 const ALLOW_ORIGIN = "*";
@@ -75,6 +79,7 @@ export default {
         case "/roles":         return await guildRoles(env);
         case "/member":        return await guildMember(url, env);
         case "/diag":          return await diagnostics(env);
+        case "/collect":       return await collectEndpoint(url, env);
         default:               return json({ error: "unknown endpoint: " + path }, 404);
       }
     } catch (e) {
@@ -84,8 +89,190 @@ export default {
         stack: (e && e.stack) ? String(e.stack).split("\n").slice(0, 3).join(" | ") : undefined
       }, 502);
     }
+  },
+
+  /* Cron Trigger から呼ばれる。Cloudflare のダッシュボード（Settings → Triggers）
+     または wrangler.jsonc の triggers.crons で "45 14 * * *" を設定すると
+     毎日 23:45(JST) に走る。 */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(collectLp(env).then(
+      r => console.log("LP集計 完了", JSON.stringify(r)),
+      e => console.error("LP集計 失敗", e && e.message)
+    ));
   }
 };
+
+/* =============================================================
+   LP の一斉集計（毎日23:45 JST）
+
+   1) Firestore の lboard_index/lp から members を読む
+   2) 各メンバーの puuid で Riot から最新ランクを取る
+   3) hist に今日の絶対LPを書く / members を更新
+   4) ティアが上がった人がいれば Discord の談話室へお祝いを投稿
+
+   Firestore はセキュリティルールが公開状態なので REST + Web APIキーで読み書きできる。
+   （ルールを締めたら、ここもサービスアカウント認証に差し替えが必要）
+   ============================================================= */
+const TIER_BASE_W = { IRON:0, BRONZE:400, SILVER:800, GOLD:1200, PLATINUM:1600,
+  EMERALD:2000, DIAMOND:2400, MASTER:2800, GRANDMASTER:2800, CHALLENGER:2800 };
+const DIV_ADD_W = { IV:0, III:100, II:200, I:300 };
+const TIER_RANK_W = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"];
+
+function absLpW(tier, division, lp) {
+  const base = TIER_BASE_W[tier];
+  if (base == null) return null;
+  if (base >= 2800) return 2800 + (lp | 0);
+  return base + (DIV_ADD_W[division] || 0) + (lp | 0);
+}
+function jstDayKey(now) {
+  const d = new Date((now || Date.now()) + 9 * 3600 * 1000);   // JSTに寄せる
+  const p = n => String(n).padStart(2, "0");
+  return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
+}
+
+/* ---- Firestore REST（公開ルール前提・Web APIキーを使用）---- */
+function fsBase(env) {
+  if (!env.FIREBASE_PROJECT_ID || !env.FIREBASE_API_KEY) {
+    throw new Error("FIREBASE_PROJECT_ID / FIREBASE_API_KEY 未設定");
+  }
+  return "https://firestore.googleapis.com/v1/projects/" + env.FIREBASE_PROJECT_ID +
+         "/databases/(default)/documents";
+}
+// Firestore の値表現 → 素のJS
+function fsDecode(v) {
+  if (v == null) return null;
+  if ("mapValue" in v) {
+    const o = {};
+    Object.entries((v.mapValue.fields) || {}).forEach(([k, x]) => { o[k] = fsDecode(x); });
+    return o;
+  }
+  if ("arrayValue" in v) return ((v.arrayValue.values) || []).map(fsDecode);
+  if ("integerValue" in v) return Number(v.integerValue);
+  if ("doubleValue" in v) return Number(v.doubleValue);
+  if ("booleanValue" in v) return !!v.booleanValue;
+  if ("nullValue" in v) return null;
+  return v.stringValue != null ? v.stringValue : null;
+}
+function fsEncode(x) {
+  if (x === null || x === undefined) return { nullValue: null };
+  if (typeof x === "boolean") return { booleanValue: x };
+  if (typeof x === "number") return Number.isInteger(x) ? { integerValue: String(x) } : { doubleValue: x };
+  if (Array.isArray(x)) return { arrayValue: { values: x.map(fsEncode) } };
+  if (typeof x === "object") {
+    const fields = {};
+    Object.entries(x).forEach(([k, v]) => { fields[k] = fsEncode(v); });
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(x) };
+}
+async function fsGet(env, path) {
+  const r = await fetch(fsBase(env) + "/" + path + "?key=" + env.FIREBASE_API_KEY);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error("Firestore読み取り失敗 " + r.status + " " + (await r.text()).slice(0, 200));
+  const j = await r.json();
+  const out = {};
+  Object.entries(j.fields || {}).forEach(([k, v]) => { out[k] = fsDecode(v); });
+  return out;
+}
+// updateMask を付けて部分更新（他のフィールドを消さない）
+async function fsPatch(env, path, obj) {
+  const fields = {};
+  Object.entries(obj).forEach(([k, v]) => { fields[k] = fsEncode(v); });
+  const mask = Object.keys(obj).map(k => "updateMask.fieldPaths=" + encodeURIComponent(k)).join("&");
+  const r = await fetch(fsBase(env) + "/" + path + "?key=" + env.FIREBASE_API_KEY + "&" + mask, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields })
+  });
+  if (!r.ok) throw new Error("Firestore書き込み失敗 " + r.status + " " + (await r.text()).slice(0, 200));
+  return true;
+}
+
+async function collectLp(env) {
+  if (!env.RIOT_API_KEY) throw new Error("RIOT_API_KEY 未設定");
+  const doc = await fsGet(env, "lboard_index/lp");
+  const members = (doc && doc.members) || {};
+  const hist = (doc && doc.hist) || {};
+  const ids = Object.keys(members);
+  if (!ids.length) return { ok: true, note: "メンバーがまだいません", updated: 0 };
+
+  const today = jstDayKey();
+  const platform = env.RIOT_PLATFORM || "jp1";
+  const nextMembers = {}, nextHist = {};
+  const promotions = [];
+  let ok = 0, ng = 0, skip = 0;
+
+  for (const id of ids) {
+    const m = members[id] || {};
+    if (!m.puuid) { skip++; continue; }
+    let entries = null;
+    try {
+      const r = await fetch("https://" + platform + ".api.riotgames.com/tft/league/v1/by-puuid/" + enc(m.puuid),
+        { headers: { "X-Riot-Token": env.RIOT_API_KEY } });
+      if (!r.ok) { ng++; continue; }
+      entries = await r.json();
+    } catch (e) { ng++; continue; }
+
+    const pick = q => (Array.isArray(entries) ? entries.find(e => e.queueType === q) : null);
+    const e = pick("RANKED_TFT") || pick("RANKED_TFT_DOUBLE_UP") || (Array.isArray(entries) ? entries[0] : null);
+    if (!e || !e.tier) { skip++; continue; }
+
+    const tier = e.tier, division = e.rank || "", lp = e.leaguePoints | 0;
+    const abs = absLpW(tier, division, lp);
+    if (abs == null) { skip++; continue; }
+
+    // 昇格判定: ティアが上がったか（保存済みの tier と比較）
+    const before = TIER_RANK_W.indexOf(String(m.tier || ""));
+    const after = TIER_RANK_W.indexOf(tier);
+    if (before >= 0 && after > before) {
+      promotions.push({ name: m.name || "選手", from: m.tier, to: tier, division, lp });
+    }
+
+    nextMembers[id] = Object.assign({}, m, { tier, division, lp, abs, updatedAt: Date.now() });
+    nextHist[id] = Object.assign({}, hist[id] || {}, { [today]: abs });
+    ok++;
+    await new Promise(r => setTimeout(r, 120));   // Riotのレート制限に配慮
+  }
+
+  // 更新されなかった人はそのまま残す
+  Object.keys(members).forEach(id => { if (!nextMembers[id]) nextMembers[id] = members[id]; });
+  Object.keys(hist).forEach(id => { if (!nextHist[id]) nextHist[id] = hist[id]; });
+
+  await fsPatch(env, "lboard_index/lp", {
+    members: nextMembers, hist: nextHist, updatedAt: Date.now(), lastCollect: today
+  });
+
+  let announced = 0;
+  if (promotions.length) announced = await announcePromotions(env, promotions);
+  return { ok: true, date: today, updated: ok, failed: ng, skipped: skip, promotions: promotions.length, announced };
+}
+
+/* ---- ランクアップを Discord の談話室へ投稿 ---- */
+async function announcePromotions(env, list) {
+  const ch = env.DISCORD_ANNOUNCE_CHANNEL_ID;
+  if (!ch || !env.DISCORD_BOT_TOKEN) return 0;
+  const emoji = { BRONZE:"🥉", SILVER:"🥈", GOLD:"🥇", PLATINUM:"💎", EMERALD:"💚",
+                  DIAMOND:"💠", MASTER:"👑", GRANDMASTER:"🔥", CHALLENGER:"🏆" };
+  const lines = list.map(p =>
+    (emoji[p.to] || "🎉") + " **" + p.name + "** さんが **" + p.to + "** に昇格しました！（" + p.from + " → " + p.to + "）");
+  const content = "🎊 **ランクアップのお知らせ** 🎊\n" + lines.join("\n") + "\nおめでとうございます！";
+
+  const r = await fetch(DISCORD_API + "/channels/" + enc(ch) + "/messages", {
+    method: "POST",
+    headers: { Authorization: "Bot " + String(env.DISCORD_BOT_TOKEN).trim(), "Content-Type": "application/json" },
+    body: JSON.stringify({ content: content.slice(0, 1900) })
+  });
+  if (!r.ok) { console.error("Discord投稿に失敗", r.status, (await r.text()).slice(0, 200)); return 0; }
+  return list.length;
+}
+
+/* ---- 手動実行用。CRON_KEY を知っている人だけ ---- */
+async function collectEndpoint(url, env) {
+  if (!env.CRON_KEY) return json({ error: "CRON_KEY が未設定のため手動実行は無効です" }, 403);
+  if (url.searchParams.get("key") !== env.CRON_KEY) return json({ error: "key が違います" }, 403);
+  const r = await collectLp(env);
+  return json(r);
+}
 
 /* =============================================================
    /diag — 設定の自己診断
@@ -102,7 +289,11 @@ async function diagnostics(env) {
       DISCORD_CLIENT_SECRET: present("DISCORD_CLIENT_SECRET"),
       DISCORD_BOT_TOKEN: present("DISCORD_BOT_TOKEN"),
       DISCORD_GUILD_ID: present("DISCORD_GUILD_ID"),
-      RETURN_ORIGINS: present("RETURN_ORIGINS") ? env.RETURN_ORIGINS : false
+      RETURN_ORIGINS: present("RETURN_ORIGINS") ? env.RETURN_ORIGINS : false,
+      FIREBASE_PROJECT_ID: present("FIREBASE_PROJECT_ID") ? env.FIREBASE_PROJECT_ID : false,
+      FIREBASE_API_KEY: present("FIREBASE_API_KEY"),
+      DISCORD_ANNOUNCE_CHANNEL_ID: present("DISCORD_ANNOUNCE_CHANNEL_ID") ? env.DISCORD_ANNOUNCE_CHANNEL_ID : false,
+      CRON_KEY: present("CRON_KEY")
     },
     checks: {}
   };
@@ -139,6 +330,15 @@ async function diagnostics(env) {
   } else {
     out.checks.rolesMeaning = "DISCORD_BOT_TOKEN / DISCORD_GUILD_ID のどちらかが未設定です";
   }
+
+  // LP一斉集計に必要なものが揃っているか
+  const need = ["FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "RIOT_API_KEY"].filter(k => !present(k));
+  out.checks.lpCollect = need.length
+    ? "未設定のため毎日の集計は動きません: " + need.join(", ")
+    : "OK: 毎日の集計に必要な設定は揃っています（Cron Trigger \"45 14 * * *\" の登録も必要）";
+  out.checks.announce = present("DISCORD_ANNOUNCE_CHANNEL_ID")
+    ? "OK: ランクアップを投稿します"
+    : "DISCORD_ANNOUNCE_CHANNEL_ID 未設定のため、お祝い投稿は行いません";
 
   return json(out);
 }

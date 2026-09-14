@@ -60,6 +60,13 @@
     clear() { try { localStorage.removeItem(RIOT_CFG_KEY); } catch (e) { } return effCfg(); }
   };
 
+  // ロール配列だけで運営かどうかを判定（Session.toPlayer から使う）
+  function isStaffRoles(roles) {
+    const ids = (((CFG.roles || {}).staffRoleIds) || []).map(x => String(x).trim()).filter(Boolean);
+    if (!ids.length) return false;
+    return (roles || []).some(r => r && ids.includes(String(r.id)));
+  }
+
   /* =============================================================
      セッション（ログイン状態）
      ============================================================= */
@@ -95,6 +102,7 @@
         rank: s.riot.rank || null,
         discord: { id: s.discord.id, name: s.discord.name, username: s.discord.username, avatar: s.discord.avatar },
         roles: Array.isArray(s.discord.roles) ? s.discord.roles : [],
+        staff: isStaffRoles(s.discord.roles),
         updatedAt: Date.now()
       };
     },
@@ -147,6 +155,37 @@
       if (roles.some(r => r && c.roleIds.includes(String(r.id)))) return true;
     }
     return false;
+  }
+
+  /* =============================================================
+     運営（スタッフ）ロール
+     config.js: roles.staffRoleIds = ["運営ロールのID"]
+
+     このロールを持つ人は「観戦者」として扱う:
+       ・すべての画面を閲覧できる（ロックしない）
+       ・大会の参加者一覧・組卓・全体順位には入らない
+       ・メンバー一覧・LPランキングにも出ない
+     ただし記録自体は残すので、管理者が「大会に参加させる」を押せば
+     普通の参加者に切り替えられる（player.optIn = true）。
+     ============================================================= */
+  function staffRoleIds() {
+    return (((CFG.roles || {}).staffRoleIds) || []).map(x => String(x).trim()).filter(Boolean);
+  }
+  function isStaff(session) {
+    const ids = staffRoleIds();
+    if (!ids.length) return false;
+    const s = session || Session.get();
+    const roles = (s && s.discord && s.discord.roles) || [];
+    return roles.some(r => r && ids.includes(String(r.id)));
+  }
+  // 選手レコードが「大会に出る人」か。運営ロール持ちは optIn されるまで出ない。
+  function isParticipant(p) {
+    if (!p) return false;
+    if (!p.staff) return true;
+    return !!p.optIn;
+  }
+  function participants(state) {
+    return (state.roster || []).filter(isParticipant);
   }
 
   /* =============================================================
@@ -217,6 +256,7 @@
     let db = null, docRef = null, indexRef = null;
     let applyingRemote = false, saveTimer = null;
     let actor = { pid: null, isAdmin: false };
+    let selfSession = null;   // 自動参加させる本人のセッション（ensureSelf が使う）
     const INDEX_LS_KEY = "mcc-lb2-board-index";
     const idxKey = id => encodeURIComponent(id);
     const lsKey = () => "mcclb2:" + boardId;
@@ -255,11 +295,17 @@
           mode = "firestore";
           const snap = await docRef.get();
           if (!snap.exists) await docRef.set(blankState());
+          // ★ 取得した内容を先に state へ入れておく。
+          //   これをせずに init() を返すと、呼び出し側が upsertSelf() した直後に
+          //   最初の onSnapshot が飛んできて state ごと上書きし、
+          //   登録したばかりの自分が消える（参加者が0人のままになる原因だった）。
+          else state = normalize(snap.data());
           docRef.onSnapshot(s => {
             if (!s.exists) return;
             applyingRemote = true;
             state = normalize(s.data());
             applyingRemote = false;
+            ensureSelf();   // リモート側に自分が居なければ入れ直す
             emit();
           }, err => console.error("onSnapshot", err));
           upsertIndex();
@@ -274,6 +320,7 @@
           applyingRemote = true;
           state = normalize(JSON.parse(e.newValue));
           applyingRemote = false;
+          ensureSelf();
           emit();
         }
       });
@@ -293,6 +340,7 @@
       if (!Array.isArray(s.roster)) s.roster = [];
       s.roster = s.roster.filter(p => p && p.id).map(p => ({
         id: p.id, name: p.name || "—", nameLocked: !!p.nameLocked,
+        staff: !!p.staff, optIn: !!p.optIn,
         riotId: p.riotId || "", puuid: p.puuid || "",
         rank: p.rank || null,
         discord: p.discord || null,
@@ -338,7 +386,7 @@
     function indexEntry() {
       return {
         title: state.title || "", matchCount: state.matchCount, tableCount: state.tableCount,
-        players: state.roster.length, visibility: normVisibility(state.visibility),
+        players: participants(state).length, visibility: normVisibility(state.visibility),
         updatedAt: state.updatedAt || Date.now()
       };
     }
@@ -413,7 +461,21 @@
        権限に関係なく「自分自身」だけは登録・更新できる（＝自己登録）。
        同じ discord.id なら情報を最新化（ランク・ロール・アバター）。
        ★ nameLocked が立っている選手は、管理者が付けた表示名を保持する。 */
+    /* 自分が roster から消えていたら入れ直す。
+       他の人の書き込みで roster が丸ごと置き換わったとき（最後の書き手が勝つため）や、
+       入場直後に最初のスナップショットが届いたときに効く。自己修復用。 */
+    function ensureSelf() {
+      if (!selfSession) return;
+      const p = Session.toPlayer(selfSession);
+      if (!p) return;
+      if (state.roster.some(x => x.id === p.id)) return;
+      p.joinedAt = Date.now();
+      state.roster.push(p);
+      save();
+    }
+
     function upsertSelf(session) {
+      selfSession = session || selfSession;
       const p = Session.toPlayer(session);
       if (!p) return null;
       const i = state.roster.findIndex(x => x.id === p.id);
@@ -421,6 +483,7 @@
         const prev = state.roster[i];
         const merged = Object.assign({}, prev, p, { joinedAt: prev.joinedAt || Date.now() });
         if (prev.nameLocked) { merged.name = prev.name; merged.nameLocked = true; }
+        merged.optIn = !!prev.optIn;   // 管理者が付けた「参加させる」は再ログインで消さない
         state.roster[i] = merged;
       } else {
         p.joinedAt = Date.now();
@@ -445,6 +508,26 @@
       if (nv) { p.name = nv; p.nameLocked = true; }
       else { p.nameLocked = false; p.name = (p.discord && p.discord.name) || p.name; }
       p.updatedAt = Date.now();
+      save();
+    }
+    // 運営ロールの人を大会に参加させる / 外す（管理者のみ）
+    function setOptIn(pid, on) {
+      if (!guard("運営メンバーの参加切り替え")) return;
+      const p = state.roster.find(x => x.id === pid);
+      if (!p) return;
+      p.optIn = !!on;
+      p.updatedAt = Date.now();
+      if (!on) {
+        // 外すときは席と順位からも抜く
+        state.matches.forEach(mt => {
+          if (Array.isArray(mt.present)) mt.present = mt.present.filter(id => id !== pid);
+          mt.tables.forEach(tb => {
+            const i = tb.seats.indexOf(pid);
+            if (i >= 0) tb.seats[i] = null;
+            delete tb.placements[pid];
+          });
+        });
+      }
       save();
     }
     function removePlayer(pid) {
@@ -528,7 +611,7 @@
     function materializePresent(matchIdx) {
       const mt = state.matches[matchIdx];
       if (!mt) return [];
-      if (!Array.isArray(mt.present)) mt.present = state.roster.map(p => p.id);
+      if (!Array.isArray(mt.present)) mt.present = participants(state).map(p => p.id);
       return mt.present;
     }
     // 一般プレイヤーは「自分の出欠」だけ切り替えられる
@@ -554,7 +637,7 @@
       // pids を渡すとその集合だけを対象にする（ロールフィルタ用）
       const mt = state.matches[matchIdx];
       if (!mt) return;
-      const target = Array.isArray(pids) ? pids : state.roster.map(p => p.id);
+      const target = Array.isArray(pids) ? pids : participants(state).map(p => p.id);
       const arr = materializePresent(matchIdx);
       if (on) {
         target.forEach(id => { if (!arr.includes(id)) arr.push(id); });
@@ -572,7 +655,7 @@
       if (!guard("ロールによる出欠の一括変更")) return;
       const mt = state.matches[matchIdx];
       if (!mt) return;
-      const withRole = state.roster.filter(p => hasRole(p, roleId)).map(p => p.id);
+      const withRole = participants(state).filter(p => hasRole(p, roleId)).map(p => p.id);
       mt.present = withRole;
       mt.tables.forEach(tb => {
         tb.seats = tb.seats.map(pid => (pid && !withRole.includes(pid)) ? null : pid);
@@ -706,7 +789,7 @@
       get mode() { return mode; },
       get boardId() { return boardId; },
       setActor, getActor, canEdit,
-      setSettings, upsertSelf, updatePlayer, setPlayerName, removePlayer,
+      setSettings, upsertSelf, updatePlayer, setPlayerName, removePlayer, setOptIn,
       assignSeat, clearSeat, setPlacement,
       clearMatchSeats, clearAllResults, resetBoard, importState, loadBoardState,
       setPresent, setAllPresent, setPresentByRole, autoAssign,
@@ -968,6 +1051,215 @@
   }
 
   /* =============================================================
+     LP 履歴
+     保存先は lboard_index/lp（既存ルールでそのまま書ける）。
+
+       { members: { "u_123": {name, avatar, riotId, puuid, tier, division, lp, abs, updatedAt} },
+         hist:    { "u_123": { "2026-09-14": 2279, ... } },   ← 1日1点。絶対LP
+         baseline: "2026-09-13",                              ← 比較の基準日（管理画面で設定）
+         updatedAt }
+
+     ★ 絶対LP: ティアをまたいで比較・作図できるよう、1本の数値に畳む。
+        IRON IV 0LP = 0 ／ 1ティア = 400 ／ 1ディビジョン = 100
+        マスター以上は 2800 + LP（GM/チャレは表示上マスター帯として扱う）
+     ============================================================= */
+  const TIER_BASE = {
+    IRON: 0, BRONZE: 400, SILVER: 800, GOLD: 1200, PLATINUM: 1600,
+    EMERALD: 2000, DIAMOND: 2400, MASTER: 2800, GRANDMASTER: 2800, CHALLENGER: 2800
+  };
+  const DIV_ADD = { IV: 0, III: 100, II: 200, I: 300 };
+  const TIER_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER"];
+
+  function absLP(rank) {
+    if (!rank || !rank.tier) return null;
+    const base = TIER_BASE[rank.tier];
+    if (base == null) return null;
+    if (base >= 2800) return 2800 + (rank.lp | 0);
+    return base + (DIV_ADD[rank.division] || 0) + (rank.lp | 0);
+  }
+  // 絶対LP → 表示用ラベル（グラフの目盛りなどに使う）
+  function absToLabel(v) {
+    if (v == null) return "—";
+    if (v >= 2800) return "MASTER+ " + Math.round(v - 2800) + "LP";
+    const ti = Math.min(TIER_ORDER.length - 2, Math.floor(v / 400));
+    const rest = v - ti * 400;
+    const di = Math.min(3, Math.floor(rest / 100));
+    const div = ["IV", "III", "II", "I"][di];
+    return TIER_ORDER[ti] + " " + div + " " + Math.round(rest - di * 100) + "LP";
+  }
+  // ティアの境目（グラフの補助線用）
+  function tierLines(min, max) {
+    const out = [];
+    TIER_ORDER.forEach((t, i) => {
+      const v = i * 400;
+      if (v >= min && v <= max) out.push({ v, name: t });
+    });
+    return out;
+  }
+  function dayKey(d) {
+    d = d || new Date();
+    const p = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+  function shiftDay(key, delta) {
+    const [y, m, d] = key.split("-").map(Number);
+    const dt = new Date(y, m - 1, d + delta);
+    return dayKey(dt);
+  }
+
+  const LP_DOC = "lp";
+  const LP_LS_KEY = "mcc-lb2-lp";
+  const LP_KEEP_DAYS = 120;
+
+  function normLp(raw) {
+    raw = raw || {};
+    const members = {}, hist = {};
+    Object.entries(raw.members || {}).forEach(([id, m]) => {
+      if (!id || !m) return;
+      members[id] = {
+        id,
+        name: String(m.name || "—"),
+        avatar: String(m.avatar || ""),
+        riotId: String(m.riotId || ""),
+        puuid: String(m.puuid || ""),
+        tier: String(m.tier || ""),
+        division: String(m.division || ""),
+        lp: m.lp | 0,
+        abs: (typeof m.abs === "number") ? m.abs : null,
+        updatedAt: m.updatedAt || 0
+      };
+    });
+    Object.entries(raw.hist || {}).forEach(([id, series]) => {
+      if (!id || !series || typeof series !== "object") return;
+      const s = {};
+      Object.entries(series).forEach(([d, v]) => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d) && typeof v === "number") s[d] = v;
+      });
+      hist[id] = s;
+    });
+    return {
+      members, hist,
+      baseline: /^\d{4}-\d{2}-\d{2}$/.test(raw.baseline) ? raw.baseline : "",
+      updatedAt: raw.updatedAt || 0
+    };
+  }
+
+  async function loadLpData() {
+    const db = openDb();
+    try {
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(LP_DOC).get();
+        if (snap.exists) return normLp(snap.data());
+      } else {
+        const raw = localStorage.getItem(LP_LS_KEY);
+        if (raw) return normLp(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("LP履歴の読み込みに失敗", e); }
+    return normLp(null);
+  }
+
+  // 1人ぶんのLPを今日の日付で記録する（1日1点・同日は上書き）
+  async function recordLp(player) {
+    if (!player || !player.id) return null;
+    if (player.staff && !player.optIn) return null;   // 運営ロールはLPランキングに出さない
+    const rank = player.rank || null;
+    const abs = absLP(rank);
+    const today = dayKey();
+    const entry = {
+      name: player.name || "—",
+      avatar: (player.discord && player.discord.avatar) || player.avatar || "",
+      riotId: player.riotId || "",
+      puuid: player.puuid || "",
+      tier: (rank && rank.tier) || "",
+      division: (rank && rank.division) || "",
+      lp: (rank && rank.lp) | 0,
+      abs: abs,
+      updatedAt: Date.now()
+    };
+    const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
+    if (abs != null) patch.hist = { [player.id]: { [today]: abs } };
+
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(LP_DOC).set(patch, { merge: true });
+      else {
+        const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
+        cur.members[player.id] = entry;
+        if (abs != null) { cur.hist[player.id] = cur.hist[player.id] || {}; cur.hist[player.id][today] = abs; }
+        cur.updatedAt = Date.now();
+        localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) { console.warn("LPの記録に失敗", e); return null; }
+    return entry;
+  }
+
+  // 自分のLPを1日1回だけ記録する（ページを開くたびに書かないように）
+  async function recordLpForSelf(session) {
+    session = session || Session.get();
+    const p = Session.toPlayer(session);
+    if (!p) return false;
+    const flag = "mcc-lb2-lp-done-" + p.id + "-" + dayKey();
+    try { if (localStorage.getItem(flag)) return false; } catch (e) { }
+    const r = await recordLp(p);
+    try { if (r) localStorage.setItem(flag, "1"); } catch (e) { }
+    return !!r;
+  }
+
+  async function setLpBaseline(date) {
+    if (!isAdmin()) throw new Error("基準日の設定は管理者のみです");
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(LP_DOC).set({ baseline: d, updatedAt: Date.now() }, { merge: true });
+      else {
+        const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
+        cur.baseline = d;
+        localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) { throw new Error("基準日を保存できませんでした（" + (e.code || e.message) + "）"); }
+    return d;
+  }
+
+  /* ---- 集計 ----
+     series : [{d, v}] 昇順
+     latest : 最新の実測
+     prev   : 今日より前で最も新しい実測（＝「前回計測」。毎日ログインしていない人でも比較できる）
+     base   : 基準日以前で最も新しい実測。無ければ最古の実測 */
+  function lpSeries(lp, id, days) {
+    const h = (lp.hist && lp.hist[id]) || {};
+    let keys = Object.keys(h).sort();
+    if (days && days > 0) {
+      const from = shiftDay(dayKey(), -(days - 1));
+      keys = keys.filter(k => k >= from);
+    }
+    return keys.map(k => ({ d: k, v: h[k] }));
+  }
+  function lpStats(lp, id) {
+    const h = (lp.hist && lp.hist[id]) || {};
+    const keys = Object.keys(h).sort();
+    if (!keys.length) return { latest: null, prev: null, base: null, dayDelta: null, baseDelta: null, prevDate: "", baseDate: "" };
+    const today = dayKey();
+    const latestKey = keys[keys.length - 1];
+    const beforeToday = keys.filter(k => k < today);
+    const prevKey = beforeToday.length ? beforeToday[beforeToday.length - 1] : null;
+
+    let baseKey = null;
+    if (lp.baseline) {
+      const le = keys.filter(k => k <= lp.baseline);
+      baseKey = le.length ? le[le.length - 1] : keys[0];
+    }
+    const latest = h[latestKey];
+    const prev = prevKey != null ? h[prevKey] : null;
+    const base = baseKey != null ? h[baseKey] : null;
+    return {
+      latest, prev, base,
+      dayDelta: (prev != null) ? (latest - prev) : null,
+      baseDelta: (base != null) ? (latest - base) : null,
+      latestDate: latestKey, prevDate: prevKey || "", baseDate: baseKey || ""
+    };
+  }
+
+  /* =============================================================
      集計・ヘルパー
      ============================================================= */
   function playerById(state, id) { return state.roster.find(p => p.id === id) || null; }
@@ -978,10 +1270,10 @@
   // ボード上の全ロール一覧（pinnedOrder → position順）
   function rosterRoles(state) {
     const map = new Map();
-    (state.roster || []).forEach(p => (p.roles || []).forEach(r => {
+    participants(state).forEach(p => (p.roles || []).forEach(r => {
       if (r && r.id && !map.has(r.id)) map.set(r.id, { id: r.id, name: r.name || r.id, color: r.color || 0, count: 0 });
     }));
-    (state.roster || []).forEach(p => (p.roles || []).forEach(r => {
+    participants(state).forEach(p => (p.roles || []).forEach(r => {
       if (r && r.id && map.has(r.id)) map.get(r.id).count++;
     }));
     const pinned = ((CFG.roles || {}).pinnedOrder) || [];
@@ -1020,6 +1312,8 @@
   }
 
   function isPresent(state, matchIdx, pid) {
+    const p = playerById(state, pid);
+    if (!isParticipant(p)) return false;          // 運営ロールの人は参加扱いにしない
     const mt = state.matches[matchIdx];
     if (!mt) return true;
     return !Array.isArray(mt.present) ? true : mt.present.includes(pid);
@@ -1027,8 +1321,9 @@
   function presentList(state, matchIdx) {
     const mt = state.matches[matchIdx];
     if (!mt) return [];
-    const set = new Set(!Array.isArray(mt.present) ? state.roster.map(p => p.id) : mt.present);
-    return state.roster.filter(p => set.has(p.id)).map(p => p.id);
+    const pool = participants(state);
+    const set = new Set(!Array.isArray(mt.present) ? pool.map(p => p.id) : mt.present);
+    return pool.filter(p => set.has(p.id)).map(p => p.id);
   }
 
   function tableStandings(state, matchIdx, tableIdx) {
@@ -1045,7 +1340,7 @@
 
   function overallStandings(state) {
     const totals = {};
-    state.roster.forEach(p => { totals[p.id] = { pid: p.id, name: p.name, points: 0, games: 0 }; });
+    participants(state).forEach(p => { totals[p.id] = { pid: p.id, name: p.name, points: 0, games: 0 }; });
     state.matches.forEach(mt => mt.tables.forEach(tb => {
       tb.seats.forEach(pid => {
         if (!pid || !totals[pid]) return;
@@ -1116,31 +1411,73 @@
       return workerGet("/match", { matchId, region: effCfg().region });
     },
 
-    /* 卓の全員を含む直近マッチを自動検出して順位を返す
-       players: [{pid, puuid}]（puuid登録済み前提。無い人は無視）
-       戻り値: { matchId, placements: {pid: rank} } or null */
-    async autoDetectTable(players, onProgress) {
+    /* 卓のメンバーを含む直近マッチを探して順位を返す。
+       ★ 8人が全員このコミュニティの人とは限らないので、「全員揃ったマッチ」ではなく
+         「最も多く一致したマッチ」を採用する。最低 min 人（既定2人）一致すればよい。
+
+       players: [{pid, puuid}]（puuid未登録の人は最初から除外）
+       opts: { min: 最低一致人数, count: 1人あたり見る試合数, budget: 詳細取得の上限 }
+       戻り値: { matchId, placements:{pid:rank}, matched, total, missingPids } or null */
+    async autoDetectTable(players, onProgress, opts) {
+      opts = opts || {};
+      const min = Math.max(2, opts.min || 2);
+      const count = opts.count || 20;
+      const budget = opts.budget || 30;      // マッチ詳細の取得回数上限（レート制限対策）
+
       const valid = players.filter(p => p.puuid);
-      if (valid.length < 2) throw new Error("puuid登録済み（ログイン済み）の選手が2人以上必要です");
-      const base = valid[0];
-      onProgress && onProgress("マッチ履歴を取得中…");
-      const baseIds = await Riot.recentMatches(base.puuid, 20);
-      const targetPuuids = new Set(valid.map(p => p.puuid));
-      for (const matchId of baseIds) {
-        onProgress && onProgress("照合中: " + matchId);
-        let detail;
-        try { detail = await Riot.match(matchId); } catch (e) { continue; }
-        const parts = (detail.info && detail.info.participants) || [];
-        const partPuuids = new Set(parts.map(x => x.puuid));
-        if (![...targetPuuids].every(pu => partPuuids.has(pu))) continue;
-        const placements = {};
-        for (const p of valid) {
-          const part = parts.find(x => x.puuid === p.puuid);
-          if (part) placements[p.pid] = part.placement;
-        }
-        return { matchId, placements };
+      if (valid.length < min) {
+        throw new Error("ログイン済み（puuid登録済み）の選手が" + min + "人以上必要です。現在" + valid.length + "人");
       }
-      return null;
+
+      // 履歴を見る起点。先頭の人が校外だったり未プレイでも拾えるよう複数人ぶん辿る
+      const bases = valid.slice(0, Math.min(3, valid.length));
+      const seen = new Set();
+      let fetched = 0;
+      let best = null;
+
+      for (const base of bases) {
+        let ids = [];
+        onProgress && onProgress(base.pid + " の履歴を取得中…");
+        try { ids = await Riot.recentMatches(base.puuid, count); } catch (e) { continue; }
+
+        for (const matchId of ids) {
+          if (seen.has(matchId)) continue;
+          seen.add(matchId);
+          if (fetched >= budget) break;
+          fetched++;
+          onProgress && onProgress("照合中 " + fetched + "件目…");
+
+          let detail;
+          try { detail = await Riot.match(matchId); } catch (e) { continue; }
+          const parts = (detail.info && detail.info.participants) || [];
+          const partPuuids = new Set(parts.map(x => x.puuid));
+          const hit = valid.filter(p => partPuuids.has(p.puuid));
+          if (hit.length < min) continue;
+
+          const when = (detail.info && detail.info.game_datetime) || 0;
+          if (!best || hit.length > best.hit.length || (hit.length === best.hit.length && when > best.when)) {
+            best = { matchId, hit, parts, when };
+          }
+          if (best.hit.length === valid.length) break;   // 全員揃ったら即決
+        }
+        if (best && best.hit.length === valid.length) break;
+        if (fetched >= budget) break;
+      }
+
+      if (!best) return null;
+      const placements = {};
+      best.hit.forEach(p => {
+        const part = best.parts.find(x => x.puuid === p.puuid);
+        if (part) placements[p.pid] = part.placement;
+      });
+      const hitPids = new Set(best.hit.map(p => p.pid));
+      return {
+        matchId: best.matchId,
+        placements,
+        matched: best.hit.length,
+        total: valid.length,
+        missingPids: valid.filter(p => !hitPids.has(p.pid)).map(p => p.pid)
+      };
     }
   };
 
@@ -1204,16 +1541,19 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "3.1",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "3.4",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
     hasRole, rosterRoles, roleColorCss, fallbackRoleCatalog,
+    isStaff, isParticipant, participants, staffRoleIds,
     isAdmin, isAdminConfigured, adminConfig,
     normVisibility, canViewBoard, visibilityLabel,
     listAllBoards, createBoard, deleteBoard, slugify,
     defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
     cachedHomeConfig, homeConfigKey,
+    absLP, absToLabel, tierLines, dayKey, shiftDay,
+    loadLpData, recordLp, recordLpForSelf, setLpBaseline, lpSeries, lpStats,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,

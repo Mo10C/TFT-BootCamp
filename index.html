@@ -172,6 +172,14 @@ body.viewer .pop{cursor:default}
   border-radius:999px;border:1.5px solid var(--border-strong);color:var(--muted)}
 .vis-pill.limited{border-color:var(--gold);color:var(--gold)}
 
+
+.nobody{flex:1;text-align:center;padding:22px 16px;border:1.5px dashed var(--border-strong);
+  border-radius:14px;color:var(--muted);font-size:12.5px;line-height:1.9;background:var(--surface-2)}
+.nobody b{color:var(--ink);font-weight:900}
+.nobody .hint{display:block;margin-top:6px;font-size:11px}
+.newtag{margin-left:5px;font-size:8.5px;font-weight:900;letter-spacing:.06em;padding:1px 5px;
+  border-radius:4px;background:var(--accent);color:#fff;vertical-align:1px}
+
 /* toast */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
   padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
@@ -243,7 +251,7 @@ body.viewer .pop{cursor:default}
   <div class="pbar">
     <div class="pbar-head">
       <span class="title">👥 参加者（<span id="presentCount" class="num">0</span>/<span id="rosterCount" class="num">0</span>）</span>
-      <span class="hint" id="pbarHint">POPをタップ→席をタップで配置。チェック＝この試合に参加</span>
+      <span class="hint" id="pbarHint">URLを開いた人は自動でここに並びます。チェック＝この試合に参加／POPをタップ→席をタップで配置</span>
       <div class="spacer"></div>
       <button class="mini adminonly" id="allOn">全員 参加</button>
       <button class="mini adminonly" id="allOff">全員 外す</button>
@@ -278,7 +286,7 @@ body.viewer .pop{cursor:default}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.1"></script>
+<script src="core.js?v=3.4"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -349,8 +357,8 @@ body.viewer .pop{cursor:default}
     $("editorLink").style.display = IS_ADMIN ? "" : "none";
     ["titleInput","matchCountInput","tableCountInput"].forEach(id => { $(id).readOnly = !IS_ADMIN; });
     $("pbarHint").textContent = IS_ADMIN
-      ? "POPをタップ→席をタップで配置。チェック＝この試合に参加"
-      : "自分のチェックボックスで、この試合に出るかどうかを切り替えられます";
+      ? "URLを開いた人は自動でここに並びます。チェック＝この試合に参加／POPをタップ→席をタップで配置"
+      : "入場すると自動で登録されます。実際に出るかどうかは運営が決めます（自分のチェックは変更できます）";
     if (!ADMIN_SET && IS_ADMIN){
       console.warn("[LB] config.js の admins が未設定です。全員が管理者として扱われます。");
     }
@@ -532,6 +540,20 @@ body.viewer .pop{cursor:default}
     const box = $("pops");
     box.innerHTML = "";
     let present = 0;
+
+    if (!s.roster.length){
+      const e = document.createElement("div");
+      e.className = "nobody";
+      e.innerHTML = "まだ誰も入場していません。<br>" +
+        "<b>このボードのURLを開いた人は自動的にここへ並びます。</b>" +
+        "<span class='hint'>共有するURL: 🔗共有ボタンでコピーできます</span>";
+      box.appendChild(e);
+      $("presentCount").textContent = 0;
+      $("rosterCount").textContent = 0;
+      return;
+    }
+
+    const NEW_MS = 10 * 60 * 1000;   // 入場から10分は「新着」扱い
     s.roster.forEach(p => {
       const isOn = C.isPresent(s, curMatch, p.id);
       if (isOn) present++;
@@ -562,6 +584,13 @@ body.viewer .pop{cursor:default}
       const pn = document.createElement("div");
       pn.className = "pn";
       pn.textContent = p.name + (p.id === myPid ? " ⭐" : "");
+      if (p.joinedAt && (Date.now() - p.joinedAt) < NEW_MS){
+        const nw = document.createElement("span");
+        nw.className = "newtag";
+        nw.textContent = "NEW";
+        nw.title = "さきほど入場しました";
+        pn.appendChild(nw);
+      }
       const pr = document.createElement("div");
       pr.className = "pr";
       pr.textContent = C.rankLabel(p.rank);
@@ -749,10 +778,19 @@ body.viewer .pop{cursor:default}
     btn.disabled = true;
     try {
       btn.textContent = "取得中…";
-      const r = await C.Riot.autoDetectTable(players, msg => { btn.textContent = "…"; });
-      if (!r){ toast("直近の履歴に該当マッチが見つかりませんでした"); return; }
+      const r = await C.Riot.autoDetectTable(players, msg => { btn.textContent = "…"; }, { min: 2 });
+      if (!r){
+        toast("直近の履歴に、この卓の人が2人以上そろったマッチが見つかりませんでした");
+        return;
+      }
       Object.entries(r.placements).forEach(([pid, rank]) => store.setPlacement(m, t, pid, rank));
-      toast("順位を反映しました（" + r.matchId + "）");
+      if (r.matched < r.total){
+        const names = r.missingPids.map(pid => C.nameOf(s, pid)).join("・");
+        toast("⚠️ " + r.matched + "/" + r.total + "人ぶん反映しました。" +
+              names + " は同じマッチに見つからなかったので手入力してください");
+      } else {
+        toast("順位を反映しました（" + r.matched + "人）");
+      }
     } catch(e){
       toast("自動取得に失敗: " + e.message);
     } finally {

@@ -7,7 +7,125 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.1">
+<link rel="stylesheet" href="ui.css?v=3.4">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+/* 系列の色。dataviz のリファレンス配色（検証済み）を使用。
+   ブランド色は明るすぎ・近すぎで categorical パレットの判定に落ちたため、
+   グラフの線だけは専用の色を使う。 */
+.viz{
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
+  --grid:color-mix(in srgb, var(--ink) 10%, transparent);
+  --axis:color-mix(in srgb, var(--ink) 26%, transparent);
+  --faint:color-mix(in srgb, var(--ink) 17%, transparent);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .viz{
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --grid:color-mix(in srgb, var(--ink) 14%, transparent);
+    --axis:color-mix(in srgb, var(--ink) 32%, transparent);
+    --faint:color-mix(in srgb, var(--ink) 22%, transparent);
+  }
+}
+:root[data-theme="dark"] .viz{
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --grid:color-mix(in srgb, var(--ink) 14%, transparent);
+  --axis:color-mix(in srgb, var(--ink) 32%, transparent);
+  --faint:color-mix(in srgb, var(--ink) 22%, transparent);
+}
+
+.lpwrap{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:14px;align-items:start}
+@media (max-width:880px){ .lpwrap{grid-template-columns:1fr} }
+
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;
+  box-shadow:var(--shadow-soft);overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  padding:13px 16px;border-bottom:1px solid var(--border)}
+.panel-head h2{font-size:13.5px;font-weight:900}
+.panel-head .sub{font-size:10.5px;color:var(--muted)}
+
+/* ---- 左: メンバー一覧 ---- */
+.mrow{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .1s}
+.mrow:last-child{border-bottom:none}
+.mrow:hover{background:var(--surface-2)}
+.mrow.on{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
+.mrow .swatch{width:4px;align-self:stretch;border-radius:99px;background:transparent;flex:none;min-height:30px}
+.mrow.on .swatch{background:var(--c)}
+.mrow .rk{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;color:var(--muted);
+  width:20px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.mrow img{width:30px;height:30px;border-radius:999px;object-fit:cover;flex:none;
+  border:1.5px solid var(--border-strong);background:var(--surface-2)}
+.mrow .who{flex:1;min-width:0}
+.mrow .nm{font-size:12.5px;font-weight:900;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mrow .tier{font-size:10px;font-weight:900;line-height:1.3}
+.deltas{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none;text-align:right}
+.dv{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;
+  white-space:nowrap;line-height:1.3}
+.dv .cap{font-size:8.5px;font-weight:700;color:var(--muted);margin-right:4px;letter-spacing:.04em}
+.dv.up{color:var(--ok)}
+.dv.down{color:var(--danger)}
+.dv.flat{color:var(--muted)}
+
+/* ---- 右: グラフ ---- */
+.chartbox{padding:14px 16px 10px}
+.chart{width:100%;height:auto;display:block;touch-action:none}
+.chart text{font-family:"Space Grotesk","Zen Kaku Gothic New",sans-serif}
+.range{display:flex;gap:5px}
+.rbtn{border:1.5px solid var(--border-strong);background:var(--surface);border-radius:999px;
+  padding:4px 11px;font-size:11px;font-weight:900;color:var(--muted)}
+.rbtn.on{background:var(--grad);color:#fff;border-color:transparent}
+.legend{display:flex;flex-wrap:wrap;gap:10px;padding:0 16px 14px}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700}
+.lg i{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
+.tipbox{position:absolute;pointer-events:none;background:var(--ink);color:#fff;border-radius:10px;
+  padding:8px 11px;font-size:11.5px;line-height:1.6;box-shadow:var(--shadow);opacity:0;transition:opacity .1s;
+  z-index:10;white-space:nowrap}
+.tipbox.show{opacity:.97}
+.tipbox .td{font-weight:900;font-size:11px;margin-bottom:3px;opacity:.75}
+.tipbox .tr{display:flex;align-items:center;gap:6px}
+.tipbox .tr i{width:9px;height:9px;border-radius:2px;flex:none}
+.tipbox .tv{font-family:"Space Grotesk",sans-serif;font-weight:700;margin-left:auto;padding-left:10px}
+.relwrap{position:relative}
+
+/* ---- 急上昇のお祝い ---- */
+.cheer{margin-top:14px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 13%,var(--surface)),var(--surface) 62%);
+  border:1.5px solid color-mix(in srgb,var(--accent) 42%,var(--border));border-radius:20px;
+  box-shadow:var(--shadow-soft)}
+.cheer-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:15px 18px 4px}
+.cheer-head h2{font-size:15px;font-weight:900}
+.cheer-head .sub{font-size:11px;color:var(--muted)}
+.cheer-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:11px;padding:12px 18px 18px}
+.cheer-card{display:flex;align-items:center;gap:11px;background:var(--surface);
+  border:1.5px solid color-mix(in srgb,var(--accent) 30%,var(--border));border-radius:16px;padding:12px 14px}
+.cheer-card .medal{font-size:24px;line-height:1;flex:none}
+.cheer-card .who{min-width:0;flex:1}
+.cheer-card .nm{font-size:13.5px;font-weight:900;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cheer-card .rs{font-size:10.5px;color:var(--muted);line-height:1.4}
+.cheer-card .gain{font-family:"Space Grotesk",sans-serif;font-size:16px;font-weight:700;
+  color:var(--ok);white-space:nowrap;flex:none}
+.cheer-empty{padding:4px 18px 18px;font-size:12px;color:var(--muted);line-height:1.8}
+.av{width:30px;height:30px;border-radius:999px;object-fit:cover;flex:none;
+  border:1.5px solid var(--border-strong);background:var(--surface-2)}
+.avf{width:30px;height:30px;border-radius:999px;flex:none;display:grid;place-items:center;
+  font-size:12px;font-weight:900;color:#fff;background:var(--grad);
+  border:1.5px solid var(--border-strong)}
+.cheer-card .av,.cheer-card .avf{width:34px;height:34px;font-size:13px}
+
+.note{font-size:11.5px;color:var(--muted);padding:0 16px 14px;line-height:1.75}
+.note b{color:var(--ink)}
+.tablebtn{margin-left:auto}
+.tabledata{display:none;padding:0 16px 14px}
+.tabledata.show{display:block}
+.tabledata table{width:100%;border-collapse:collapse;font-size:11.5px}
+.tabledata th,.tabledata td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;
+  font-variant-numeric:tabular-nums}
+.tabledata th:first-child,.tabledata td:first-child{text-align:left}
+.tabledata th{color:var(--muted);font-size:10px;font-weight:700}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -23,35 +141,435 @@
     <span class="badge" id="roleBadge">—</span>
     <div class="spacer"></div>
     <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
-  <div class="soon-wrap">
-    <div class="big" style="color:var(--gold)">📈</div>
-    <h2>LPランキング</h2>
-    <p>メンバーのランクとLPを並べて比較する画面です。</p>
-    <p><b>この画面はまだ準備中です。</b></p>
+  <div class="lpwrap viz">
 
-    <div class="soon-list">
-      <div class="soon-item"><span>・</span><div><b>LP順の一覧</b><br>ティア・ディビジョン・LPで並び替え。</div></div>
-      <div class="soon-item"><span>・</span><div><b>推移グラフ</b><br>定期取得したLPの変化を折れ線で。</div></div>
-      <div class="soon-item"><span>・</span><div><b>ロール別ランキング</b><br>クラスごとの中での順位も出す。</div></div>
+    <!-- 左: メンバー -->
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>メンバー</h2>
+          <div class="sub" id="memSub">読み込み中…</div>
+        </div>
+      </div>
+      <div id="members"></div>
     </div>
 
-    <a class="mini grad" href="home.html">🏠 HOME に戻る</a>
-  </div>
+    <!-- 右: 推移 -->
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>LPの推移</h2>
+          <div class="sub" id="chartSub">—</div>
+        </div>
+        <div class="spacer"></div>
+        <div class="range">
+          <button class="rbtn" data-days="7">7日</button>
+          <button class="rbtn on" data-days="30">30日</button>
+          <button class="rbtn" data-days="90">90日</button>
+        </div>
+        <button class="rbtn tablebtn" id="tableBtn">表で見る</button>
+      </div>
+      <div class="chartbox relwrap" id="chartBox">
+        <svg class="chart" id="chart" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="選択したメンバーのLP推移"></svg>
+        <div class="tipbox" id="tip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="tabledata" id="tableData"></div>
+      <div class="note" id="note"></div>
+    </div>
 
+    <!-- 急上昇のお祝い（下の空きスペース） -->
+    <div class="cheer" id="cheer" style="grid-column:1/-1">
+      <div class="cheer-head">
+        <div>
+          <h2>🎉 今の急上昇プレイヤー</h2>
+          <div class="sub" id="cheerSub">—</div>
+        </div>
+      </div>
+      <div class="cheer-grid" id="cheerGrid"></div>
+    </div>
+
+  </div>
 </div>
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.1"></script>
-<script src="home-common.js?v=3.1"></script>
+<script src="core.js?v=3.4"></script>
+<script src="home-common.js?v=3.4"></script>
 <script>
 (function(){
-  const session = window.LBCore.Session.require();
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  const session = C.Session.require();
   if (!session) return;
-  window.MCCHome.boot(session);
+  const ctx = window.MCCHome.boot(session);
+
+  const COLORS = ["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)"];
+  const MAX_SEL = COLORS.length;
+
+  let lp = null;
+  let rows = [];            // 表示順のメンバー
+  let selected = [];        // 選択中のID（最大6・選んだ順で色が決まる）
+  let days = 30;
+
+  /* 自分のLPを1日1回記録（開くだけで履歴がたまる） */
+  C.recordLpForSelf(session).catch(()=>{});
+
+  function colorOf(id){
+    const i = selected.indexOf(id);
+    return i >= 0 ? COLORS[i] : null;
+  }
+  /* アイコン。Discordのアバターが無い人は頭文字の丸で代用する（名前の横が空かないように） */
+  function avatarEl(m){
+    if (m.avatar){
+      const img = document.createElement("img");
+      img.className = "av";
+      img.src = m.avatar; img.alt = "";
+      img.onerror = function(){
+        const f = fallbackAvatar(m);
+        if (this.parentNode) this.parentNode.replaceChild(f, this);
+      };
+      return img;
+    }
+    return fallbackAvatar(m);
+  }
+  function fallbackAvatar(m){
+    const d = document.createElement("div");
+    d.className = "avf";
+    d.textContent = (String(m.name || "?").trim()[0] || "?").toUpperCase();
+    d.title = m.name || "";
+    return d;
+  }
+
+  function fmtDelta(v){
+    if (v == null) return { txt:"—", cls:"flat" };
+    if (v === 0) return { txt:"±0LP", cls:"flat" };
+    return { txt:(v>0?"+":"−") + Math.abs(v) + "LP", cls: v>0?"up":"down" };
+  }
+
+  /* ---------- 左のリスト ---------- */
+  function renderMembers(){
+    const box = $("members");
+    box.innerHTML = "";
+    if (!rows.length){
+      box.innerHTML = '<div class="note" style="padding:22px 16px">' +
+        'まだ誰も記録されていません。<br><b>メンバーがログインすると、その日のLPが自動で記録されます。</b><br>' +
+        '管理コンソールの「📈 LP」タブから、全員ぶんをまとめて取得することもできます。</div>';
+      $("memSub").textContent = "0人";
+      return;
+    }
+    $("memSub").textContent = rows.length + "人 ・ タップで推移を表示（最大" + MAX_SEL + "人）";
+
+    rows.forEach((m, i) => {
+      const st = C.lpStats(lp, m.id);
+      const on = selected.includes(m.id);
+      const row = document.createElement("div");
+      row.className = "mrow" + (on ? " on" : "");
+      if (on) row.style.setProperty("--c", colorOf(m.id));
+
+      const sw = document.createElement("div"); sw.className = "swatch";
+      const rk = document.createElement("div"); rk.className = "rk"; rk.textContent = (i+1);
+      const img = avatarEl(m);
+
+      const who = document.createElement("div"); who.className = "who";
+      const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = m.name;
+      const tr = document.createElement("div"); tr.className = "tier";
+      const rank = m.tier ? { tier:m.tier, division:m.division, lp:m.lp } : null;
+      tr.textContent = C.rankLabel(rank);
+      tr.style.color = C.rankColor(rank);
+      who.appendChild(nm); who.appendChild(tr);
+
+      const dl = document.createElement("div"); dl.className = "deltas";
+      const d1 = fmtDelta(st.dayDelta);
+      const e1 = document.createElement("div");
+      e1.className = "dv " + d1.cls;
+      e1.innerHTML = '<span class="cap">前日</span>' + d1.txt;
+      e1.title = st.prevDate ? ("前回計測 " + st.prevDate + " と比較") : "比較できる記録がまだありません";
+      dl.appendChild(e1);
+
+      if (lp.baseline){
+        const d2 = fmtDelta(st.baseDelta);
+        const e2 = document.createElement("div");
+        e2.className = "dv " + d2.cls;
+        e2.innerHTML = '<span class="cap">基準</span>' + d2.txt;
+        e2.title = st.baseDate ? ("基準 " + lp.baseline + "（実測 " + st.baseDate + "）と比較") : "";
+        dl.appendChild(e2);
+      }
+
+      row.appendChild(sw); row.appendChild(rk); row.appendChild(img);
+      row.appendChild(who); row.appendChild(dl);
+      row.onclick = () => toggle(m.id);
+      box.appendChild(row);
+    });
+  }
+
+  function toggle(id){
+    const i = selected.indexOf(id);
+    if (i >= 0) selected.splice(i, 1);
+    else {
+      if (selected.length >= MAX_SEL){ ctx.toast("同時に表示できるのは" + MAX_SEL + "人までです"); return; }
+      selected.push(id);
+    }
+    renderMembers(); renderChart(); renderLegend(); renderTable();
+  }
+
+  /* ---------- グラフ ---------- */
+  const W = 720, H = 340, PAD = { l:62, r:74, t:16, b:30 };
+  function renderChart(){
+    const svg = $("chart");
+    svg.innerHTML = "";
+    const NS = "http://www.w3.org/2000/svg";
+    const mk = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+    // 描画対象: 選択があればそれ、無ければ上位6人を薄く
+    const shown = selected.length ? selected : rows.slice(0, MAX_SEL).map(m => m.id);
+    const seriesList = shown.map(id => ({ id, pts: C.lpSeries(lp, id, days) })).filter(s => s.pts.length);
+
+    if (!seriesList.length){
+      const t = mk("text", { x:W/2, y:H/2, "text-anchor":"middle", "font-size":"13",
+        fill:"var(--muted)", "font-weight":"700" });
+      t.textContent = "この期間の記録がまだありません";
+      svg.appendChild(t);
+      $("chartSub").textContent = "—";
+      return;
+    }
+
+    // x: 期間の全日、y: 値域
+    const from = C.shiftDay(C.dayKey(), -(days - 1)), to = C.dayKey();
+    const dayNum = k => { const [y,m,d] = k.split("-").map(Number); return Date.UTC(y, m-1, d) / 86400000; };
+    const x0 = dayNum(from), x1 = dayNum(to);
+    let lo = Infinity, hi = -Infinity;
+    seriesList.forEach(s => s.pts.forEach(p => { lo = Math.min(lo, p.v); hi = Math.max(hi, p.v); }));
+    if (lo === hi){ lo -= 50; hi += 50; }
+    const pad = Math.max(20, (hi - lo) * 0.12);
+    lo = Math.max(0, lo - pad); hi = hi + pad;
+
+    const X = k => PAD.l + (dayNum(k) - x0) / Math.max(1, x1 - x0) * (W - PAD.l - PAD.r);
+    const Y = v => H - PAD.b - (v - lo) / (hi - lo) * (H - PAD.t - PAD.b);
+
+    // ティア境界の補助線（この題材ならではの目盛り）
+    C.tierLines(lo, hi).forEach(t => {
+      svg.appendChild(mk("line", { x1:PAD.l, x2:W-PAD.r, y1:Y(t.v), y2:Y(t.v),
+        stroke:"var(--grid)", "stroke-width":"1" }));
+      const lb = mk("text", { x:PAD.l-8, y:Y(t.v)+3.5, "text-anchor":"end", "font-size":"9.5",
+        fill:"var(--muted)", "font-weight":"700" });
+      lb.textContent = t.name;
+      svg.appendChild(lb);
+    });
+
+    // 軸
+    svg.appendChild(mk("line", { x1:PAD.l, x2:W-PAD.r, y1:H-PAD.b, y2:H-PAD.b, stroke:"var(--axis)", "stroke-width":"1" }));
+
+    // x目盛り（4つ）
+    for (let i = 0; i <= 3; i++){
+      const k = C.shiftDay(from, Math.round((days - 1) * i / 3));
+      const t = mk("text", { x:X(k), y:H-PAD.b+15, "text-anchor":"middle", "font-size":"9.5",
+        fill:"var(--muted)", "font-weight":"700" });
+      t.textContent = k.slice(5).replace("-", "/");
+      svg.appendChild(t);
+    }
+
+    // 線
+    seriesList.forEach(s => {
+      const col = colorOf(s.id) || "var(--faint)";
+      const emph = !!colorOf(s.id);
+      const d = s.pts.map((p, i) => (i ? "L" : "M") + X(p.d).toFixed(1) + " " + Y(p.v).toFixed(1)).join(" ");
+      svg.appendChild(mk("path", { d, fill:"none", stroke:col,
+        "stroke-width": emph ? "2" : "1.5", "stroke-linejoin":"round", "stroke-linecap":"round",
+        opacity: emph ? "1" : ".55" }));
+
+      if (emph){
+        s.pts.forEach(p => {
+          svg.appendChild(mk("circle", { cx:X(p.d), cy:Y(p.v), r:"4",
+            fill:col, stroke:"var(--surface)", "stroke-width":"2" }));
+        });
+        // 線の右端に直接ラベル（色だけに頼らない）
+        const last = s.pts[s.pts.length - 1];
+        const m = lp.members[s.id] || { name:s.id };
+        const lbl = mk("text", { x:X(last.d)+9, y:Y(last.v)+3.5, "font-size":"10.5",
+          fill:"var(--ink)", "font-weight":"900" });
+        lbl.textContent = (m.name || "").slice(0, 7);
+        svg.appendChild(lbl);
+      }
+    });
+
+    // ホバー用の縦線と当たり判定
+    const cross = mk("line", { x1:0, x2:0, y1:PAD.t, y2:H-PAD.b, stroke:"var(--axis)",
+      "stroke-width":"1", "stroke-dasharray":"3 3", opacity:"0" });
+    svg.appendChild(cross);
+    const hit = mk("rect", { x:PAD.l, y:PAD.t, width:W-PAD.l-PAD.r, height:H-PAD.t-PAD.b,
+      fill:"transparent", style:"cursor:crosshair" });
+    svg.appendChild(hit);
+
+    const tip = $("tip");
+    function move(ev){
+      const r = svg.getBoundingClientRect();
+      const px = (ev.clientX - r.left) / r.width * W;
+      const ratio = Math.max(0, Math.min(1, (px - PAD.l) / (W - PAD.l - PAD.r)));
+      const key = C.shiftDay(from, Math.round(ratio * (days - 1)));
+      cross.setAttribute("x1", X(key)); cross.setAttribute("x2", X(key));
+      cross.setAttribute("opacity", ".8");
+
+      const lines = [];
+      seriesList.forEach(s => {
+        const near = s.pts.filter(p => p.d <= key);
+        if (!near.length) return;
+        const p = near[near.length - 1];
+        const m = lp.members[s.id] || { name:s.id };
+        lines.push({ c: colorOf(s.id) || "var(--faint)", n: m.name, v: p.v, on: p.d === key });
+      });
+      if (!lines.length){ tip.classList.remove("show"); return; }
+      tip.innerHTML = '<div class="td">' + key + '</div>' +
+        lines.map(l => '<div class="tr"><i style="background:' + l.c + '"></i>' +
+          escapeHtml(l.n) + '<span class="tv">' + C.absToLabel(l.v) + '</span></div>').join("");
+      tip.classList.add("show");
+      const bx = $("chartBox").getBoundingClientRect();
+      let left = ev.clientX - bx.left + 14;
+      if (left + tip.offsetWidth > bx.width - 8) left = ev.clientX - bx.left - tip.offsetWidth - 14;
+      tip.style.left = Math.max(4, left) + "px";
+      tip.style.top = Math.max(4, ev.clientY - bx.top - 10) + "px";
+    }
+    hit.addEventListener("mousemove", move);
+    hit.addEventListener("touchmove", e => { if (e.touches[0]) move(e.touches[0]); });
+    hit.addEventListener("mouseleave", () => { tip.classList.remove("show"); cross.setAttribute("opacity","0"); });
+
+    $("chartSub").textContent = seriesList.length + "人 ・ " + from.slice(5).replace("-","/") +
+      " 〜 " + to.slice(5).replace("-","/") +
+      (selected.length ? "" : "（未選択のため上位" + seriesList.length + "人を表示）");
+  }
+
+  function renderLegend(){
+    const box = $("legend");
+    box.innerHTML = "";
+    if (selected.length < 2) return;   // 1系列なら凡例は不要（右端の直接ラベルで足りる）
+    selected.forEach(id => {
+      const m = lp.members[id] || { name:id };
+      const el = document.createElement("span");
+      el.className = "lg";
+      el.innerHTML = '<i style="background:' + colorOf(id) + '"></i>' + escapeHtml(m.name);
+      box.appendChild(el);
+    });
+  }
+
+  /* 表ビュー（色が見分けづらい場合の代替） */
+  function renderTable(){
+    const box = $("tableData");
+    const ids = selected.length ? selected : rows.slice(0, MAX_SEL).map(m => m.id);
+    const dates = new Set();
+    ids.forEach(id => C.lpSeries(lp, id, days).forEach(p => dates.add(p.d)));
+    const ds = [...dates].sort();
+    if (!ds.length){ box.innerHTML = '<div class="hint">データがありません</div>'; return; }
+    let html = "<table><tr><th>日付</th>" +
+      ids.map(id => "<th>" + escapeHtml((lp.members[id]||{name:id}).name) + "</th>").join("") + "</tr>";
+    ds.forEach(d => {
+      html += "<tr><td>" + d + "</td>" + ids.map(id => {
+        const h = (lp.hist[id] || {});
+        return "<td>" + (h[d] != null ? C.absToLabel(h[d]) : "—") + "</td>";
+      }).join("") + "</tr>";
+    });
+    box.innerHTML = html + "</table>";
+  }
+  $("tableBtn").onclick = () => {
+    const el = $("tableData");
+    el.classList.toggle("show");
+    $("tableBtn").classList.toggle("on", el.classList.contains("show"));
+    if (el.classList.contains("show")) renderTable();
+  };
+
+  document.querySelectorAll(".rbtn[data-days]").forEach(b => {
+    b.onclick = () => {
+      days = parseInt(b.dataset.days, 10);
+      document.querySelectorAll(".rbtn[data-days]").forEach(x => x.classList.toggle("on", x === b));
+      renderChart(); renderTable();
+    };
+  });
+
+  /* 急上昇: 「基準日から」を優先し、無ければ「前回比」で拾う。
+     お祝いなので上がった人だけを出す。 */
+  function renderCheer(){
+    const useBase = !!lp.baseline;
+    const list = rows.map(m => {
+      const st = C.lpStats(lp, m.id);
+      const gain = useBase ? st.baseDelta : st.dayDelta;
+      return { m, st, gain };
+    }).filter(x => x.gain != null && x.gain > 0)
+      .sort((a, b) => b.gain - a.gain)
+      .slice(0, 6);
+
+    $("cheerSub").textContent = useBase
+      ? ("基準日 " + lp.baseline + " からの伸び")
+      : "前回計測からの伸び（基準日を設定すると期間で集計できます）";
+
+    const grid = $("cheerGrid");
+    grid.innerHTML = "";
+    if (!list.length){
+      grid.innerHTML = '<div class="cheer-empty" style="grid-column:1/-1">' +
+        'まだ上昇している人がいません。記録が2日ぶん以上たまると、ここに伸びた人が並びます。</div>';
+      return;
+    }
+    const medals = ["🥇","🥈","🥉","✨","✨","✨"];
+    list.forEach((x, i) => {
+      const card = document.createElement("div");
+      card.className = "cheer-card";
+
+      const md = document.createElement("div");
+      md.className = "medal";
+      md.textContent = medals[i] || "✨";
+
+      const av = avatarEl(x.m);
+
+      const who = document.createElement("div"); who.className = "who";
+      const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = x.m.name;
+      const rs = document.createElement("div"); rs.className = "rs";
+      const rank = x.m.tier ? { tier:x.m.tier, division:x.m.division, lp:x.m.lp } : null;
+      rs.textContent = C.rankLabel(rank);
+      who.appendChild(nm); who.appendChild(rs);
+
+      const g = document.createElement("div");
+      g.className = "gain";
+      g.textContent = "+" + x.gain + "LP";
+
+      card.appendChild(md); card.appendChild(av); card.appendChild(who); card.appendChild(g);
+      card.onclick = () => { if (!selected.includes(x.m.id)) toggle(x.m.id); };
+      card.style.cursor = "pointer";
+      grid.appendChild(card);
+    });
+  }
+
+  function renderNote(){
+    const n = $("note");
+    const baseTxt = lp.baseline
+      ? "基準日は <b>" + lp.baseline + "</b>（管理コンソールの「📈 LP」タブで変更できます）。"
+      : "基準日が未設定です。管理コンソールの「📈 LP」タブで合宿の開始日などを指定すると、そこからの増減が出ます。";
+    n.innerHTML =
+      "「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" + baseTxt +
+      "<br>LPはティアをまたいで比べられるよう、IRON IV 0LP を 0 とした通し数値に換算しています。";
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
+  /* ---------- 起動 ---------- */
+  C.loadLpData().then(data => {
+    lp = data;
+    rows = Object.values(lp.members)
+      .sort((a, b) => (b.abs || -1) - (a.abs || -1) || String(a.name).localeCompare(String(b.name), "ja"));
+    // 既定で自分を選択しておく
+    const myId = "u_" + session.discord.id;
+    if (lp.members[myId]) selected = [myId];
+    renderMembers(); renderChart(); renderLegend(); renderCheer(); renderNote();
+  }).catch(e => {
+    console.error(e);
+    ctx.toast("LPデータの読み込みに失敗しました");
+  });
 })();
 </script>
 </body>

@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=3.1">
+<link rel="stylesheet" href="ui.css?v=3.4">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -27,6 +27,8 @@
 .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
 .row:last-child{margin-bottom:0}
 .row > label{font-size:11.5px;font-weight:700;color:var(--muted)}
+input[type=date]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+  border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
 input[type=text]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
   border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
 input[type=text]:focus{outline:none;border-color:var(--cyan)}
@@ -127,6 +129,7 @@ tr:last-child td{border-bottom:none}
     <button class="tab" data-panel="p-board">🏆 このボード</button>
     <button class="tab" data-panel="p-boards">🗂 大会の管理</button>
     <button class="tab" data-panel="p-members">👥 メンバー</button>
+    <button class="tab" data-panel="p-lp">📈 LP</button>
     <button class="tab" data-panel="p-conn">🔌 接続設定</button>
     <button class="tab" data-panel="p-data">💾 データ</button>
   </nav>
@@ -231,11 +234,58 @@ tr:last-child td{border-bottom:none}
     </div>
   </div>
 
+
+  <!-- ================= LP ================= -->
+  <div class="panel" id="p-lp">
+    <div class="card">
+      <h2>比較の基準日</h2>
+      <div class="lead">
+        LPランキングの「基準」列は、ここで指定した日からの増減です。合宿の開始日などを入れてください。<br>
+        空欄にすると「基準」列は表示されません。
+      </div>
+      <div class="row">
+        <label>基準日</label>
+        <input type="date" id="lpBaseline">
+        <button class="mini grad" id="lpSaveBase">保存</button>
+        <button class="mini" id="lpClearBase">クリア</button>
+        <button class="mini" id="lpToday">今日にする</button>
+      </div>
+      <div class="hint" id="lpBaseHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>記録</h2>
+      <div class="lead">
+        LPは<b>メンバーがログインした日に自動で1点ずつ記録</b>されます（1日1回）。<br>
+        全員ぶんをその場で取りたいときは下のボタンを使ってください。大会前後や合宿の初日・最終日に押すと、
+        きれいな比較ができます。
+      </div>
+      <div class="row">
+        <button class="mini grad" id="lpRecordAll">📈 全員のLPを今すぐ記録</button>
+        <span class="hint">Riot APIで最新ランクを取得してから記録します</span>
+      </div>
+      <div class="row">
+        <button class="mini" id="lpRunCron">🌙 サーバー側の一斉集計を今すぐ試す</button>
+        <input type="text" id="lpCronKey" placeholder="CRON_KEY" style="min-width:170px">
+        <span class="hint">Worker に設定した CRON_KEY を入れて実行（毎晩23:45の処理と同じもの）</span>
+      </div>
+      <textarea id="lpCronOut" style="margin-top:10px;display:none;min-height:110px" readonly></textarea>
+      <div class="row">
+        <a class="mini" href="lp.html" target="_blank" rel="noopener">LPランキングを開く ↗</a>
+      </div>
+      <div class="hint" id="lpStat" style="margin-top:10px"></div>
+    </div>
+  </div>
+
   <!-- ================= メンバー ================= -->
   <div class="panel" id="p-members">
     <div class="card">
       <h2>メンバー <span class="hint" id="memCount"></span></h2>
-      <div class="lead">ログインした人が自動で登録されます。名前をタップすると表示名を変更でき、以降は本人が再ログインしても上書きされません（空欄で保存すると解除）。</div>
+      <div class="lead">
+        ログインした人が自動で登録されます。名前をタップすると表示名を変更でき、以降は本人が再ログインしても上書きされません（空欄で保存すると解除）。<br>
+        <b>運営ロールの人は既定で「不参加」</b>です（参加者一覧・組卓・全体順位・LPランキングに出ません）。
+        大会に出てもらうときは「大会に参加」をONにしてください。
+      </div>
       <div class="row">
         <button class="mini" id="refreshRanks">🔄 全員のランクを再取得</button>
         <button class="mini" id="refreshRoles">🎭 全員のロールを再取得</button>
@@ -302,8 +352,8 @@ tr:last-child td{border-bottom:none}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=3.1"></script>
-<script src="home-common.js?v=3.1"></script>
+<script src="core.js?v=3.4"></script>
+<script src="home-common.js?v=3.4"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -359,6 +409,7 @@ tr:last-child td{border-bottom:none}
     renderBoardList();
     loadCatalog();
     loadHome();
+    loadLp();
   });
   store.onChange(render);
 
@@ -776,10 +827,12 @@ tr:last-child td{border-bottom:none}
   function render(){
     const s = store.state;
     if (document.activeElement !== $("titleInput")) $("titleInput").value = s.title || "";
-    $("memCount").textContent = s.roster.length + "人";
+    const nPart = C.participants(s).length;
+    const nStaff = s.roster.length - nPart;
+    $("memCount").textContent = s.roster.length + "人" + (nStaff ? "（参加 " + nPart + " / 運営 " + nStaff + "）" : "");
 
     const tbl = $("memberTable");
-    tbl.innerHTML = "<tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th></th></tr>";
+    tbl.innerHTML = "<tr><th>選手</th><th>Riot ID</th><th>ランク</th><th>ロール</th><th>大会に参加</th><th></th></tr>";
     s.roster.forEach(p => {
       const tr = document.createElement("tr");
 
@@ -808,6 +861,14 @@ tr:last-child td{border-bottom:none}
         lk.textContent = "🔒固定";
         wrap.appendChild(lk);
       }
+      if (p.staff){
+        const sb = document.createElement("span");
+        sb.className = "namelock";
+        sb.style.color = "var(--accent-deep)";
+        sb.textContent = "運営";
+        sb.title = "運営ロール。大会・LPランキングには出ません";
+        wrap.appendChild(sb);
+      }
       cell.appendChild(img); cell.appendChild(wrap);
       tdP.appendChild(cell);
 
@@ -834,6 +895,29 @@ tr:last-child td{border-bottom:none}
       });
       if (!(p.roles || []).length) tdRoles.innerHTML = '<span class="hint">—</span>';
 
+      // 運営ロールの人は既定で不参加。ここでONにすると普通の参加者になる
+      const tdJoin = document.createElement("td");
+      tdJoin.style.whiteSpace = "nowrap";
+      if (p.staff){
+        const lb = document.createElement("label");
+        lb.className = "chk";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!p.optIn;
+        cb.onchange = () => {
+          store.setOptIn(p.id, cb.checked);
+          toast(cb.checked ? (p.name + " を大会に参加させました") : (p.name + " を大会から外しました"));
+        };
+        lb.appendChild(cb);
+        lb.appendChild(document.createTextNode(p.optIn ? "参加中" : "運営（不参加）"));
+        tdJoin.appendChild(lb);
+      } else {
+        const sp = document.createElement("span");
+        sp.className = "hint";
+        sp.textContent = "参加者";
+        tdJoin.appendChild(sp);
+      }
+
       const tdAct = document.createElement("td");
       tdAct.style.whiteSpace = "nowrap";
       const del = document.createElement("button");
@@ -842,7 +926,8 @@ tr:last-child td{border-bottom:none}
       del.onclick = () => { if (confirm(p.name + " をこの大会から外しますか？（再ログインで戻れます）")) store.removePlayer(p.id); };
       tdAct.appendChild(del);
 
-      tr.appendChild(tdP); tr.appendChild(tdR); tr.appendChild(tdRank); tr.appendChild(tdRoles); tr.appendChild(tdAct);
+      tr.appendChild(tdP); tr.appendChild(tdR); tr.appendChild(tdRank); tr.appendChild(tdRoles);
+      tr.appendChild(tdJoin); tr.appendChild(tdAct);
       tbl.appendChild(tr);
     });
 
@@ -887,6 +972,86 @@ tr:last-child td{border-bottom:none}
     try { roleCatalog = await C.DiscordAuth.rolesCached(true); catalogOk = !!roleCatalog.length; } catch(e){}
     renderVis();
     toast(`ロール更新: 成功${ok}${gone?" / 退出"+gone:""}${ng?" / 失敗"+ng:""}`);
+  };
+
+
+  /* =============================================================
+     LP
+     ============================================================= */
+  let lpData = null;
+  async function loadLp(){
+    try { lpData = await C.loadLpData(); }
+    catch(e){ toast("LPデータの読み込みに失敗: " + e.message); return; }
+    $("lpBaseline").value = lpData.baseline || "";
+    renderLpStat();
+  }
+  function renderLpStat(){
+    if (!lpData) return;
+    const ids = Object.keys(lpData.members);
+    const days = new Set();
+    Object.values(lpData.hist).forEach(h => Object.keys(h).forEach(d => days.add(d)));
+    const sorted = [...days].sort();
+    $("lpStat").textContent = ids.length
+      ? ("記録済み: " + ids.length + "人 ／ " + sorted.length + "日ぶん" +
+         (sorted.length ? "（" + sorted[0] + " 〜 " + sorted[sorted.length-1] + "）" : ""))
+      : "まだ記録がありません。";
+    $("lpBaseHint").textContent = lpData.baseline
+      ? ("現在の基準日: " + lpData.baseline)
+      : "基準日は未設定です（「基準」列は出ません）。";
+  }
+  $("lpSaveBase").onclick = async () => {
+    try {
+      await C.setLpBaseline($("lpBaseline").value);
+      await loadLp();
+      toast("基準日を保存しました");
+    } catch(e){ toast(e.message); }
+  };
+  $("lpClearBase").onclick = async () => {
+    try { await C.setLpBaseline(""); $("lpBaseline").value = ""; await loadLp(); toast("基準日をクリアしました"); }
+    catch(e){ toast(e.message); }
+  };
+  $("lpToday").onclick = () => { $("lpBaseline").value = C.dayKey(); };
+
+  $("lpRunCron").onclick = async () => {
+    const url = C.RiotConfig.effective().workerUrl;
+    if (!url){ toast("Worker URL が未設定です"); return; }
+    const key = $("lpCronKey").value.trim();
+    if (!key){ toast("CRON_KEY を入力してください"); return; }
+    const out = $("lpCronOut");
+    out.style.display = "";
+    out.value = "実行中…（人数ぶん Riot API を叩くので少し待ちます）";
+    try {
+      const r = await fetch(url.replace(/\/$/,"") + "/collect?key=" + encodeURIComponent(key));
+      const j = await r.json();
+      out.value = JSON.stringify(j, null, 2);
+      if (j.ok){ await loadLp(); toast("一斉集計が完了しました（更新 " + (j.updated||0) + "人）"); }
+      else toast("失敗: " + (j.error || "不明"));
+    } catch(e){
+      out.value = "実行できませんでした: " + e.message +
+        "\n\n/collect は worker.js v3.0 以降で使えます。Worker のコードが古い可能性があります。";
+    }
+  };
+
+  $("lpRecordAll").onclick = async () => {
+    const targets = store.state.roster.filter(p => p.puuid);
+    if (!targets.length){ toast("このボードにpuuid登録済みのメンバーがいません"); return; }
+    const btn = $("lpRecordAll");
+    btn.disabled = true;
+    let ok = 0, ng = 0;
+    for (const p of targets){
+      try {
+        const rank = await C.Riot.rank(p.puuid);
+        store.updatePlayer(p.id, { rank });
+        await C.recordLp(Object.assign({}, p, { rank }));
+        ok++;
+      } catch(e){ ng++; console.warn(p.name, e); }
+      btn.textContent = `📈 記録中 ${ok+ng}/${targets.length}`;
+      await new Promise(r => setTimeout(r, 250));
+    }
+    btn.disabled = false;
+    btn.textContent = "📈 全員のLPを今すぐ記録";
+    await loadLp();
+    toast(`LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
   };
 
   /* =============================================================

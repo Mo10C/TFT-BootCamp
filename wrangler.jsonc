@@ -10,10 +10,20 @@
   //   npx wrangler secret put DISCORD_CLIENT_ID
   //   npx wrangler secret put DISCORD_CLIENT_SECRET
   //   npx wrangler secret put DISCORD_BOT_TOKEN
+  //   npx wrangler secret put CRON_KEY          （/collect の手動実行用・任意）
+  // 毎日 23:45 JST = 14:45 UTC にLPを一斉集計
+  "triggers": { "crons": ["45 14 * * *"] },
+
   "vars": {
-    // マウンテンチョンク校サーバーのID（Discordの開発者モードでコピー）
+    // クラウドハッシュテイル校サーバーのID（Discordの開発者モードでコピー）
     "DISCORD_GUILD_ID": "",
     // ログイン後の戻り先として許可するオリジン（カンマ区切り・推奨設定）
-    "RETURN_ORIGINS": "https://mo10c.github.io,http://localhost:8000"
+    "RETURN_ORIGINS": "https://mo10c.github.io,http://localhost:8000",
+    // LP一斉集計に必要（Firestore REST 用。どちらも公開情報）
+    "FIREBASE_PROJECT_ID": "tft-leaderboard-f6897",
+    "FIREBASE_API_KEY": "AIzaSyCyZ7IbKh02V8fvILTCDTgLPKRuoNFS78Y",
+    "RIOT_PLATFORM": "jp1",
+    // ランクアップのお祝いを投げるチャンネルID（談話室）。空なら投稿しない
+    "DISCORD_ANNOUNCE_CHANNEL_ID": ""
   }
 }
