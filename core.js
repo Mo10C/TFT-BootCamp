@@ -2036,13 +2036,8 @@
     { id: "rays",   name: "ひかり" },
     { id: "plain",  name: "むじ" }
   ];
-  const PLAY_STYLES = [
-    "リロール型", "ファストエイト", "フレックス", "レベル上げ重視",
-    "アイテム優先", "コンテスト回避", "気分で決める"
-  ];
-  const ACTIVE_HOURS = ["朝", "昼", "夕方", "夜", "深夜"];
-  const PROFILE_MAX_FREE = 5;      // 自由欄の数
-  const PROFILE_MAX_GALLERY = 8;   // ギャラリーの枚数
+  const PROFILE_MAX_FREE = 4;      // 自由項目の数（カテゴリごと）
+  const PROFILE_MAX_GALLERY = 6;   // ギャラリーの枚数（カテゴリごと）
   const PROFILE_MAX_LINKS = 5;
   // 1人ぶんの保存サイズの上限（Firestoreの1MBに対して余裕をみる）
   const PROFILE_MAX_BYTES = 820 * 1024;
@@ -2059,14 +2054,35 @@
       theme: { color: "gold", pattern: "wave" },
       header: "",                      // ヘッダー画像（base64 か URL）
       thumb: "",                       // 一覧カード用の小さなヘッダー画像
-      displayName: "",                 // 空ならDiscordの名前を使う
-      tagline: "",                     // キャッチコピー（大きく出る）
-      intro: "",                       // 自己紹介の本文
-      tft: { since: "", comps: [], units: [], style: "", goal: "" },
-      life: { hobbies: [], hours: [] },
-      free: [],                        // [{title, body}]
-      gallery: [],                     // [{src, caption}]
-      links: [],                       // [{label, url}]
+      /* ===== 基本 =====
+         【名前】    … Discordから読み取るので、ここには持たない
+         【Riot ID】 … ログイン情報から読み取るので、ここには持たない */
+      kana: "",              // 【ふりがな】必須
+      nickname: "",          // 【呼び方・ニックネーム】必須
+
+      /* ===== 私について ===== */
+      hobbies: [],           // 【趣味】必須
+      games: [],             // 【みんなで遊びたいゲーム】必須
+      aboutFree: [],         // 自由に足せる項目 [{title, body}]
+      aboutGallery: [],      // 画像 [{src, caption}]（1枚ずつコメントが付く）
+
+      /* ===== TFT ===== */
+      tactics: "",           // 【Tactics Tool】URL 必須
+      noTactics: false,      //   持っていない場合
+      goal: "",              // 【合宿での目標】必須
+      spirit: "",            // 【意気込み】必須
+      tftFree: [],           // 自由に足せる項目
+      tftGallery: [],        // 画像
+
+      /* ===== しめ ===== */
+      message: "",           // 【みんなに一言】必須
+
+      /* ===== 任意 ===== */
+      tagline: "",           // ひとこと（一覧カードに大きく出る）
+      x: "",                 // X のURL（任意）
+      noX: false,
+      links: [],             // そのほかのリンク [{label, url}]
+
       hidden: false,
       published: false,                // 一度でも保存したか
       updatedAt: 0
@@ -2081,30 +2097,44 @@
     d.theme.pattern = PROFILE_PATTERNS.some(p => p.id === th.pattern) ? th.pattern : "wave";
     d.header = strOf(raw.header, 1400000);
     d.thumb = strOf(raw.thumb, 90000);
-    d.displayName = strOf(raw.displayName, 40);
-    d.tagline = strOf(raw.tagline, 60);
-    d.intro = strOf(raw.intro, 1200);
-    const t = raw.tft || {};
-    d.tft = {
-      since: strOf(t.since, 40),
-      comps: listOf(t.comps, 8, 30),
-      units: listOf(t.units, 8, 30),
-      style: strOf(t.style, 40),
-      goal: strOf(t.goal, 40)
-    };
-    const l = raw.life || {};
-    d.life = {
-      hobbies: listOf(l.hobbies, 10, 30),
-      hours: listOf(l.hours, 5, 6).filter(h => ACTIVE_HOURS.includes(h))
-    };
-    d.free = (Array.isArray(raw.free) ? raw.free : [])
+    // 自由項目とギャラリーは、カテゴリごとに同じ形なのでまとめて整える
+    const freeOf = v => (Array.isArray(v) ? v : [])
       .filter(f => f && (f.title || f.body))
       .map(f => ({ title: strOf(f.title, 30), body: strOf(f.body, 1200) }))
       .slice(0, PROFILE_MAX_FREE);
-    d.gallery = (Array.isArray(raw.gallery) ? raw.gallery : [])
+    const galOf = v => (Array.isArray(v) ? v : [])
       .filter(g => g && g.src)
-      .map(g => ({ src: strOf(g.src, 1400000), caption: strOf(g.caption, 60) }))
+      .map(g => ({ src: strOf(g.src, 1400000), caption: strOf(g.caption, 80) }))
       .slice(0, PROFILE_MAX_GALLERY);
+
+    d.kana = strOf(raw.kana, 40);
+    d.nickname = strOf(raw.nickname, 30);
+
+    // 私について
+    d.hobbies = listOf(raw.hobbies, 10, 30);
+    if (!d.hobbies.length && raw.life) d.hobbies = listOf(raw.life.hobbies, 10, 30);  // 古い版から
+    d.games = listOf(raw.games, 10, 30);
+    d.aboutFree = freeOf(raw.aboutFree);
+    d.aboutGallery = galOf(raw.aboutGallery);
+    // 古い版は自由項目・ギャラリーが1つずつだったので「私について」に引きつぐ
+    if (!d.aboutFree.length) d.aboutFree = freeOf(raw.free);
+    if (!d.aboutGallery.length) d.aboutGallery = galOf(raw.gallery);
+
+    // TFT
+    d.tactics = safeUrl(raw.tactics);
+    d.noTactics = !!raw.noTactics;
+    d.goal = strOf(raw.goal, 120);
+    d.spirit = strOf(raw.spirit, 300);
+    d.tftFree = freeOf(raw.tftFree);
+    d.tftGallery = galOf(raw.tftGallery);
+
+    // しめ（古い版の「軽く自己紹介！」= intro を引きつぐ）
+    d.message = strOf(raw.message, 1200) || strOf(raw.intro, 1200);
+
+    // 任意
+    d.tagline = strOf(raw.tagline, 60);
+    d.x = safeUrl(raw.x);
+    d.noX = !!raw.noX;
     d.links = (Array.isArray(raw.links) ? raw.links : [])
       .filter(k => k && k.url)
       .map(k => ({ label: strOf(k.label, 24), url: safeUrl(k.url) }))
@@ -2132,6 +2162,45 @@
     return "";
   }
 
+  /* 必須項目。
+     【名前】はDiscord、【Riot ID】はログイン情報から自動で入るので、
+     ここに並ぶのは「本人が入力するぶん」だけ。 */
+  const PROFILE_REQUIRED = [
+    { cat: "base",  key: "kana",     label: "ふりがな" },
+    { cat: "base",  key: "nickname", label: "呼び方・ニックネーム" },
+    { cat: "about", key: "hobbies",  label: "趣味",                   list: true },
+    { cat: "about", key: "games",    label: "みんなで遊びたいゲーム", list: true },
+    { cat: "tft",   key: "tactics",  label: "Tactics Tool", url: true, none: "noTactics" },
+    { cat: "tft",   key: "goal",     label: "合宿での目標" },
+    { cat: "tft",   key: "spirit",   label: "意気込み" },
+    { cat: "last",  key: "message",  label: "みんなに一言" }
+  ];
+  // カテゴリの見出し（画面の順番もこの順）
+  const PROFILE_CATS = [
+    { id: "about", name: "私について", icon: "🌱" },
+    { id: "tft",   name: "TFT",        icon: "🏆" }
+  ];
+  /* Riot ID から Tactics Tool のURLを組み立てる。
+     入力の手間をへらすため、編集画面の「Riot IDから作る」で使う。
+     例: Mo10C#819 → https://tactics.tools/player/jp/Mo10C/819 */
+  function tacticsUrlFor(riotId, region) {
+    const s = String(riotId || "").trim();
+    const i = s.lastIndexOf("#");
+    if (i <= 0 || i === s.length - 1) return "";
+    return "https://tactics.tools/player/" + (region || "jp") + "/" +
+      encodeURIComponent(s.slice(0, i)) + "/" + encodeURIComponent(s.slice(i + 1));
+  }
+
+  // まだ埋まっていない必須項目の名前を返す（空なら全部そろっている）
+  function missingRequired(p) {
+    if (!p) return PROFILE_REQUIRED.map(f => f.label);
+    return PROFILE_REQUIRED.filter(f => {
+      if (f.none && p[f.none]) return false;          // 「持っていない」ならOK
+      const v = p[f.key];
+      return f.list ? !(Array.isArray(v) && v.length) : !String(v || "").trim();
+    }).map(f => f.label);
+  }
+
   // 保存したときのおよそのバイト数（容量メーターに使う）
   function profileBytes(p) {
     try { return new Blob([JSON.stringify(p)]).size; }
@@ -2142,14 +2211,15 @@
   function cardOf(p) {
     return {
       id: p.id,
-      displayName: p.displayName,
+      kana: p.kana,
+      nickname: p.nickname,
       tagline: p.tagline,
       theme: { color: p.theme.color, pattern: p.theme.pattern },
       thumb: p.thumb || "",
-      comps: p.tft.comps.slice(0, 3),
-      hobbies: p.life.hobbies.slice(0, 3),
-      nTag: p.tft.comps.length + p.life.hobbies.length,
-      nGallery: p.gallery.length,
+      hobbies: p.hobbies.slice(0, 2),
+      games: p.games.slice(0, 2),
+      nTag: p.hobbies.length + p.games.length,
+      nGallery: p.aboutGallery.length + p.tftGallery.length,
       score: profileScore(p),
       hidden: !!p.hidden,
       published: !!p.published,
@@ -2159,14 +2229,15 @@
   function normCard(raw, id) {
     const c = cardOf(defaultProfile(id));
     if (!raw) return c;
-    c.displayName = strOf(raw.displayName, 40);
+    c.kana = strOf(raw.kana, 40);
+    c.nickname = strOf(raw.nickname, 30);
     c.tagline = strOf(raw.tagline, 60);
     const th = raw.theme || {};
     c.theme.color = PROFILE_THEMES.some(t => t.id === th.color) ? th.color : "gold";
     c.theme.pattern = PROFILE_PATTERNS.some(p => p.id === th.pattern) ? th.pattern : "wave";
     c.thumb = strOf(raw.thumb, 90000);
-    c.comps = listOf(raw.comps, 3, 30);
-    c.hobbies = listOf(raw.hobbies, 3, 30);
+    c.hobbies = listOf(raw.hobbies, 2, 30);
+    c.games = listOf(raw.games, 2, 30);
     c.nTag = raw.nTag | 0;
     c.nGallery = raw.nGallery | 0;
     c.score = Math.max(0, Math.min(100, raw.score | 0));
@@ -2264,6 +2335,10 @@
     body.id = p.id;
     body.published = true;
     body.updatedAt = Date.now();
+    const miss = missingRequired(body);
+    if (miss.length) {
+      throw new Error("まだ入っていない必須項目があります: " + miss.join(" / "));
+    }
     const size = profileBytes(body);
     if (size > PROFILE_MAX_BYTES) {
       throw new Error("画像が大きすぎます（" + Math.round(size / 1024) + "KB / 上限 " +
@@ -2326,14 +2401,13 @@
   // プロフィールが「ちゃんと書かれているか」を0〜100で返す（書くはげみ用）
   function profileScore(p) {
     if (!p) return 0;
-    const has = [
-      !!p.tagline, !!p.intro && p.intro.length >= 20, !!p.header,
-      !!p.tft.since, p.tft.comps.length > 0, p.tft.units.length > 0,
-      !!p.tft.style, !!p.tft.goal,
-      p.life.hobbies.length > 0, p.life.hours.length > 0,
-      p.free.length > 0, p.gallery.length > 0
-    ];
-    return Math.round(has.filter(Boolean).length / has.length * 100);
+    // 必須がぜんぶ埋まって 80%、任意（ひとこと・ヘッダー・自由欄・ギャラリー）で 100%
+    const need = PROFILE_REQUIRED.length;
+    const done = need - missingRequired(p).length;
+    const extra = [!!p.tagline, !!p.header,
+      p.aboutFree.length > 0 || p.tftFree.length > 0,
+      p.aboutGallery.length > 0 || p.tftGallery.length > 0];
+    return Math.round(done / need * 80 + extra.filter(Boolean).length / extra.length * 20);
   }
 
   /* =============================================================
@@ -2809,7 +2883,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.7",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.9",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -2825,8 +2899,9 @@
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, updateGlobalMember, removeGlobalMember,
-    PROFILE_THEMES, PROFILE_PATTERNS, PLAY_STYLES, ACTIVE_HOURS,
+    PROFILE_THEMES, PROFILE_PATTERNS,
     PROFILE_MAX_FREE, PROFILE_MAX_GALLERY, PROFILE_MAX_LINKS, PROFILE_MAX_BYTES,
+    PROFILE_REQUIRED, PROFILE_CATS, missingRequired, tacticsUrlFor,
     defaultProfile, normProfile, loadProfiles, loadProfile, saveProfile,
     loadProfileCards, cardOf, normCard,
     setProfileHidden, deleteProfile, profileBytes, profileThemeCss, profileScore,

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.7">
+<link rel="stylesheet" href="ui.css?v=4.9">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -96,7 +96,13 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   border:3px solid var(--surface);box-shadow:var(--shadow-soft);background:var(--surface-2)}
 .pavf{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;flex:none;
   border:3px solid var(--surface);box-shadow:var(--shadow-soft);color:#fff;font-weight:900;font-size:20px;background:var(--c)}
+.pcard .kn{font-size:9.5px;font-weight:700;color:var(--muted);letter-spacing:.06em;margin-top:9px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pcard .nm{font-size:14.5px;font-weight:900;line-height:1.35;margin-top:9px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .kn + .nm{margin-top:1px}
+.pcard .nk{font-size:11px;font-weight:900;margin-top:2px;
+  color:color-mix(in srgb,var(--c) 74%,var(--ink));
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pcard .tl{font-size:11.5px;font-weight:700;line-height:1.6;color:color-mix(in srgb,var(--c) 72%,var(--ink));
   margin-top:3px;min-height:19px;
@@ -161,7 +167,15 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   border:4px solid var(--surface);box-shadow:var(--shadow);color:#fff;font-weight:900;font-size:33px;background:var(--c)}
 .dname{flex:1;min-width:170px;padding-bottom:4px}
 .dname h2{font-size:21px;font-weight:900;line-height:1.3}
+.dname .furi{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.08em;margin-bottom:1px}
 .dname .rid{font-family:"Space Grotesk",sans-serif;font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px}
+.callme{padding:12px 22px 0;font-size:13px;font-weight:700;color:var(--muted)}
+.callme b{font-size:16px;font-weight:900;color:color-mix(in srgb,var(--c) 74%,var(--ink))}
+.fact .v .kana{font-size:10.5px;font-weight:700;color:var(--muted);margin-left:5px}
+.dlink .lico{display:grid;place-items:center;width:18px;height:18px;border-radius:6px;flex:none;
+  font-size:9.5px;font-weight:900;background:var(--surface-2);color:var(--muted)}
+.dlink.tt .lico{background:#1E7FAA;color:#fff}
+.dlink.xx .lico{background:#15202B;color:#fff}
 .dtag{padding:14px 22px 0;font-size:15px;font-weight:900;line-height:1.6;
   color:color-mix(in srgb,var(--c) 74%,var(--ink))}
 .dtag::before{content:"“";font-size:22px;opacity:.5;margin-right:2px}
@@ -180,13 +194,35 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 .fact{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:10px 12px}
 .fact .k{font-size:10px;font-weight:900;color:var(--muted);letter-spacing:.04em}
 .fact .v{font-size:13.5px;font-weight:900;margin-top:4px;line-height:1.5;word-break:break-word}
+.fact.wide{grid-column:1/-1}
+.fact .v.sp{font-size:13px;font-weight:700;line-height:1.85;white-space:pre-wrap}
 .fact .tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
 
-/* 自由欄 */
-.freebox{border:1.5px solid color-mix(in srgb,var(--c) 30%,var(--border));border-radius:16px;
-  padding:13px 15px;margin-bottom:10px;background:color-mix(in srgb,var(--c) 5%,var(--surface))}
-.freebox h4{font-size:13px;font-weight:900;margin-bottom:6px;
+.fact .fl{font-size:12px;font-weight:900;color:color-mix(in srgb,var(--c) 80%,var(--ink))}
+.fact .fl:hover{text-decoration:underline}
+
+/* ---- カテゴリ（私について / TFT）---- */
+.cat{border:1.5px solid color-mix(in srgb,var(--c) 32%,var(--border));border-radius:18px;
+  overflow:hidden;margin-top:18px;background:var(--surface)}
+.cathead{display:flex;align-items:center;gap:8px;padding:10px 15px;font-size:13.5px;font-weight:900;
+  color:color-mix(in srgb,var(--c) 82%,var(--ink));
+  background:color-mix(in srgb,var(--c) 12%,var(--surface));
+  border-bottom:1.5px solid color-mix(in srgb,var(--c) 26%,var(--border))}
+.cathead .ci{font-size:16px;line-height:1}
+.catbody{padding:13px 15px 15px;display:flex;flex-direction:column;gap:10px}
+
+/* 自由項目 */
+.freebox{border:1.5px solid color-mix(in srgb,var(--c) 26%,var(--border));border-radius:14px;
+  padding:11px 13px;background:color-mix(in srgb,var(--c) 5%,var(--surface))}
+.freebox h4{font-size:12.5px;font-weight:900;margin-bottom:5px;
   color:color-mix(in srgb,var(--c) 76%,var(--ink))}
+
+/* みんなに一言（しめ） */
+.lastmsg{margin-top:20px;border-radius:18px;padding:16px 18px;
+  background:linear-gradient(150deg,color-mix(in srgb,var(--c) 15%,var(--surface)),var(--surface) 72%);
+  border:1.5px solid color-mix(in srgb,var(--c) 40%,var(--border))}
+.lastmsg .lh{font-size:12px;font-weight:900;letter-spacing:.05em;margin-bottom:7px;
+  color:color-mix(in srgb,var(--c) 80%,var(--ink))}
 
 /* ギャラリー */
 .gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px}
@@ -217,12 +253,38 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 /* ---- 編集フォーム ---- */
 .ed{padding:4px 22px 22px}
 .ed .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
-.ed label{font-size:11.5px;font-weight:900;color:var(--muted);min-width:96px}
+.ed label{font-size:11.5px;font-weight:900;color:var(--muted);width:116px;flex:none}
 .ed input[type=text],.ed textarea,.ed select{border:1.5px solid var(--border-strong);background:var(--surface);
   color:var(--ink);border-radius:11px;padding:8px 11px;font-size:12.5px;font-family:inherit;flex:1;min-width:130px}
 .ed textarea{width:100%;min-height:96px;line-height:1.8;resize:vertical}
 .ed input:focus,.ed textarea:focus,.ed select:focus{outline:none;border-color:var(--accent-2)}
 .ed .hint{font-size:10.5px;color:var(--muted);line-height:1.7}
+.ed label{align-self:flex-start;padding-top:8px;line-height:1.45}
+.ed .req{font-style:normal;font-size:9px;font-weight:900;color:#fff;background:var(--danger);
+  border-radius:999px;padding:1px 6px;margin-left:5px;vertical-align:1px}
+.ed .ro{flex:1;min-width:130px;border:1.5px dashed var(--border-strong);border-radius:11px;
+  padding:8px 11px;font-size:12.5px;font-weight:900;color:var(--ink);background:var(--surface-2);
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.ed .ro .auto{font-size:9.5px;font-weight:900;color:var(--muted);background:var(--surface);
+  border:1px solid var(--border);border-radius:999px;padding:1px 8px}
+.ed label.chk{min-width:0;display:inline-flex;align-items:center;gap:6px;padding-top:0;
+  font-size:11.5px;font-weight:700;color:var(--muted)}
+.ed label.chk input{width:15px;height:15px}
+/* 残っている必須項目のお知らせ */
+.reqnote{font-size:11.5px;font-weight:700;line-height:2;padding:9px 13px;border-radius:13px;
+  margin-bottom:11px;background:color-mix(in srgb,var(--warn) 14%,var(--surface));
+  border:1.5px solid color-mix(in srgb,var(--warn) 40%,var(--border))}
+.reqnote.ok{background:color-mix(in srgb,var(--ok) 12%,var(--surface));
+  border-color:color-mix(in srgb,var(--ok) 38%,var(--border));color:var(--ink)}
+.reqnote .mtag{display:inline-block;font-size:10.5px;font-weight:900;background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:999px;padding:1px 9px;margin:0 4px 3px 0}
+/* 編集画面のカテゴリの囲い */
+.edcat{border:1.5px solid color-mix(in srgb,var(--c) 32%,var(--border));border-radius:18px;
+  overflow:hidden;margin:20px 0 4px;background:var(--surface)}
+.edcatbody{padding:13px 14px 15px}
+.edcat .subhead{font-size:11px;font-weight:900;color:var(--muted);letter-spacing:.04em;
+  margin:15px 0 5px;padding-top:11px;border-top:1px dashed var(--border-strong)}
+.ed .hint .req{margin-left:6px}
 .swatches{display:flex;gap:7px;flex-wrap:wrap}
 .sw{width:30px;height:30px;border-radius:10px;border:2.5px solid transparent;padding:0;cursor:pointer;
   box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55)}
@@ -317,7 +379,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   </div>
 
   <div class="filters">
-    <div class="search"><input type="text" id="q" placeholder="名前・ひとこと・好きなコンプ・趣味で探す"></div>
+    <div class="search"><input type="text" id="q" placeholder="名前・ふりがな・呼び方・趣味・ゲームで探す"></div>
     <div id="roleChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     <select class="sortsel" id="sortSel">
       <option value="new">更新が新しい順</option>
@@ -344,8 +406,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.7"></script>
-<script src="home-common.js?v=4.7"></script>
+<script src="core.js?v=4.9"></script>
+<script src="home-common.js?v=4.9"></script>
 <script>
 (function(){
   "use strict";
@@ -394,7 +456,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     const dc = m.discord || {};
     return {
       id,
-      name: (c.displayName || m.name || dc.name || dc.username || "—"),
+      name: (m.name || dc.name || dc.username || "—"),     // 名前はDiscordから
+      kana: c.kana || "",
       avatar: dc.avatar || "",
       riotId: m.riotId || "",
       rank: m.rank || null,
@@ -425,7 +488,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       const q = query.toLowerCase();
       list = list.filter(x => {
         const c = x.card;
-        const hay = [x.name, x.riotId, c.tagline].concat(c.comps, c.hobbies).join(" ").toLowerCase();
+        const hay = [x.name, x.kana || c.kana, c.nickname, x.riotId, c.tagline]
+          .concat(c.hobbies, c.games).join(" ").toLowerCase();
         return hay.includes(q);
       });
     }
@@ -469,7 +533,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     wall.innerHTML = cards.map((x, i) => {
       const c = x.card;
       const col = C.profileThemeCss(c);
-      const tags = c.comps.concat(c.hobbies).slice(0, 3);
+      const tags = c.hobbies.concat(c.games).slice(0, 3);
       const restN = Math.max(0, c.nTag - tags.length);
       return '<button class="pcard' + (x.written ? "" : " empty") + '" data-id="' + esc(x.id) + '"' +
         ' style="--c:' + col + ';animation-delay:' + Math.min(i, 14) * 28 + 'ms">' +
@@ -478,10 +542,12 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         '<div class="band">' + bandHtml(c) + "</div>" +
         '<div class="body">' +
           avatarHtml(x, "pav", "pavf") +
+          (c.kana ? '<div class="kn">' + esc(c.kana) + "</div>" : "") +
           '<div class="nm">' + esc(x.name) + "</div>" +
+          (c.nickname ? '<div class="nk">「' + esc(c.nickname) + "」</div>" : "") +
           (c.tagline
             ? '<div class="tl">' + esc(c.tagline) + "</div>"
-            : '<div class="tl none">' + (x.written ? "—" : "まだ自己紹介がありません") + "</div>") +
+            : '<div class="tl none">' + (x.written ? "" : "まだ自己紹介がありません") + "</div>") +
           '<div class="meta">' +
             (x.rank ? '<span class="rankpill" style="color:' + C.rankColor(x.rank) + '">' +
               esc(C.rankShort(x.rank)) + "</span>" : "") +
@@ -524,31 +590,58 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   function tagsHtml(arr){
     return arr.map(t => '<span class="tag">' + esc(t) + "</span>").join("");
   }
-  function factHtml(k, v, tags){
+  function factHtml(k, v, tags, sub){
     if (!v && !(tags && tags.length)) return "";
     return '<div class="fact"><div class="k">' + esc(k) + "</div>" +
-      (v ? '<div class="v">' + esc(v) + "</div>" : "") +
+      (v ? '<div class="v">' + esc(v) +
+        (sub ? '<span class="kana">' + esc(sub) + "</span>" : "") + "</div>" : "") +
       (tags && tags.length ? '<div class="tags">' + tagsHtml(tags) + "</div>" : "") + "</div>";
+  }
+
+  /* カテゴリ1つぶんの中身（項目 → 自由項目 → ギャラリー） */
+  function catHtml(cat, facts, free, gallery){
+    const gal = gallery.map((g, i) => {
+      const src = C.safeImg(g.src);
+      if (!src) return "";
+      return '<figure data-cat="' + cat.id + '" data-g="' + i + '">' +
+        '<img src="' + esc(src) + '" alt="" loading="lazy">' +
+        (g.caption ? "<figcaption>" + esc(g.caption) + "</figcaption>" : "") + "</figure>";
+    }).join("");
+    if (!facts && !free.length && !gal) return "";
+    return '<div class="cat">' +
+      '<div class="cathead"><span class="ci">' + cat.icon + "</span>" + esc(cat.name) + "</div>" +
+      '<div class="catbody">' +
+        (facts ? '<div class="facts">' + facts + "</div>" : "") +
+        free.map(f => '<div class="freebox"><h4>' + esc(f.title || "じゆうこうもく") + "</h4>" +
+          '<div class="prose">' + esc(f.body) + "</div></div>").join("") +
+        (gal ? '<div class="gal">' + gal + "</div>" : "") +
+      "</div></div>";
   }
 
   function detailHtml(x, p){
     const col = C.profileThemeCss(p);
     const hdr = C.safeImg(p.header);
-    const facts =
-      factHtml("TFT歴", p.tft.since) +
-      factHtml("好きなコンプ", "", p.tft.comps) +
-      factHtml("好きなユニット", "", p.tft.units) +
-      factHtml("プレイスタイル", p.tft.style) +
-      factHtml("目標ランク", p.tft.goal);
-    const life =
-      factHtml("好きなこと・趣味", "", p.life.hobbies) +
-      factHtml("よくいる時間帯", "", p.life.hours);
-    const gal = p.gallery.map((g, i) => {
-      const s = C.safeImg(g.src);
-      if (!s) return "";
-      return '<figure data-g="' + i + '"><img src="' + esc(s) + '" alt="" loading="lazy">' +
-        (g.caption ? "<figcaption>" + esc(g.caption) + "</figcaption>" : "") + "</figure>";
-    }).join("");
+    const CAT = {};
+    C.PROFILE_CATS.forEach(c => { CAT[c.id] = c; });
+
+    // 【私について】
+    const aboutFacts =
+      factHtml("趣味", "", p.hobbies) +
+      factHtml("みんなで遊びたいゲーム", "", p.games);
+
+    // 【TFT】Riot ID は自動、Tactics Tool はリンクにする
+    const ttLink = p.tactics
+      ? '<a class="fl" href="' + esc(p.tactics) + '" target="_blank" rel="noopener noreferrer">ひらく ↗</a>'
+      : "";
+    const tftFacts =
+      factHtml("Riot ID", x.riotId || "—") +
+      (p.tactics
+        ? '<div class="fact"><div class="k">Tactics Tool</div><div class="v">' + ttLink + "</div></div>"
+        : "") +
+      factHtml("合宿での目標", p.goal) +
+      // 意気込みは長くなりがちなので、1行ぜんぶを使う
+      (p.spirit ? '<div class="fact wide"><div class="k">意気込み</div>' +
+        '<div class="v sp">' + esc(p.spirit) + "</div></div>" : "");
 
     const idx = cards.findIndex(c => c.id === x.id);
     const prev = idx > 0 ? cards[idx-1] : null;
@@ -561,10 +654,13 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
              : '<div class="pat ' + esc(p.theme.pattern) + '"></div>') +
       "</div>" +
       '<div class="dtop">' + avatarHtml(x, "dav", "davf") +
-        '<div class="dname"><h2>' + esc(x.name) + "</h2>" +
+        '<div class="dname">' +
+          (p.kana ? '<div class="furi">' + esc(p.kana) + "</div>" : "") +
+          "<h2>" + esc(x.name) + "</h2>" +
           (x.riotId ? '<div class="rid">' + esc(x.riotId) + "</div>" : "") + "</div>" +
         (x.id === myId ? '<button class="mini grad" id="dEdit">✏️ 書きかえる</button>' : "") +
       "</div>" +
+      (p.nickname ? '<div class="callme">「<b>' + esc(p.nickname) + '</b>」って呼んでね</div>' : "") +
       (p.tagline ? '<div class="dtag">' + esc(p.tagline) + "</div>" : "") +
       '<div class="dchips">' +
         (x.rank ? '<span class="rankpill" style="color:' + C.rankColor(x.rank) + '">' +
@@ -573,17 +669,18 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
           C.roleColorCss(r.color) + '"></span>' + esc(r.name || r.id) + "</span>").join("") +
       "</div>" +
       '<div class="dbody">' +
-        (p.intro ? '<div class="psec"><h3>じこしょうかい</h3><div class="prose">' + esc(p.intro) + "</div></div>" : "") +
-        (facts ? '<div class="psec"><h3>TFTのこと</h3><div class="facts">' + facts + "</div></div>" : "") +
-        (life ? '<div class="psec"><h3>ひととなり</h3><div class="facts">' + life + "</div></div>" : "") +
-        (p.free.length
-          ? p.free.map(f => '<div class="psec"><h3>' + esc(f.title || "じゆうらん") + "</h3>" +
-              '<div class="freebox"><div class="prose">' + esc(f.body) + "</div></div></div>").join("")
+        catHtml(CAT.about, aboutFacts, p.aboutFree, p.aboutGallery) +
+        catHtml(CAT.tft,   tftFacts,   p.tftFree,   p.tftGallery) +
+        (p.message
+          ? '<div class="lastmsg"><div class="lh">みんなに一言</div>' +
+            '<div class="prose">' + esc(p.message) + "</div></div>"
           : "") +
-        (gal ? '<div class="psec"><h3>ギャラリー</h3><div class="gal">' + gal + "</div></div>" : "") +
-        (p.links.length
+        (p.x || p.links.length
           ? '<div class="psec"><h3>リンク</h3><div class="dlinks">' +
-            p.links.map(k => '<a class="dlink" href="' + esc(k.url) + '" target="_blank" rel="noopener noreferrer">🔗 ' +
+            (p.x ? '<a class="dlink xx" href="' + esc(p.x) + '" target="_blank" rel="noopener noreferrer">' +
+              '<span class="lico">X</span>X（旧Twitter）</a>' : "") +
+            p.links.map(k => '<a class="dlink" href="' + esc(k.url) + '" target="_blank" rel="noopener noreferrer">' +
+              '<span class="lico">↗</span>' +
               esc(k.label || k.url.replace(/^https?:\/\//, "").slice(0, 26)) + "</a>").join("") + "</div></div>"
           : "") +
         (!p.published
@@ -628,7 +725,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     box.querySelectorAll("[data-go]").forEach(b =>
       b.onclick = () => openDetail(b.getAttribute("data-go")));
     box.querySelectorAll(".gal figure").forEach(f => f.onclick = () => {
-      const g = p.gallery[Number(f.getAttribute("data-g"))];
+      const list = f.getAttribute("data-cat") === "tft" ? p.tftGallery : p.aboutGallery;
+      const g = list[Number(f.getAttribute("data-g"))];
       if (!g) return;
       $("lightImg").src = C.safeImg(g.src);
       $("lightCap").textContent = g.caption || "";
@@ -772,45 +870,58 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
           '<button class="mini" id="hdUrl">🔗 URL</button>' +
           '<button class="mini" id="hdClr">消す</button></div></div>' +
 
-        sec("名乗り") +
-        '<div class="row"><label>表示する名前</label>' +
-          '<input type="text" id="edName" maxlength="40" placeholder="' + esc(me ? me.name : "") + '（空ならDiscordの名前）"></div>' +
+        '<div class="reqnote" id="reqNote"></div>' +
+
+        sec("基本") +
+        '<div class="row"><label>名前</label>' +
+          '<div class="ro">' + esc(me ? me.name : "—") +
+          '<span class="auto">Discordから自動</span></div></div>' +
+        '<div class="row"><label>ふりがな<i class="req">必須</i></label>' +
+          '<input type="text" id="edKana" maxlength="40" placeholder="例: もとせんせい"></div>' +
+        '<div class="row"><label>呼び方・<br>ニックネーム<i class="req">必須</i></label>' +
+          '<input type="text" id="edNick" maxlength="30" placeholder="例: もとさん / もと"></div>' +
+
+        /* ===== 私について ===== */
+        catOpen("about") +
+        '<div class="row"><label>趣味<i class="req">必須</i></label>' +
+          '<input type="text" id="edHobby" placeholder="カンマ区切り　例: ラーメン, 猫, カラオケ"></div>' +
+        '<div class="row"><label>みんなで<br>遊びたいゲーム<i class="req">必須</i></label>' +
+          '<input type="text" id="edGames" placeholder="カンマ区切り　例: TFT, マリオカート, Among Us"></div>' +
+        freeBlock("about") +
+        galBlock("about") +
+        catClose() +
+
+        /* ===== TFT ===== */
+        catOpen("tft") +
+        '<div class="row"><label>Riot ID</label>' +
+          '<div class="ro">' + esc(me && me.riotId ? me.riotId : "—") +
+          '<span class="auto">ログイン情報から自動</span></div></div>' +
+        '<div class="row"><label>Tactics Tool<i class="req">必須</i></label>' +
+          '<input type="text" id="edTt" placeholder="https://tactics.tools/player/jp/…">' +
+          '<button class="mini" id="ttAuto">Riot IDから作る</button></div>' +
+        '<div class="row"><label></label><label class="chk">' +
+          '<input type="checkbox" id="edNoTt"> 持っていない</label></div>' +
+        '<div class="row"><label>合宿での目標<i class="req">必須</i></label>' +
+          '<input type="text" id="edGoal" maxlength="120" placeholder="例: エメラルドに上がる / 毎回4位以内"></div>' +
+        '<div class="row" style="align-items:flex-start"><label>意気込み<i class="req">必須</i></label>' +
+          '<textarea id="edSpirit" maxlength="300" style="min-height:64px" placeholder="例: 最後まで諦めずに走りきります！"></textarea></div>' +
+        freeBlock("tft") +
+        galBlock("tft") +
+        catClose() +
+
+        /* ===== みんなに一言 ===== */
+        sec("みんなに一言") +
+        '<div class="hint" style="margin-bottom:8px">プロフィールのいちばん下に、大きく出ます。<i class="req">必須</i></div>' +
+        '<textarea id="edMsg" maxlength="1200" placeholder="例: はじめまして！ よろしくおねがいします。気軽に声をかけてください。"></textarea>' +
+
+        sec("そのほか（任意）") +
         '<div class="row"><label>ひとこと</label>' +
-          '<input type="text" id="edTag" maxlength="60" placeholder="例: 毎日1位をねらってます！"></div>' +
-        '<div class="row" style="align-items:flex-start"><label>じこしょうかい</label></div>' +
-        '<textarea id="edIntro" maxlength="1200" placeholder="どんな人か、自由に書いてください。改行もそのまま出ます。"></textarea>' +
-
-        sec("TFTのこと") +
-        '<div class="row"><label>TFT歴</label><input type="text" id="edSince" maxlength="40" placeholder="例: Set9から / 3年くらい"></div>' +
-        '<div class="row"><label>好きなコンプ</label><input type="text" id="edComps" placeholder="カンマ区切り　例: リロール, メカ, 空を飛ぶやつ"></div>' +
-        '<div class="row"><label>好きなユニット</label><input type="text" id="edUnits" placeholder="カンマ区切り　例: アーリ, ヴェックス"></div>' +
-        '<div class="row"><label>プレイスタイル</label><input type="text" id="edStyle" maxlength="40" list="styleList" placeholder="選ぶか、自由に書けます">' +
-          '<datalist id="styleList">' + C.PLAY_STYLES.map(s => '<option value="' + esc(s) + '">').join("") + "</datalist></div>" +
-        '<div class="row"><label>目標ランク</label><input type="text" id="edGoal" maxlength="40" placeholder="例: マスター / 今期はエメラルド"></div>' +
-
-        sec("ひととなり") +
-        '<div class="row"><label>好きなこと</label><input type="text" id="edHobby" placeholder="カンマ区切り　例: ラーメン, 猫, カラオケ"></div>' +
-        '<div class="row"><label>よくいる時間帯</label><div id="hourChips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>' +
-
-        sec("じゆうらん（あなたらしさが出るところ）") +
-        '<div class="hint" style="margin-bottom:8px">見出しも中身も自由です。' +
-          '「最近ハマってるもの」「好きな配信者」「ここだけの話」など、なんでも。' +
-          '最大 ' + C.PROFILE_MAX_FREE + " つまで。</div>" +
-        '<div id="freeBox"></div>' +
-        '<button class="mini" id="freeAdd">＋ じゆうらんを足す</button>' +
-
-        sec("ギャラリー") +
-        '<div class="hint" style="margin-bottom:8px">趣味の写真、自作の画像、好きなスクショなど。' +
-          "最大 " + C.PROFILE_MAX_GALLERY + "枚。ファイルは自動で小さくしてから保存します。</div>" +
-        '<div class="gedit" id="galBox"></div>' +
-        '<div class="row" style="margin-top:9px">' +
-          '<input type="file" id="galFile" accept="image/*" multiple style="display:none">' +
-          '<button class="mini" id="galPick">📁 画像を足す</button>' +
-          '<button class="mini" id="galUrl">🔗 URLで足す</button></div>' +
-
-        sec("リンク") +
-        '<div id="linkBox"></div>' +
-        '<button class="mini" id="linkAdd">＋ リンクを足す</button>' +
+          '<input type="text" id="edTag" maxlength="60" placeholder="例: 毎日1位をねらってます！（一覧カードに大きく出ます）"></div>' +
+        '<div class="row"><label>X</label>' +
+          '<input type="text" id="edX" placeholder="https://x.com/…"></div>' +
+        '<div class="row"><label>そのほかの<br>リンク</label><div style="flex:1;min-width:150px">' +
+          '<div id="linkBox"></div>' +
+          '<button class="mini" id="linkAdd">＋ リンクを足す</button></div></div>' +
 
         '<div class="cap-meter" id="capMeter"><span>保存サイズ</span>' +
           '<div class="track"><div class="fill" id="capFill"></div></div><span id="capTxt">—</span></div>' +
@@ -826,15 +937,27 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       "</div></div>";
 
     // 値を入れる
-    $("edName").value  = ed.displayName;
-    $("edTag").value   = ed.tagline;
-    $("edIntro").value = ed.intro;
-    $("edSince").value = ed.tft.since;
-    $("edComps").value = ed.tft.comps.join(", ");
-    $("edUnits").value = ed.tft.units.join(", ");
-    $("edStyle").value = ed.tft.style;
-    $("edGoal").value  = ed.tft.goal;
-    $("edHobby").value = ed.life.hobbies.join(", ");
+    $("edKana").value  = ed.kana;
+    $("edNick").value  = ed.nickname;
+    $("edTt").value    = ed.tactics;
+    $("edX").value     = ed.x;
+    $("edNoTt").checked = !!ed.noTactics;
+    $("edHobby").value  = ed.hobbies.join(", ");
+    $("edGames").value  = ed.games.join(", ");
+    $("edGoal").value   = ed.goal;
+    $("edSpirit").value = ed.spirit;
+    $("edMsg").value    = ed.message;
+    $("edTag").value    = ed.tagline;
+    syncNone();
+
+    // Riot ID から Tactics Tool のURLを作る
+    $("ttAuto").onclick = () => {
+      const u = C.tacticsUrlFor(me && me.riotId, "jp");
+      if (!u){ ctx.toast("Riot IDが読み取れませんでした"); return; }
+      $("edTt").value = u; $("edNoTt").checked = false;
+      pull(); syncNone(); updateReq();
+    };
+    $("edNoTt").onchange = () => { pull(); syncNone(); updateReq(); };
 
     // 色
     $("swColor").innerHTML = C.PROFILE_THEMES.map(t =>
@@ -845,16 +968,9 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     });
     $("edPattern").onchange = () => { ed.theme.pattern = $("edPattern").value; pull(); renderEditor(); };
 
-    // 時間帯
-    $("hourChips").innerHTML = C.ACTIVE_HOURS.map(h =>
-      '<button class="chip' + (ed.life.hours.includes(h) ? " on" : "") + '" data-h="' + h + '">' + h + "</button>").join("");
-    $("hourChips").querySelectorAll(".chip").forEach(b => b.onclick = () => {
-      const h = b.getAttribute("data-h");
-      ed.life.hours = ed.life.hours.includes(h) ? ed.life.hours.filter(x => x !== h) : ed.life.hours.concat([h]);
-      b.classList.toggle("on");
-    });
-
-    renderFree(); renderGal(); renderLinks(); renderHeaderPrev(); updateCap();
+    C.PROFILE_CATS.forEach(c => { renderFree(c.id); renderGal(c.id); });
+    wireGalleries();
+    renderLinks(); renderHeaderPrev(); updateCap(); updateReq();
 
     // ヘッダー画像
     $("hdPick").onclick = () => $("hdFile").click();
@@ -876,41 +992,16 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     };
     $("hdClr").onclick = () => { ed.header = ""; renderHeaderPrev(); updateCap(); };
 
-    // ギャラリー
-    $("galPick").onclick = () => $("galFile").click();
-    $("galFile").onchange = async e => {
-      const files = [...e.target.files];
-      e.target.value = "";
-      for (const f of files){
-        if (ed.gallery.length >= C.PROFILE_MAX_GALLERY){ ctx.toast("ギャラリーは " + C.PROFILE_MAX_GALLERY + "枚までです"); break; }
-        try {
-          ctx.toast("画像を小さくしています…（" + f.name.slice(0,18) + "）");
-          ed.gallery.push({ src: await shrink(f, 1000, 1000, 78 * 1024), caption: "" });
-        } catch(err){ ctx.toast(err.message); }
-      }
-      renderGal(); updateCap();
-    };
-    $("galUrl").onclick = () => {
-      if (ed.gallery.length >= C.PROFILE_MAX_GALLERY){ ctx.toast("ギャラリーは " + C.PROFILE_MAX_GALLERY + "枚までです"); return; }
-      const u = prompt("画像のURLを貼ってください（https://… ）", "");
-      if (!u) return;
-      const s = C.safeUrl(u.trim());
-      if (!s){ ctx.toast("このURLは使えません"); return; }
-      ed.gallery.push({ src: s, caption: "" });
-      renderGal(); updateCap();
-    };
-
-    $("freeAdd").onclick = () => {
-      if (ed.free.length >= C.PROFILE_MAX_FREE){ ctx.toast("じゆうらんは " + C.PROFILE_MAX_FREE + "つまでです"); return; }
-      pull(); ed.free.push({ title: "", body: "" }); renderFree(); updateCap();
-    };
     $("linkAdd").onclick = () => {
       if (ed.links.length >= C.PROFILE_MAX_LINKS){ ctx.toast("リンクは " + C.PROFILE_MAX_LINKS + "つまでです"); return; }
       pull(); ed.links.push({ label: "", url: "" }); renderLinks();
     };
 
     box.querySelectorAll("textarea,input[type=text]").forEach(el =>
-      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(() => { pull(); updateCap(); }, 400); }));
+      el.addEventListener("input", () => {
+        clearTimeout(capTimer);
+        capTimer = setTimeout(() => { pull(); updateCap(); updateReq(); }, 400);
+      }));
 
     $("edSave").onclick = save;
     if ($("edDel")) $("edDel").onclick = async () => {
@@ -927,51 +1018,159 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   let capTimer = null;
   function sec(t){ return '<div class="psec"><h3>' + esc(t) + "</h3></div>"; }
 
+  /* 編集画面のカテゴリの囲い */
+  function catOpen(id){
+    const c = C.PROFILE_CATS.find(x => x.id === id);
+    return '<div class="edcat"><div class="cathead"><span class="ci">' + c.icon + "</span>" +
+      esc(c.name) + '</div><div class="edcatbody">';
+  }
+  function catClose(){ return "</div></div>"; }
+
+  /* カテゴリごとの「自由に足せる項目」 */
+  function freeBlock(id){
+    return '<div class="subhead">自由に足せる項目</div>' +
+      '<div class="hint" style="margin-bottom:7px">見出しも中身も自由です。最大 ' +
+        C.PROFILE_MAX_FREE + "つまで。</div>" +
+      '<div id="freeBox-' + id + '"></div>' +
+      '<button class="mini" data-freeadd="' + id + '">＋ 項目を足す</button>';
+  }
+  /* カテゴリごとのギャラリー（1枚ずつコメントが付く） */
+  function galBlock(id){
+    return '<div class="subhead">画像</div>' +
+      '<div class="hint" style="margin-bottom:7px">最大 ' + C.PROFILE_MAX_GALLERY +
+        "枚。1枚ずつ、下の欄に一言コメントを書けます。" +
+        "ファイルは自動で小さくしてから保存します。</div>" +
+      '<div class="gedit" id="galBox-' + id + '"></div>' +
+      '<div class="row" style="margin-top:8px"><label></label>' +
+        '<input type="file" data-galfile="' + id + '" accept="image/*" multiple style="display:none">' +
+        '<button class="mini" data-galpick="' + id + '">📁 画像を足す</button>' +
+        '<button class="mini" data-galurl="' + id + '">🔗 URLで足す</button></div>';
+  }
+  // カテゴリID → ed の中の入れ物
+  const FREE_OF = id => id === "tft" ? ed.tftFree : ed.aboutFree;
+  const GAL_OF  = id => id === "tft" ? ed.tftGallery : ed.aboutGallery;
+
+  // 「持っていない」にチェックしたら、URLの入力欄は使えなくする
+  function syncNone(){
+    if (!$("edTt")) return;
+    $("edTt").disabled = $("edNoTt").checked;
+    $("ttAuto").disabled = $("edNoTt").checked;
+    $("edTt").style.opacity = $("edNoTt").checked ? ".45" : "";
+  }
+
+  /* 必須項目の残りを、いつでも見えるところに出す。
+     保存を押してから怒られるのではなく、書いている途中で分かるように。 */
+  function updateReq(){
+    const box = $("reqNote");
+    if (!box) return;
+    const miss = C.missingRequired(ed);
+    if (!miss.length){
+      box.className = "reqnote ok";
+      box.innerHTML = "✅ 必須項目はぜんぶ入りました。保存できます。";
+    } else {
+      box.className = "reqnote";
+      box.innerHTML = "あと <b>" + miss.length + "つ</b>：" +
+        miss.map(m => '<span class="mtag">' + esc(m) + "</span>").join("");
+    }
+    if ($("edSave")) $("edSave").disabled = miss.length > 0;
+  }
+
   function renderHeaderPrev(){
     const p = $("hdPrev");
     const s = C.safeImg(ed.header);
     p.innerHTML = s ? '<img src="' + esc(s) + '" alt="" onerror="this.remove()">' : "なし";
   }
 
-  function renderFree(){
-    $("freeBox").innerHTML = ed.free.map((f, i) =>
+  function renderFree(id){
+    const list = FREE_OF(id), box = $("freeBox-" + id);
+    if (!box) return;
+    box.innerHTML = list.map((f, k) =>
       '<div class="fsec"><div class="fh">' +
-        '<input type="text" class="f-t" data-i="' + i + '" maxlength="30" placeholder="見出し（例: 最近ハマってるもの）" value="' + esc(f.title) + '">' +
-        '<button class="mini" data-up="' + i + '" title="上へ">↑</button>' +
-        '<button class="mini danger" data-del="' + i + '">消す</button></div>' +
-        '<textarea class="f-b" data-i="' + i + '" maxlength="1200" placeholder="中身を自由に書いてください">' + esc(f.body) + "</textarea></div>").join("");
-    $("freeBox").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
-      pull(); ed.free.splice(Number(b.getAttribute("data-del")), 1); renderFree(); updateCap();
+        '<input type="text" class="f-t" data-cat="' + id + '" data-i="' + k + '" maxlength="30" ' +
+          'placeholder="見出し（例: 最近ハマってるもの）" value="' + esc(f.title) + '">' +
+        '<button class="mini" data-up="' + k + '" data-cat="' + id + '" title="上へ">↑</button>' +
+        '<button class="mini danger" data-del="' + k + '" data-cat="' + id + '">消す</button></div>' +
+        '<textarea class="f-b" data-cat="' + id + '" data-i="' + k + '" maxlength="1200" ' +
+          'placeholder="中身を自由に書いてください">' + esc(f.body) + "</textarea></div>").join("");
+    box.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      pull(); FREE_OF(id).splice(Number(b.getAttribute("data-del")), 1); renderFree(id); updateCap();
     });
-    $("freeBox").querySelectorAll("[data-up]").forEach(b => b.onclick = () => {
-      const i = Number(b.getAttribute("data-up"));
-      if (i <= 0) return;
+    box.querySelectorAll("[data-up]").forEach(b => b.onclick = () => {
+      const k = Number(b.getAttribute("data-up"));
+      if (k <= 0) return;
       pull();
-      const t = ed.free[i]; ed.free[i] = ed.free[i-1]; ed.free[i-1] = t;
-      renderFree();
+      const L = FREE_OF(id), t = L[k]; L[k] = L[k-1]; L[k-1] = t;
+      renderFree(id);
     });
-    $("freeBox").querySelectorAll("textarea,input").forEach(el =>
-      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(() => { pull(); updateCap(); }, 400); }));
+    box.querySelectorAll("textarea,input").forEach(el =>
+      el.addEventListener("input", () => {
+        clearTimeout(capTimer); capTimer = setTimeout(() => { pull(); updateCap(); }, 400);
+      }));
   }
 
-  function renderGal(){
-    $("galBox").innerHTML = ed.gallery.map((g, i) => {
-      const s = C.safeImg(g.src);
+  function renderGal(id){
+    const list = GAL_OF(id), box = $("galBox-" + id);
+    if (!box) return;
+    box.innerHTML = list.map((g, k) => {
+      const src = C.safeImg(g.src);
       return '<div class="gitem"><div class="th">' +
-        (s ? '<img src="' + esc(s) + '" alt="" onerror="this.remove()">' : "") + "</div>" +
-        '<input type="text" class="g-c" data-i="' + i + '" maxlength="60" placeholder="ひとこと（任意）" value="' + esc(g.caption) + '">' +
-        '<div class="bar"><button data-l="' + i + '">←</button><button data-r="' + i + '">→</button>' +
-        '<button data-x="' + i + '">消す</button></div></div>';
+        (src ? '<img src="' + esc(src) + '" alt="" onerror="this.remove()">' : "") + "</div>" +
+        '<input type="text" class="g-c" data-cat="' + id + '" data-i="' + k + '" maxlength="80" ' +
+          'placeholder="この画像の一言コメント" value="' + esc(g.caption) + '">' +
+        '<div class="bar"><button data-l="' + k + '">←</button><button data-r="' + k + '">→</button>' +
+        '<button data-x="' + k + '">消す</button></div></div>';
     }).join("");
-    const mv = (i, j) => { pull(); const t = ed.gallery[i]; ed.gallery[i] = ed.gallery[j]; ed.gallery[j] = t; renderGal(); };
-    $("galBox").querySelectorAll("[data-l]").forEach(b => b.onclick = () => {
-      const i = Number(b.getAttribute("data-l")); if (i > 0) mv(i, i-1); });
-    $("galBox").querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
-      const i = Number(b.getAttribute("data-r")); if (i < ed.gallery.length - 1) mv(i, i+1); });
-    $("galBox").querySelectorAll("[data-x]").forEach(b => b.onclick = () => {
-      pull(); ed.gallery.splice(Number(b.getAttribute("data-x")), 1); renderGal(); updateCap(); });
-    $("galBox").querySelectorAll("input").forEach(el =>
+    const mv = (a, b) => { pull(); const L = GAL_OF(id), t = L[a]; L[a] = L[b]; L[b] = t; renderGal(id); };
+    box.querySelectorAll("[data-l]").forEach(b => b.onclick = () => {
+      const k = Number(b.getAttribute("data-l")); if (k > 0) mv(k, k-1); });
+    box.querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
+      const k = Number(b.getAttribute("data-r")); if (k < GAL_OF(id).length - 1) mv(k, k+1); });
+    box.querySelectorAll("[data-x]").forEach(b => b.onclick = () => {
+      pull(); GAL_OF(id).splice(Number(b.getAttribute("data-x")), 1); renderGal(id); updateCap(); });
+    box.querySelectorAll("input").forEach(el =>
       el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(pull, 400); }));
+  }
+
+  /* 画像を足す・並べかえるボタン（2つのカテゴリぶん、まとめて付ける） */
+  function wireGalleries(){
+    document.querySelectorAll("[data-galpick]").forEach(b => b.onclick = () => {
+      const id = b.getAttribute("data-galpick");
+      document.querySelector('[data-galfile="' + id + '"]').click();
+    });
+    document.querySelectorAll("[data-galfile]").forEach(inp => inp.onchange = async e => {
+      const id = inp.getAttribute("data-galfile");
+      const files = [...e.target.files];
+      e.target.value = "";
+      for (const f of files){
+        if (GAL_OF(id).length >= C.PROFILE_MAX_GALLERY){
+          ctx.toast("画像は1つのカテゴリに " + C.PROFILE_MAX_GALLERY + "枚までです"); break;
+        }
+        try {
+          ctx.toast("画像を小さくしています…（" + f.name.slice(0,18) + "）");
+          GAL_OF(id).push({ src: await shrink(f, 1000, 1000, 56 * 1024), caption: "" });
+        } catch(err){ ctx.toast(err.message); }
+      }
+      renderGal(id); updateCap();
+    });
+    document.querySelectorAll("[data-galurl]").forEach(b => b.onclick = () => {
+      const id = b.getAttribute("data-galurl");
+      if (GAL_OF(id).length >= C.PROFILE_MAX_GALLERY){
+        ctx.toast("画像は1つのカテゴリに " + C.PROFILE_MAX_GALLERY + "枚までです"); return;
+      }
+      const u = prompt("画像のURLを貼ってください（https://… ）", "");
+      if (!u) return;
+      const src = C.safeUrl(u.trim());
+      if (!src){ ctx.toast("このURLは使えません"); return; }
+      GAL_OF(id).push({ src, caption: "" });
+      renderGal(id); updateCap();
+    });
+    document.querySelectorAll("[data-freeadd]").forEach(b => b.onclick = () => {
+      const id = b.getAttribute("data-freeadd");
+      if (FREE_OF(id).length >= C.PROFILE_MAX_FREE){
+        ctx.toast("項目は1つのカテゴリに " + C.PROFILE_MAX_FREE + "つまでです"); return;
+      }
+      pull(); FREE_OF(id).push({ title: "", body: "" }); renderFree(id); updateCap();
+    });
   }
 
   function renderLinks(){
@@ -988,19 +1187,31 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   // 画面 → ed
   const splitTags = s => String(s || "").split(/[,、\n]/).map(x => x.trim()).filter(Boolean);
   function pull(){
-    if (!ed || !$("edName")) return;
-    ed.displayName = $("edName").value.trim();
-    ed.tagline     = $("edTag").value.trim();
-    ed.intro       = $("edIntro").value;
-    ed.tft.since   = $("edSince").value.trim();
-    ed.tft.comps   = splitTags($("edComps").value).slice(0, 8);
-    ed.tft.units   = splitTags($("edUnits").value).slice(0, 8);
-    ed.tft.style   = $("edStyle").value.trim();
-    ed.tft.goal    = $("edGoal").value.trim();
-    ed.life.hobbies = splitTags($("edHobby").value).slice(0, 10);
-    $("freeBox").querySelectorAll(".f-t").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.free[i]) ed.free[i].title = el.value; });
-    $("freeBox").querySelectorAll(".f-b").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.free[i]) ed.free[i].body = el.value; });
-    $("galBox").querySelectorAll(".g-c").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.gallery[i]) ed.gallery[i].caption = el.value; });
+    if (!ed || !$("edKana")) return;
+    ed.kana      = $("edKana").value.trim();
+    ed.nickname  = $("edNick").value.trim();
+    ed.tactics   = C.safeUrl($("edTt").value.trim());
+    ed.x         = C.safeUrl($("edX").value.trim());
+    ed.noTactics = $("edNoTt").checked;
+    ed.hobbies   = splitTags($("edHobby").value).slice(0, 10);
+    ed.games     = splitTags($("edGames").value).slice(0, 10);
+    ed.goal      = $("edGoal").value.trim();
+    ed.spirit    = $("edSpirit").value.trim();
+    ed.message   = $("edMsg").value;
+    ed.tagline   = $("edTag").value.trim();
+    // カテゴリごとの自由項目とギャラリー
+    document.querySelectorAll(".f-t").forEach(el => {
+      const L = FREE_OF(el.getAttribute("data-cat")), i = +el.getAttribute("data-i");
+      if (L[i]) L[i].title = el.value;
+    });
+    document.querySelectorAll(".f-b").forEach(el => {
+      const L = FREE_OF(el.getAttribute("data-cat")), i = +el.getAttribute("data-i");
+      if (L[i]) L[i].body = el.value;
+    });
+    document.querySelectorAll(".g-c").forEach(el => {
+      const L = GAL_OF(el.getAttribute("data-cat")), i = +el.getAttribute("data-i");
+      if (L[i]) L[i].caption = el.value;
+    });
     $("linkBox").querySelectorAll(".l-l").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.links[i]) ed.links[i].label = el.value; });
     $("linkBox").querySelectorAll(".l-u").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.links[i]) ed.links[i].url = el.value.trim(); });
   }
@@ -1033,7 +1244,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   /* ============ 自分のところ ============ */
   function renderMe(){
     const mine = pcards[myId];
-    const nm = (mine && mine.displayName) || (me && me.name) || "—";
+    const nm = (me && me.name) || "—";
     $("meHeroName").textContent = nm;
     const written = mine && mine.published;
     $("meHeroSub").textContent = written
