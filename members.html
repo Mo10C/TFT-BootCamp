@@ -1062,7 +1062,10 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       box.innerHTML = "あと <b>" + miss.length + "つ</b>：" +
         miss.map(m => '<span class="mtag">' + esc(m) + "</span>").join("");
     }
-    if ($("edSave")) $("edSave").disabled = miss.length > 0;
+    // 保存ボタンはここでは無効化しない。入力から反映までのわずかな遅れの間に
+    // 押されると、ボタンが無効のままクリックに反応しなくなるため
+    // （全部入力したのに保存できない、という不具合の原因だった）。
+    // 実際のチェックは save() の中で、押された瞬間の最新の内容に対して行う。
   }
 
   function renderHeaderPrev(){
@@ -1204,6 +1207,14 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 
   async function save(){
     pull();
+    // 直前の入力がまだ0.4秒のディレイ待ちで、必須欄の表示が
+    // 追いついていないことがあるので、押した瞬間にもう一度ちゃんと調べる。
+    updateReq();
+    const miss = C.missingRequired(ed);
+    if (miss.length){
+      ctx.toast("まだ入っていない必須項目があります: " + miss.join(" / "));
+      return;
+    }
     const btn = $("edSave");
     btn.disabled = true; btn.textContent = "保存中…";
     try {
