@@ -1282,10 +1282,15 @@
   /* 1人ぶんのLPを今日の日付で記録する（1日1点・同日は上書き）
      ★ opts.history === false のときは「名前・アイコン・Riot ID・ロール」だけを更新し、
         ランク(tier/lp/abs)と履歴(hist)には一切触らない。
-        ログイン時にこれを呼ぶことで、集計対象の名簿だけを最新に保てる。 */
+        ログイン時にこれを呼ぶことで、集計対象の名簿だけを最新に保てる。
+     ★ opts.lockedToday === true のときは、ランク・履歴もいっさい書かない
+        （名簿の情報だけ更新する）。23:45の自動集計がその日ぶんをもう記録し終えている
+        ときに、ブラウザからの「今すぐ記録」で数字を動かしてしまわないようにするため。
+        呼び出し側は lpLockedToday(lpData) で判定してから渡すこと。 */
   async function recordLp(player, opts) {
     opts = opts || {};
     const withHistory = opts.history !== false;
+    const locked = withHistory && opts.lockedToday === true;
     if (!player || !player.id) return null;
     if (player.staff && !player.optIn) return null;   // 運営ロールはLPランキングに出さない
     const rank = player.rank || null;
@@ -1300,8 +1305,9 @@
       roles: rolesOf(player),
       updatedAt: Date.now()
     };
-    // ランクと履歴は「集計」のときだけ書く（＝23:45の自動集計と、管理画面の手動集計）
-    if (withHistory) {
+    // ランクと履歴は「集計」のときだけ書く（＝23:45の自動集計と、管理画面の手動集計）。
+    // ただし今日ぶんが自動集計で固定済み（locked）のときは、ここも書かずに素通りする。
+    if (withHistory && !locked) {
       entry.tier = (rank && rank.tier) || "";
       entry.division = (rank && rank.division) || "";
       entry.lp = (rank && rank.lp) | 0;
@@ -1309,7 +1315,7 @@
       entry.rankAt = Date.now();
     }
     const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
-    if (withHistory && abs != null) patch.hist = { [player.id]: { [today]: abs } };
+    if (withHistory && !locked && abs != null) patch.hist = { [player.id]: { [today]: abs } };
 
     const db = openDb();
     try {
@@ -1317,7 +1323,7 @@
       else {
         const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
         cur.members[player.id] = Object.assign({}, cur.members[player.id] || {}, entry);
-        if (withHistory && abs != null) {
+        if (withHistory && !locked && abs != null) {
           cur.hist[player.id] = cur.hist[player.id] || {};
           cur.hist[player.id][today] = abs;
         }
@@ -1325,7 +1331,15 @@
         localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
       }
     } catch (e) { console.warn("LPの記録に失敗", e); return null; }
-    return entry;
+    return Object.assign({}, entry, { locked });
+  }
+
+  /* 「今日ぶんはもう23:45の自動集計（または /collect の手動実行）で確定済みか」を判定する。
+     true の間は、ブラウザからの手動記録でランク・履歴を上書きさせないためのガードに使う。
+     lastCollect は worker.js 側の collectLp() が自動・手動どちらの実行でも同じ項目に書くため、
+     「サーバー側で本物のRiot APIを叩いて集計した日」の印としてそのまま使える。 */
+  function lpLockedToday(lpData) {
+    return !!(lpData && lpData.lastCollect === dayKey());
   }
 
   /* 指定した日の記録を全員ぶん消す。
@@ -2890,7 +2904,7 @@
     defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
-    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, setLpBaseline, lpSeries, lpStats,
+    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, lpLockedToday, deleteLpDay, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, updateGlobalMember, removeGlobalMember,

@@ -644,7 +644,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.10"></script>
+<script src="core.js?v=4.11"></script>
 <script src="home-common.js?v=4.10"></script>
 <script>
 (function(){
@@ -1419,6 +1419,15 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   $("lpRecordAll").onclick = async () => {
     const targets = store.state.roster.filter(p => p.puuid);
     if (!targets.length){ toast("このボードにpuuid登録済みのメンバーがいません"); return; }
+    // 直前の状態で判定すると古いことがあるので、押した瞬間にもう一度読み直す
+    let freshLp = lpData;
+    try { freshLp = await C.loadLpData(); } catch(e){ /* 読めなければ手元の状態のまま判定 */ }
+    const locked = C.lpLockedToday(freshLp);
+    if (locked && !confirm(
+      "今日（" + C.dayKey() + "）はもう23:45の自動集計が済んでいます。\n" +
+      "その値を「今日ぶんの記録」として固定するため、この操作ではランク・LP履歴は上書きしません" +
+      "（名前・アイコンなどの名簿情報だけ更新します）。\n続けますか？"
+    )) return;
     const btn = $("lpRecordAll");
     btn.disabled = true;
     let ok = 0, ng = 0;
@@ -1426,7 +1435,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       try {
         const rank = await C.Riot.rank(p.puuid);
         store.updatePlayer(p.id, { rank });
-        await C.recordLp(Object.assign({}, p, { rank }));
+        await C.recordLp(Object.assign({}, p, { rank }), { lockedToday: locked });
         ok++;
       } catch(e){ ng++; console.warn(p.name, e); }
       btn.textContent = `📈 記録中 ${ok+ng}/${targets.length}`;
@@ -1434,9 +1443,11 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     }
     btn.disabled = false;
     btn.textContent = "📈 全員のLPを今すぐ記録";
-    if (ok && C.markLpCollected) await C.markLpCollected();   // 「最終集計」の表示を更新
+    if (ok && !locked && C.markLpCollected) await C.markLpCollected();   // 「最終集計」の表示を更新
     await loadLp();
-    toast(`LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
+    toast(locked
+      ? `名簿だけ更新しました（今日ぶんのLPは23:45の集計で確定済みのため変更していません）`
+      : `LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
   };
 
   /* =============================================================
