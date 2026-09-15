@@ -2207,11 +2207,12 @@
       kana: p.kana,
       nickname: p.nickname,
       tagline: p.tagline,
+      goal: p.goal,
       theme: { color: p.theme.color, pattern: p.theme.pattern },
       thumb: p.thumb || "",
-      hobbies: p.hobbies.slice(0, 2),
+      hobbies: p.hobbies.slice(0, 3),
       games: p.games.slice(0, 2),
-      nTag: p.hobbies.length + p.games.length,
+      nTag: Math.max(0, p.hobbies.length - 3),
       nGallery: p.aboutGallery.length + p.tftGallery.length,
       score: profileScore(p),
       hidden: !!p.hidden,
@@ -2225,11 +2226,12 @@
     c.kana = strOf(raw.kana, 40);
     c.nickname = strOf(raw.nickname, 30);
     c.tagline = strOf(raw.tagline, 60);
+    c.goal = strOf(raw.goal, 120);
     const th = raw.theme || {};
     c.theme.color = PROFILE_THEMES.some(t => t.id === th.color) ? th.color : "gold";
     c.theme.pattern = PROFILE_PATTERNS.some(p => p.id === th.pattern) ? th.pattern : "wave";
     c.thumb = strOf(raw.thumb, 90000);
-    c.hobbies = listOf(raw.hobbies, 2, 30);
+    c.hobbies = listOf(raw.hobbies, 3, 30);
     c.games = listOf(raw.games, 2, 30);
     c.nTag = raw.nTag | 0;
     c.nGallery = raw.nGallery | 0;

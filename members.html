@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.9">
+<link rel="stylesheet" href="ui.css?v=4.10">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -250,6 +250,25 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 .light img{max-width:100%;max-height:82vh;border-radius:16px;box-shadow:0 30px 60px -20px rgba(0,0,0,.6)}
 .light .cap{color:#fff;font-size:12.5px;font-weight:700;margin-top:12px;text-align:center}
 
+/* ---- ヘッダー画像のトリミング ---- */
+.cropsheet{position:fixed;inset:0;z-index:80;display:none}
+.cropsheet.show{display:block}
+.cropsheet .veil{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 60%,transparent);
+  backdrop-filter:blur(3px);animation:fade .2s ease}
+.cropbox{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(640px,calc(100vw - 26px));background:var(--surface);border-radius:22px;
+  box-shadow:0 34px 70px -30px rgba(10,30,50,.6);padding:20px;animation:pop .26s cubic-bezier(.2,.9,.3,1)}
+.cropbox h3{font-size:14px;font-weight:900;margin-bottom:12px}
+.cropstage{position:relative;width:100%;aspect-ratio:1400/460;overflow:hidden;border-radius:14px;
+  background:var(--surface-2);border:1.5px solid var(--border);cursor:grab;touch-action:none}
+.cropstage:active{cursor:grabbing}
+.cropstage img{position:absolute;left:0;top:0;max-width:none;user-select:none;pointer-events:none}
+.cropzoom{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:14px}
+.cropzoom input[type=range]{flex:1}
+.cropbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.crophint{font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.7}
+@media (max-width:620px){ .cropbox{padding:16px} }
+
 /* ---- 編集フォーム ---- */
 .ed{padding:4px 22px 22px}
 .ed .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
@@ -262,6 +281,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 .ed label{align-self:flex-start;padding-top:8px;line-height:1.45}
 .ed .req{font-style:normal;font-size:9px;font-weight:900;color:#fff;background:var(--danger);
   border-radius:999px;padding:1px 6px;margin-left:5px;vertical-align:1px}
+.ed .req.opt{background:var(--surface-2);color:var(--muted);border:1px solid var(--border-strong)}
 .ed .ro{flex:1;min-width:130px;border:1.5px dashed var(--border-strong);border-radius:11px;
   padding:8px 11px;font-size:12.5px;font-weight:900;color:var(--ink);background:var(--surface-2);
   display:flex;align-items:center;gap:9px;flex-wrap:wrap}
@@ -403,11 +423,26 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <!-- 画像の拡大 -->
 <div class="light" id="light"><div><img id="lightImg" alt=""><div class="cap" id="lightCap"></div></div></div>
 
+<!-- ヘッダー画像のトリミング -->
+<div class="cropsheet" id="cropSheet">
+  <div class="veil" id="cropVeil"></div>
+  <div class="cropbox">
+    <h3>🖼 ヘッダー画像を調整</h3>
+    <div class="cropstage" id="cropStage"><img id="cropImg" alt="" draggable="false"></div>
+    <div class="cropzoom"><span>🔍</span><input type="range" id="cropZoom" min="100" max="300" value="100"></div>
+    <div class="crophint">ドラッグで位置を調整、スライダーで拡大・縮小できます。</div>
+    <div class="cropbtns">
+      <button class="mini" id="cropCancel">やめる</button>
+      <button class="mini grad" id="cropOk">✅ この位置で登録</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.9"></script>
-<script src="home-common.js?v=4.9"></script>
+<script src="core.js?v=4.10"></script>
+<script src="home-common.js?v=4.10"></script>
 <script>
 (function(){
   "use strict";
@@ -533,8 +568,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     wall.innerHTML = cards.map((x, i) => {
       const c = x.card;
       const col = C.profileThemeCss(c);
-      const tags = c.hobbies.concat(c.games).slice(0, 3);
-      const restN = Math.max(0, c.nTag - tags.length);
+      const tags = c.hobbies.slice(0, 3);
+      const restN = c.nTag;
       return '<button class="pcard' + (x.written ? "" : " empty") + '" data-id="' + esc(x.id) + '"' +
         ' style="--c:' + col + ';animation-delay:' + Math.min(i, 14) * 28 + 'ms">' +
         (x.id === myId ? '<span class="mine">あなた</span>' : "") +
@@ -544,9 +579,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
           avatarHtml(x, "pav", "pavf") +
           (c.kana ? '<div class="kn">' + esc(c.kana) + "</div>" : "") +
           '<div class="nm">' + esc(x.name) + "</div>" +
-          (c.nickname ? '<div class="nk">「' + esc(c.nickname) + "」</div>" : "") +
-          (c.tagline
-            ? '<div class="tl">' + esc(c.tagline) + "</div>"
+          (c.goal
+            ? '<div class="tl">🎯 ' + esc(c.goal) + "</div>"
             : '<div class="tl none">' + (x.written ? "" : "まだ自己紹介がありません") + "</div>") +
           '<div class="meta">' +
             (x.rank ? '<span class="rankpill" style="color:' + C.rankColor(x.rank) + '">' +
@@ -822,6 +856,87 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     } catch(e){ return ""; }
   }
 
+  /* ============ ヘッダー画像のトリミング ============
+     選んだ画像を、カード用の比率（1400:460）の窓に合わせて
+     ドラッグ＆ズームで切り抜いてから登録する。 */
+  let cropIm = null, cropPW = 0, cropPH = 0, cropBaseScale = 1, cropScale = 1, cropZ = 1, cropTx = 0, cropTy = 0;
+
+  function openCropSheet(im){
+    cropIm = im;
+    $("cropImg").src = im.src;
+    $("cropZoom").value = 100;
+    $("cropSheet").classList.add("show");
+    requestAnimationFrame(() => {
+      const rect = $("cropStage").getBoundingClientRect();
+      cropPW = rect.width; cropPH = rect.height;
+      cropBaseScale = Math.max(cropPW / im.naturalWidth, cropPH / im.naturalHeight);
+      cropZ = 1;
+      applyCropTransform(true);
+    });
+  }
+  function closeCropSheet(){
+    $("cropSheet").classList.remove("show");
+    cropIm = null;
+  }
+  function applyCropTransform(center){
+    const scale = cropBaseScale * cropZ;
+    const dw = cropIm.naturalWidth * scale, dh = cropIm.naturalHeight * scale;
+    if (center){ cropTx = (cropPW - dw) / 2; cropTy = (cropPH - dh) / 2; }
+    cropTx = Math.min(0, Math.max(cropPW - dw, cropTx));
+    cropTy = Math.min(0, Math.max(cropPH - dh, cropTy));
+    const img = $("cropImg");
+    img.style.width = dw + "px"; img.style.height = dh + "px";
+    img.style.left = cropTx + "px"; img.style.top = cropTy + "px";
+    cropScale = scale;
+  }
+  function cropToDataUrl(im, sx, sy, sw, sh){
+    const targetW = 1400, targetH = 460, budget = 150 * 1024;
+    let out = "";
+    for (const scale of [1, 0.85, 0.72, 0.6, 0.5, 0.4]){
+      for (const q of [0.82, 0.72, 0.62, 0.52, 0.42]){
+        const cv = document.createElement("canvas");
+        cv.width = Math.max(1, Math.round(targetW * scale));
+        cv.height = Math.max(1, Math.round(targetH * scale));
+        const g = cv.getContext("2d");
+        g.fillStyle = "#ffffff"; g.fillRect(0, 0, cv.width, cv.height);
+        g.drawImage(im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+        out = cv.toDataURL("image/jpeg", q);
+        if (out.length * 0.75 <= budget) return out;
+      }
+    }
+    return out;
+  }
+  // ドラッグ（マウス／タッチ共通）
+  let cropDrag = null;
+  $("cropStage").addEventListener("pointerdown", e => {
+    if (!cropIm) return;
+    cropDrag = { x: e.clientX, y: e.clientY, tx: cropTx, ty: cropTy };
+    $("cropStage").setPointerCapture(e.pointerId);
+  });
+  $("cropStage").addEventListener("pointermove", e => {
+    if (!cropDrag) return;
+    cropTx = cropDrag.tx + (e.clientX - cropDrag.x);
+    cropTy = cropDrag.ty + (e.clientY - cropDrag.y);
+    applyCropTransform(false);
+  });
+  $("cropStage").addEventListener("pointerup", () => { cropDrag = null; });
+  $("cropStage").addEventListener("pointercancel", () => { cropDrag = null; });
+  $("cropZoom").addEventListener("input", () => {
+    cropZ = $("cropZoom").value / 100;
+    applyCropTransform(false);
+  });
+  $("cropCancel").onclick = closeCropSheet;
+  $("cropVeil").onclick = closeCropSheet;
+  $("cropOk").onclick = () => {
+    if (!cropIm || !ed) { closeCropSheet(); return; }
+    const sx = -cropTx / cropScale, sy = -cropTy / cropScale;
+    const sw = cropPW / cropScale, sh = cropPH / cropScale;
+    ed.header = cropToDataUrl(cropIm, sx, sy, sw, sh);
+    closeCropSheet();
+    renderHeaderPrev(); updateCap();
+    ctx.toast("ヘッダー画像を登録しました");
+  };
+
   /* ============ 編集フォーム ============ */
   let ed = null;    // 編集中のプロフィール
 
@@ -867,6 +982,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
           '<button class="mini" id="hdPick">📁 選ぶ</button>' +
           '<button class="mini" id="hdUrl">🔗 URL</button>' +
           '<button class="mini" id="hdClr">消す</button></div></div>' +
+        '<div class="row"><label>ひとこと<i class="req opt">任意</i></label>' +
+          '<input type="text" id="edTag" maxlength="60" placeholder="例: 毎日1位をねらってます！（プロフィールに大きく出ます）"></div>' +
 
         '<div class="reqnote" id="reqNote"></div>' +
 
@@ -913,10 +1030,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         sec("みんなに一言") +
         '<div class="hint" style="margin-bottom:8px">プロフィールのいちばん下に、大きく出ます。<i class="req">必須</i></div>' +
         '<textarea id="edMsg" maxlength="1200" placeholder="例: はじめまして！ よろしくおねがいします。気軽に声をかけてください。"></textarea>' +
-
-        sec("そのほか（任意）") +
-        '<div class="row"><label>ひとこと</label>' +
-          '<input type="text" id="edTag" maxlength="60" placeholder="例: 毎日1位をねらってます！（一覧カードに大きく出ます）"></div>' +
 
         '<div class="cap-meter" id="capMeter"><span>保存サイズ</span>' +
           '<div class="track"><div class="fill" id="capFill"></div></div><span id="capTxt">—</span></div>' +
@@ -967,16 +1080,18 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     wireGalleries();
     renderHeaderPrev(); updateCap(); updateReq();
 
-    // ヘッダー画像
+    // ヘッダー画像（選ぶ → トリミング → 登録）
     $("hdPick").onclick = () => $("hdFile").click();
     $("hdFile").onchange = async e => {
-      const f = e.target.files[0]; if (!f) return;
-      try {
-        ctx.toast("画像を小さくしています…");
-        ed.header = await shrink(f, 1400, 460, 150 * 1024);
-        renderHeaderPrev(); updateCap(); ctx.toast("ヘッダー画像を入れました");
-      } catch(err){ ctx.toast(err.message); }
+      const f = e.target.files[0];
       e.target.value = "";
+      if (!f) return;
+      try {
+        if (!/^image\//.test(f.type)) throw new Error("画像ファイルを選んでください");
+        if (f.size > 20 * 1024 * 1024) throw new Error("ファイルが大きすぎます（20MBまで）");
+        const im = await loadImg(await readFile(f));
+        openCropSheet(im);
+      } catch(err){ ctx.toast(err.message); }
     };
     $("hdUrl").onclick = () => {
       const u = prompt("画像のURLを貼ってください（https://… ）", /^https?:/.test(ed.header) ? ed.header : "");
