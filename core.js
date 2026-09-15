@@ -1993,6 +1993,350 @@
   }
 
   /* =============================================================
+     メンバー紹介（プロフィール）
+
+     保存先: Firestore の lboard_profiles コレクション
+             1人 = 1ドキュメント（ドキュメントIDは "u_<DiscordのID>"）
+
+     ★ なぜ1人1ドキュメントか
+        画像を base64 で持つので、全員を1つのドキュメントに入れると
+        Firestore の上限（1ドキュメント約1MB）をすぐ超えてしまうため。
+        1人ずつ分けておけば、ほかの人の保存とぶつかることもない。
+
+     ・自分のプロフィールは本人だけが編集できる（管理者は非表示にできる）
+     ・画像は「アップロード（縮小してbase64）」と「URL貼り付け」の両対応
+     ============================================================= */
+  const PROFILE_COL = "lboard_profiles";
+  const PROFILE_LS_KEY = "mcc-lb2-profiles";
+  /* ★ 一覧用の「軽い版」を別に持つ理由
+     プロフィール本体には画像（base64）が入るので、1人あたり数百KBになる。
+     一覧を出すたびに全員ぶんを読むと何十MBにもなってしまうため、
+     一覧に必要なぶん（名前・ひとこと・色・小さなサムネ）だけを
+     lboard_index/profile_cards の1ドキュメントにまとめておく。
+     くわしく見るときだけ、その人の本体を読みにいく。 */
+  const PROFILE_CARDS_DOC = "profile_cards";
+  const PROFILE_CARDS_LS_KEY = "mcc-lb2-profile-cards";
+
+  // カードの色（本人が選ぶ）。ui.css のタイル色に合わせてある
+  const PROFILE_THEMES = [
+    { id: "gold",   name: "ゴールド", css: "var(--gold)" },
+    { id: "sky",    name: "スカイ",   css: "var(--sky)" },
+    { id: "leaf",   name: "リーフ",   css: "var(--leaf)" },
+    { id: "mint",   name: "ミント",   css: "var(--mint)" },
+    { id: "coral",  name: "コーラル", css: "var(--coral)" },
+    { id: "navy",   name: "ネイビー", css: "var(--navy)" },
+    { id: "grape",  name: "グレープ", css: "#8E6FD6" },
+    { id: "rose",   name: "ローズ",   css: "#E06A9C" }
+  ];
+  // ヘッダー画像がないときの背景もよう
+  const PROFILE_PATTERNS = [
+    { id: "wave",   name: "なみ" },
+    { id: "dots",   name: "みずたま" },
+    { id: "grid",   name: "ほうがん" },
+    { id: "rays",   name: "ひかり" },
+    { id: "plain",  name: "むじ" }
+  ];
+  const PLAY_STYLES = [
+    "リロール型", "ファストエイト", "フレックス", "レベル上げ重視",
+    "アイテム優先", "コンテスト回避", "気分で決める"
+  ];
+  const ACTIVE_HOURS = ["朝", "昼", "夕方", "夜", "深夜"];
+  const PROFILE_MAX_FREE = 5;      // 自由欄の数
+  const PROFILE_MAX_GALLERY = 8;   // ギャラリーの枚数
+  const PROFILE_MAX_LINKS = 5;
+  // 1人ぶんの保存サイズの上限（Firestoreの1MBに対して余裕をみる）
+  const PROFILE_MAX_BYTES = 820 * 1024;
+
+  function strOf(v, max) { return String(v == null ? "" : v).slice(0, max || 400); }
+  function listOf(v, max, len) {
+    if (!Array.isArray(v)) return [];
+    return v.map(x => strOf(x, len || 40)).map(s => s.trim()).filter(Boolean).slice(0, max || 12);
+  }
+
+  function defaultProfile(id) {
+    return {
+      id: id || "",
+      theme: { color: "gold", pattern: "wave" },
+      header: "",                      // ヘッダー画像（base64 か URL）
+      thumb: "",                       // 一覧カード用の小さなヘッダー画像
+      displayName: "",                 // 空ならDiscordの名前を使う
+      tagline: "",                     // キャッチコピー（大きく出る）
+      intro: "",                       // 自己紹介の本文
+      tft: { since: "", comps: [], units: [], style: "", goal: "" },
+      life: { hobbies: [], hours: [] },
+      free: [],                        // [{title, body}]
+      gallery: [],                     // [{src, caption}]
+      links: [],                       // [{label, url}]
+      hidden: false,
+      published: false,                // 一度でも保存したか
+      updatedAt: 0
+    };
+  }
+
+  function normProfile(raw, id) {
+    const d = defaultProfile(id || (raw && raw.id) || "");
+    if (!raw || typeof raw !== "object") return d;
+    const th = raw.theme || {};
+    d.theme.color = PROFILE_THEMES.some(t => t.id === th.color) ? th.color : "gold";
+    d.theme.pattern = PROFILE_PATTERNS.some(p => p.id === th.pattern) ? th.pattern : "wave";
+    d.header = strOf(raw.header, 1400000);
+    d.thumb = strOf(raw.thumb, 90000);
+    d.displayName = strOf(raw.displayName, 40);
+    d.tagline = strOf(raw.tagline, 60);
+    d.intro = strOf(raw.intro, 1200);
+    const t = raw.tft || {};
+    d.tft = {
+      since: strOf(t.since, 40),
+      comps: listOf(t.comps, 8, 30),
+      units: listOf(t.units, 8, 30),
+      style: strOf(t.style, 40),
+      goal: strOf(t.goal, 40)
+    };
+    const l = raw.life || {};
+    d.life = {
+      hobbies: listOf(l.hobbies, 10, 30),
+      hours: listOf(l.hours, 5, 6).filter(h => ACTIVE_HOURS.includes(h))
+    };
+    d.free = (Array.isArray(raw.free) ? raw.free : [])
+      .filter(f => f && (f.title || f.body))
+      .map(f => ({ title: strOf(f.title, 30), body: strOf(f.body, 1200) }))
+      .slice(0, PROFILE_MAX_FREE);
+    d.gallery = (Array.isArray(raw.gallery) ? raw.gallery : [])
+      .filter(g => g && g.src)
+      .map(g => ({ src: strOf(g.src, 1400000), caption: strOf(g.caption, 60) }))
+      .slice(0, PROFILE_MAX_GALLERY);
+    d.links = (Array.isArray(raw.links) ? raw.links : [])
+      .filter(k => k && k.url)
+      .map(k => ({ label: strOf(k.label, 24), url: safeUrl(k.url) }))
+      .filter(k => k.url)
+      .slice(0, PROFILE_MAX_LINKS);
+    d.hidden = !!raw.hidden;
+    d.published = !!raw.published;
+    d.updatedAt = raw.updatedAt || 0;
+    return d;
+  }
+
+  // 危ないURL（javascript: など）を弾く。画像は data:image/… も通す
+  function safeUrl(u) {
+    const s = String(u || "").trim();
+    if (!s) return "";
+    if (/^https?:\/\//i.test(s)) return s.slice(0, 600);
+    if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(s)) return s.slice(0, 1400000);
+    return "";
+  }
+  // 画像として表示してよいか（<img src> に入れる直前の最終チェック）
+  function safeImg(u) {
+    const s = String(u || "").trim();
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(s)) return s;
+    return "";
+  }
+
+  // 保存したときのおよそのバイト数（容量メーターに使う）
+  function profileBytes(p) {
+    try { return new Blob([JSON.stringify(p)]).size; }
+    catch (e) { return JSON.stringify(p).length; }
+  }
+
+  // 一覧カード1件ぶん（本体から作る。画像は小さなサムネだけ）
+  function cardOf(p) {
+    return {
+      id: p.id,
+      displayName: p.displayName,
+      tagline: p.tagline,
+      theme: { color: p.theme.color, pattern: p.theme.pattern },
+      thumb: p.thumb || "",
+      comps: p.tft.comps.slice(0, 3),
+      hobbies: p.life.hobbies.slice(0, 3),
+      nTag: p.tft.comps.length + p.life.hobbies.length,
+      nGallery: p.gallery.length,
+      score: profileScore(p),
+      hidden: !!p.hidden,
+      published: !!p.published,
+      updatedAt: p.updatedAt || Date.now()
+    };
+  }
+  function normCard(raw, id) {
+    const c = cardOf(defaultProfile(id));
+    if (!raw) return c;
+    c.displayName = strOf(raw.displayName, 40);
+    c.tagline = strOf(raw.tagline, 60);
+    const th = raw.theme || {};
+    c.theme.color = PROFILE_THEMES.some(t => t.id === th.color) ? th.color : "gold";
+    c.theme.pattern = PROFILE_PATTERNS.some(p => p.id === th.pattern) ? th.pattern : "wave";
+    c.thumb = strOf(raw.thumb, 90000);
+    c.comps = listOf(raw.comps, 3, 30);
+    c.hobbies = listOf(raw.hobbies, 3, 30);
+    c.nTag = raw.nTag | 0;
+    c.nGallery = raw.nGallery | 0;
+    c.score = Math.max(0, Math.min(100, raw.score | 0));
+    c.hidden = !!raw.hidden;
+    c.published = !!raw.published;
+    c.updatedAt = raw.updatedAt || 0;
+    return c;
+  }
+
+  /* 一覧用（軽い）。メンバー紹介ページはこれだけ読む。 */
+  async function loadProfileCards() {
+    const out = {};
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(PROFILE_CARDS_DOC).get();
+        const cards = (snap.exists && snap.data() && snap.data().cards) || {};
+        Object.entries(cards).forEach(([id, v]) => { if (v) out[id] = normCard(v, id); });
+      } else {
+        const raw = JSON.parse(localStorage.getItem(PROFILE_CARDS_LS_KEY) || "{}");
+        Object.entries(raw).forEach(([id, v]) => { out[id] = normCard(v, id); });
+      }
+    } catch (e) { console.warn("プロフィール一覧の読み込みに失敗", e); throw e; }
+    return out;
+  }
+
+  // 一覧カードを1件だけ書きかえる
+  async function writeCard(id, card) {
+    const db = openDb();
+    if (db) {
+      await db.collection("lboard_index").doc(PROFILE_CARDS_DOC)
+        .set({ cards: { [id]: card }, updatedAt: Date.now() }, { merge: true });
+    } else {
+      const raw = JSON.parse(localStorage.getItem(PROFILE_CARDS_LS_KEY) || "{}");
+      raw[id] = card;
+      localStorage.setItem(PROFILE_CARDS_LS_KEY, JSON.stringify(raw));
+    }
+  }
+  async function removeCard(id) {
+    const db = openDb();
+    if (db) {
+      const ref = db.collection("lboard_index").doc(PROFILE_CARDS_DOC);
+      try {
+        await ref.update({ ["cards." + id]: firebase.firestore.FieldValue.delete(), updatedAt: Date.now() });
+      } catch (e) {
+        // ドキュメントがまだ無い場合など。読み直して書きもどす。
+        const snap = await ref.get();
+        const cards = (snap.exists && snap.data() && snap.data().cards) || {};
+        delete cards[id];
+        await ref.set({ cards, updatedAt: Date.now() });
+      }
+    } else {
+      const raw = JSON.parse(localStorage.getItem(PROFILE_CARDS_LS_KEY) || "{}");
+      delete raw[id];
+      localStorage.setItem(PROFILE_CARDS_LS_KEY, JSON.stringify(raw));
+    }
+  }
+
+  /* 本体を全員ぶん読む（管理や書き出し用。ふだんの一覧では使わないこと） */
+  async function loadProfiles() {
+    const out = {};
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection(PROFILE_COL).get();
+        snap.forEach(doc => { out[doc.id] = normProfile(doc.data(), doc.id); });
+      } else {
+        const raw = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || "{}");
+        Object.entries(raw).forEach(([id, v]) => { out[id] = normProfile(v, id); });
+      }
+    } catch (e) { console.warn("プロフィールの読み込みに失敗", e); throw e; }
+    return out;
+  }
+
+  async function loadProfile(id) {
+    if (!id) return defaultProfile("");
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection(PROFILE_COL).doc(id).get();
+        return normProfile(snap.exists ? snap.data() : null, id);
+      }
+      const raw = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || "{}");
+      return normProfile(raw[id] || null, id);
+    } catch (e) { console.warn("プロフィールの読み込みに失敗", e); return defaultProfile(id); }
+  }
+
+  /* 自分のプロフィールを保存する。
+     ★ 本人だけ。ほかの人のIDを指定しても弾く（管理者も中身は書き換えない）。 */
+  async function saveProfile(id, data, session) {
+    const p = Session.toPlayer(session || Session.get());
+    if (!p) throw new Error("ログインしてください");
+    if (id && id !== p.id) throw new Error("ほかの人のプロフィールは編集できません");
+    const body = normProfile(data, p.id);
+    body.id = p.id;
+    body.published = true;
+    body.updatedAt = Date.now();
+    const size = profileBytes(body);
+    if (size > PROFILE_MAX_BYTES) {
+      throw new Error("画像が大きすぎます（" + Math.round(size / 1024) + "KB / 上限 " +
+        Math.round(PROFILE_MAX_BYTES / 1024) + "KB）。枚数を減らすか、URL貼り付けに切り替えてください");
+    }
+    const db = openDb();
+    try {
+      if (db) await db.collection(PROFILE_COL).doc(p.id).set(body);
+      else {
+        const raw = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || "{}");
+        raw[p.id] = body;
+        localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(raw));
+      }
+      await writeCard(p.id, cardOf(body));   // 一覧用の軽い版も同時に更新
+    } catch (e) { throw new Error("保存できませんでした（" + (e.code || e.message) + "）"); }
+    return body;
+  }
+
+  /* 管理者だけ: 不適切なプロフィールを一覧から隠す（中身は消さない） */
+  async function setProfileHidden(id, hidden) {
+    if (!isAdmin()) throw new Error("非表示にできるのは管理者だけです");
+    if (!id) return;
+    const db = openDb();
+    try {
+      if (db) await db.collection(PROFILE_COL).doc(id).set({ hidden: !!hidden, updatedAt: Date.now() }, { merge: true });
+      else {
+        const raw = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || "{}");
+        raw[id] = Object.assign({}, raw[id] || { id }, { hidden: !!hidden, updatedAt: Date.now() });
+        localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(raw));
+      }
+      // 一覧のほうにも反映する
+      const cards = await loadProfileCards();
+      const c = cards[id] || normCard(null, id);
+      c.hidden = !!hidden;
+      await writeCard(id, c);
+    } catch (e) { throw new Error("変更できませんでした（" + (e.code || e.message) + "）"); }
+  }
+
+  // 自分のプロフィールを消す（本人 or 管理者）
+  async function deleteProfile(id) {
+    const p = Session.toPlayer(Session.get());
+    const mine = p && id === p.id;
+    if (!mine && !isAdmin()) throw new Error("消せるのは本人と管理者だけです");
+    const db = openDb();
+    try {
+      if (db) await db.collection(PROFILE_COL).doc(id).delete();
+      else {
+        const raw = JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || "{}");
+        delete raw[id];
+        localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(raw));
+      }
+      await removeCard(id);
+    } catch (e) { throw new Error("削除できませんでした（" + (e.code || e.message) + "）"); }
+  }
+
+  function profileThemeCss(p) {
+    const t = PROFILE_THEMES.find(x => x.id === ((p && p.theme && p.theme.color) || "gold"));
+    return (t || PROFILE_THEMES[0]).css;
+  }
+  // プロフィールが「ちゃんと書かれているか」を0〜100で返す（書くはげみ用）
+  function profileScore(p) {
+    if (!p) return 0;
+    const has = [
+      !!p.tagline, !!p.intro && p.intro.length >= 20, !!p.header,
+      !!p.tft.since, p.tft.comps.length > 0, p.tft.units.length > 0,
+      !!p.tft.style, !!p.tft.goal,
+      p.life.hobbies.length > 0, p.life.hours.length > 0,
+      p.free.length > 0, p.gallery.length > 0
+    ];
+    return Math.round(has.filter(Boolean).length / has.length * 100);
+  }
+
+  /* =============================================================
      Discord へ投げるメッセージの文面
 
      保存先: lboard_index/messages
@@ -2465,7 +2809,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.6",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.7",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -2481,6 +2825,12 @@
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, updateGlobalMember, removeGlobalMember,
+    PROFILE_THEMES, PROFILE_PATTERNS, PLAY_STYLES, ACTIVE_HOURS,
+    PROFILE_MAX_FREE, PROFILE_MAX_GALLERY, PROFILE_MAX_LINKS, PROFILE_MAX_BYTES,
+    defaultProfile, normProfile, loadProfiles, loadProfile, saveProfile,
+    loadProfileCards, cardOf, normCard,
+    setProfileHidden, deleteProfile, profileBytes, profileThemeCss, profileScore,
+    safeUrl, safeImg,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,

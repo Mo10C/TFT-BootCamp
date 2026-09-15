@@ -11,7 +11,271 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.6">
+<link rel="stylesheet" href="ui.css?v=4.7">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+/* =============================================================
+   メンバー紹介
+   カードの色は「その人が選んだ色」。--c にその色が入る。
+   ============================================================= */
+
+/* ---- 上の案内（自分のプロフィールへの入口） ---- */
+.mehero{position:relative;overflow:hidden;border-radius:22px;margin-bottom:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 22%,var(--surface)),var(--surface) 66%);
+  border:1.5px solid color-mix(in srgb,var(--accent) 40%,var(--border));box-shadow:var(--shadow-soft)}
+.mehero::after{content:"";position:absolute;right:-40px;top:-60px;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--accent) 26%,transparent),transparent 68%);pointer-events:none}
+.mehero-in{position:relative;display:flex;align-items:center;gap:15px;flex-wrap:wrap;padding:16px 19px}
+.mehero .mav{width:58px;height:58px;border-radius:17px;flex:none;object-fit:cover;
+  border:2.5px solid var(--surface);box-shadow:var(--shadow-soft);background:var(--surface-2)}
+.mehero .mtxt{flex:1;min-width:190px}
+.mehero .mtxt h2{font-size:16px;font-weight:900;line-height:1.35}
+.mehero .mtxt p{font-size:11.5px;color:var(--muted);line-height:1.7;margin-top:3px}
+.mehero .mbtns{display:flex;gap:8px;flex-wrap:wrap}
+
+/* 記入ぐあいのメーター（1色の濃淡だけ。順位ではないので色分けはしない） */
+.meter{margin-top:8px;max-width:330px}
+.meter .track{height:7px;border-radius:999px;background:color-mix(in srgb,var(--ink) 9%,transparent);overflow:hidden}
+.meter .fill{height:100%;border-radius:999px;background:var(--grad);transition:width .5s cubic-bezier(.2,.9,.3,1)}
+.meter .cap{display:flex;justify-content:space-between;font-size:10px;font-weight:700;
+  color:var(--muted);margin-top:4px;font-family:"Space Grotesk",sans-serif}
+
+/* ---- しぼりこみ ---- */
+.filters{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+.search{flex:1;min-width:190px;position:relative}
+.search input{width:100%;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:8px 14px 8px 34px;font-size:12.5px;font-weight:700}
+.search input:focus{outline:none;border-color:var(--accent-2)}
+.search::before{content:"🔍";position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.6}
+.chip{border:1.5px solid var(--border-strong);background:var(--surface);border-radius:999px;
+  padding:5px 12px;font-size:11.5px;font-weight:900;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.chip .dot{width:8px;height:8px;border-radius:999px;flex:none}
+.chip.on{background:var(--grad);color:#fff;border-color:transparent}
+.chip.on .dot{background:#fff !important}
+select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:6px 10px;font-size:11.5px;font-weight:900}
+
+/* ---- カードの壁 ---- */
+.wall{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:15px}
+.pcard{--c:var(--gold);position:relative;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:20px;overflow:hidden;box-shadow:var(--shadow-soft);cursor:pointer;text-align:left;
+  display:flex;flex-direction:column;padding:0;
+  transition:transform .18s cubic-bezier(.2,.9,.3,1),box-shadow .18s,border-color .18s;
+  opacity:0;transform:translateY(14px);animation:cardin .45s cubic-bezier(.2,.9,.3,1) forwards}
+@keyframes cardin{to{opacity:1;transform:none}}
+.pcard:hover{transform:translateY(-4px);box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--c) 55%,var(--border))}
+.pcard:focus-visible{outline:3px solid color-mix(in srgb,var(--c) 60%,transparent);outline-offset:2px}
+.pcard .band{height:96px;position:relative;overflow:hidden;background:var(--c)}
+.pcard .band img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s}
+.pcard:hover .band img{transform:scale(1.06)}
+.pcard .band::after{content:"";position:absolute;inset:auto 0 0 0;height:30px;
+  background:linear-gradient(to top,color-mix(in srgb,var(--surface) 78%,transparent),transparent)}
+
+/* ヘッダー画像がない人の背景もよう */
+.pat{position:absolute;inset:0}
+.pat.wave{background:
+  radial-gradient(120% 96px at 20% 100%,color-mix(in srgb,#fff 40%,transparent),transparent 70%),
+  radial-gradient(120% 86px at 78% 104%,color-mix(in srgb,#fff 28%,transparent),transparent 70%),
+  linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 58%,#fff))}
+.pat.dots{background-color:var(--c);
+  background-image:radial-gradient(color-mix(in srgb,#fff 52%,transparent) 2.2px,transparent 2.3px);
+  background-size:15px 15px}
+.pat.grid{background-color:var(--c);
+  background-image:linear-gradient(color-mix(in srgb,#fff 34%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in srgb,#fff 34%,transparent) 1px,transparent 1px);
+  background-size:19px 19px}
+.pat.rays{background:
+  repeating-conic-gradient(from 0deg at 50% 118%,
+    color-mix(in srgb,#fff 26%,transparent) 0deg 9deg, transparent 9deg 18deg),
+  linear-gradient(160deg,var(--c),color-mix(in srgb,var(--c) 62%,#fff))}
+.pat.plain{background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 66%,#fff))}
+
+.pcard .body{padding:0 15px 14px;margin-top:-28px;position:relative;flex:1;display:flex;flex-direction:column}
+.pav{width:56px;height:56px;border-radius:18px;object-fit:cover;display:block;flex:none;
+  border:3px solid var(--surface);box-shadow:var(--shadow-soft);background:var(--surface-2)}
+.pavf{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;flex:none;
+  border:3px solid var(--surface);box-shadow:var(--shadow-soft);color:#fff;font-weight:900;font-size:20px;background:var(--c)}
+.pcard .nm{font-size:14.5px;font-weight:900;line-height:1.35;margin-top:9px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .tl{font-size:11.5px;font-weight:700;line-height:1.6;color:color-mix(in srgb,var(--c) 72%,var(--ink));
+  margin-top:3px;min-height:19px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard .tl.none{color:var(--muted);font-weight:400}
+.pcard .meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px}
+.rankpill{font-family:"Space Grotesk",sans-serif;font-size:10.5px;font-weight:700;
+  border:1.5px solid currentColor;border-radius:999px;padding:1.5px 8px;white-space:nowrap}
+.tag{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 8px;white-space:nowrap;
+  background:color-mix(in srgb,var(--c) 13%,var(--surface-2));
+  color:color-mix(in srgb,var(--c) 78%,var(--ink));
+  border:1px solid color-mix(in srgb,var(--c) 26%,transparent)}
+.tag.plain{background:var(--surface-2);color:var(--muted);border-color:var(--border)}
+.pcard .strip{display:flex;gap:4px;margin-top:auto;padding-top:11px}
+.pcard .strip i{flex:1;height:38px;border-radius:9px;overflow:hidden;display:block;background:var(--surface-2)}
+.pcard .strip i img{width:100%;height:100%;object-fit:cover;display:block}
+.pcard .strip .more{display:grid;place-items:center;font-size:10px;font-weight:900;
+  color:var(--muted);font-style:normal;background:var(--surface-2)}
+.pcard .mine{position:absolute;top:9px;left:9px;font-size:9.5px;font-weight:900;color:#fff;
+  background:color-mix(in srgb,var(--ink) 62%,transparent);backdrop-filter:blur(3px);
+  border-radius:999px;padding:2px 9px;z-index:2}
+.pcard .hid{position:absolute;top:9px;right:9px;font-size:9.5px;font-weight:900;color:#fff;
+  background:var(--danger);border-radius:999px;padding:2px 9px;z-index:2}
+
+/* 役わり（先生 / 生徒 …）の小さなしるし */
+.minirole{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:900;
+  color:var(--muted);background:var(--surface-2);border:1px solid var(--border);
+  border-radius:999px;padding:2px 8px;white-space:nowrap}
+.minirole .dot{width:7px;height:7px;border-radius:999px;flex:none}
+
+/* まだ書いていない人のカード。「さそう」感じにする */
+.pcard.empty{border-style:dashed;box-shadow:none;background:var(--surface-2)}
+.pcard.empty .band{opacity:.34}   /* 高さは書いた人と同じにして、上ぞろえにする */
+.pcard.empty .tl{color:var(--muted)}
+.pcard.empty .invite{margin-top:auto;padding-top:12px;font-size:10.5px;font-weight:700;
+  color:var(--muted);line-height:1.6}
+
+/* ---- くわしく見る（シート） ---- */
+.sheet{position:fixed;inset:0;z-index:70;display:none}
+.sheet.show{display:block}
+.sheet .veil{position:absolute;inset:0;background:color-mix(in srgb,var(--ink) 52%,transparent);
+  backdrop-filter:blur(3px);animation:fade .2s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet .box{--c:var(--gold);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(760px,calc(100vw - 26px));max-height:min(88vh,900px);overflow:auto;overscroll-behavior:contain;
+  background:var(--surface);border-radius:24px;box-shadow:0 34px 70px -30px rgba(10,30,50,.6);
+  animation:pop .26s cubic-bezier(.2,.9,.3,1)}
+@keyframes pop{from{opacity:0;transform:translate(-50%,-46%) scale(.97)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.sheet .close{position:sticky;top:0;float:right;margin:10px 10px 0 0;z-index:5;
+  width:34px;height:34px;border-radius:999px;border:none;font-size:15px;color:#fff;
+  background:color-mix(in srgb,var(--ink) 55%,transparent);backdrop-filter:blur(4px)}
+.sheet .close:hover{background:var(--ink)}
+
+.dhead{position:relative;height:190px;overflow:hidden}
+.dhead img.hb{width:100%;height:100%;object-fit:cover;display:block}
+.dhead::after{content:"";position:absolute;inset:auto 0 0 0;height:96px;
+  background:linear-gradient(to top,var(--surface),transparent)}
+.dtop{padding:0 22px;margin-top:-46px;position:relative;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.dav{width:92px;height:92px;border-radius:26px;object-fit:cover;flex:none;
+  border:4px solid var(--surface);box-shadow:var(--shadow);background:var(--surface-2)}
+.davf{width:92px;height:92px;border-radius:26px;display:grid;place-items:center;flex:none;
+  border:4px solid var(--surface);box-shadow:var(--shadow);color:#fff;font-weight:900;font-size:33px;background:var(--c)}
+.dname{flex:1;min-width:170px;padding-bottom:4px}
+.dname h2{font-size:21px;font-weight:900;line-height:1.3}
+.dname .rid{font-family:"Space Grotesk",sans-serif;font-size:11.5px;color:var(--muted);font-weight:700;margin-top:2px}
+.dtag{padding:14px 22px 0;font-size:15px;font-weight:900;line-height:1.6;
+  color:color-mix(in srgb,var(--c) 74%,var(--ink))}
+.dtag::before{content:"“";font-size:22px;opacity:.5;margin-right:2px}
+.dtag::after{content:"”";font-size:22px;opacity:.5;margin-left:2px}
+.dchips{display:flex;gap:6px;flex-wrap:wrap;padding:12px 22px 0}
+.dbody{padding:4px 22px 24px}
+
+.psec{margin-top:20px}
+.psec > h3{font-size:12px;font-weight:900;letter-spacing:.05em;color:var(--muted);
+  display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.psec > h3::after{content:"";flex:1;height:1px;background:var(--border)}
+.prose{font-size:13px;line-height:1.95;white-space:pre-wrap;word-break:break-word}
+
+/* TFTの項目（見出し＋中身の小さなブロック） */
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px}
+.fact{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:10px 12px}
+.fact .k{font-size:10px;font-weight:900;color:var(--muted);letter-spacing:.04em}
+.fact .v{font-size:13.5px;font-weight:900;margin-top:4px;line-height:1.5;word-break:break-word}
+.fact .tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+
+/* 自由欄 */
+.freebox{border:1.5px solid color-mix(in srgb,var(--c) 30%,var(--border));border-radius:16px;
+  padding:13px 15px;margin-bottom:10px;background:color-mix(in srgb,var(--c) 5%,var(--surface))}
+.freebox h4{font-size:13px;font-weight:900;margin-bottom:6px;
+  color:color-mix(in srgb,var(--c) 76%,var(--ink))}
+
+/* ギャラリー */
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:8px}
+.gal figure{position:relative;border-radius:13px;overflow:hidden;background:var(--surface-2);
+  aspect-ratio:4/3;cursor:zoom-in}
+.gal img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.gal figure:hover img{transform:scale(1.07)}
+.gal figcaption{position:absolute;inset:auto 0 0 0;padding:14px 8px 6px;font-size:10px;font-weight:700;color:#fff;
+  background:linear-gradient(to top,rgba(10,25,40,.82),transparent);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.dlinks{display:flex;gap:8px;flex-wrap:wrap}
+.dlink{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border-strong);
+  background:var(--surface);border-radius:999px;padding:6px 13px;font-size:12px;font-weight:900;color:var(--ink)}
+.dlink:hover{border-color:var(--c);color:color-mix(in srgb,var(--c) 80%,var(--ink))}
+
+.dnav{display:flex;align-items:center;gap:8px;padding:0 22px 20px}
+.dnav .sp{flex:1}
+.dfoot{font-size:10.5px;color:var(--muted);padding:0 22px 18px;font-family:"Space Grotesk",sans-serif}
+
+/* ---- 画像の拡大 ---- */
+.light{position:fixed;inset:0;z-index:90;display:none;place-items:center;
+  background:color-mix(in srgb,var(--ink) 76%,transparent);padding:22px}
+.light.show{display:grid}
+.light img{max-width:100%;max-height:82vh;border-radius:16px;box-shadow:0 30px 60px -20px rgba(0,0,0,.6)}
+.light .cap{color:#fff;font-size:12.5px;font-weight:700;margin-top:12px;text-align:center}
+
+/* ---- 編集フォーム ---- */
+.ed{padding:4px 22px 22px}
+.ed .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
+.ed label{font-size:11.5px;font-weight:900;color:var(--muted);min-width:96px}
+.ed input[type=text],.ed textarea,.ed select{border:1.5px solid var(--border-strong);background:var(--surface);
+  color:var(--ink);border-radius:11px;padding:8px 11px;font-size:12.5px;font-family:inherit;flex:1;min-width:130px}
+.ed textarea{width:100%;min-height:96px;line-height:1.8;resize:vertical}
+.ed input:focus,.ed textarea:focus,.ed select:focus{outline:none;border-color:var(--accent-2)}
+.ed .hint{font-size:10.5px;color:var(--muted);line-height:1.7}
+.swatches{display:flex;gap:7px;flex-wrap:wrap}
+.sw{width:30px;height:30px;border-radius:10px;border:2.5px solid transparent;padding:0;cursor:pointer;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55)}
+.sw.on{border-color:var(--ink);transform:scale(1.08)}
+.imgslot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.imgprev{width:140px;height:54px;border-radius:11px;background:var(--surface-2);
+  border:1.5px solid var(--border);overflow:hidden;flex:none;display:grid;place-items:center;
+  font-size:10px;color:var(--muted)}
+.imgprev img{width:100%;height:100%;object-fit:cover}
+.gedit{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:9px}
+.gitem{border:1.5px solid var(--border);border-radius:13px;overflow:hidden;background:var(--surface-2)}
+.gitem .th{aspect-ratio:4/3;background:var(--surface-2)}
+.gitem .th img{width:100%;height:100%;object-fit:cover;display:block}
+.gitem input{width:100%;border:none;border-top:1px solid var(--border);background:var(--surface);
+  padding:6px 8px;font-size:10.5px;font-family:inherit;color:var(--ink);min-width:0}
+.gitem .bar{display:flex;gap:4px;padding:5px;background:var(--surface)}
+.gitem .bar button{flex:1;border:1px solid var(--border-strong);background:var(--surface);
+  border-radius:7px;font-size:10px;font-weight:900;padding:3px 0;color:var(--muted)}
+.fsec{border:1.5px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:9px;background:var(--surface-2)}
+.fsec .fh{display:flex;gap:8px;align-items:center;margin-bottom:7px}
+.fsec .fh input{flex:1}
+.cap-meter{display:flex;align-items:center;gap:9px;font-size:10.5px;font-weight:900;color:var(--muted);
+  font-family:"Space Grotesk",sans-serif;margin:10px 0 4px}
+.cap-meter .track{flex:1;height:6px;border-radius:999px;background:color-mix(in srgb,var(--ink) 9%,transparent);overflow:hidden}
+.cap-meter .fill{height:100%;background:var(--accent-2);transition:width .3s}
+.cap-meter.warn .fill{background:var(--danger)}
+.cap-meter.warn{color:var(--danger)}
+.edfoot{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  padding:12px 22px;background:color-mix(in srgb,var(--surface) 94%,transparent);
+  backdrop-filter:blur(6px);border-top:1px solid var(--border)}
+
+.empty-note{padding:44px 20px;text-align:center;font-size:13px;color:var(--muted);line-height:2}
+.errbox{padding:11px 16px;border-radius:14px;margin-bottom:13px;font-size:11.5px;line-height:1.75;
+  background:color-mix(in srgb,var(--warn) 14%,var(--surface));border:1.5px solid color-mix(in srgb,var(--warn) 40%,var(--border))}
+.errbox b{color:var(--ink)}
+
+@media (max-width:620px){
+  .wall{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
+  .pcard .band{height:64px}
+  .pcard .body{margin-top:-24px;padding:0 11px 12px}
+  .pav,.pavf{width:46px;height:46px;border-radius:15px;font-size:17px}
+  .pcard .nm{font-size:13px}
+  .sheet .box{width:calc(100vw - 14px);max-height:94vh}
+  .dhead{height:132px}
+  .dav,.davf{width:70px;height:70px;border-radius:21px;font-size:26px}
+  .dtop,.dtag,.dchips,.dbody,.ed,.edfoot,.dnav{padding-left:15px;padding-right:15px}
+}
+@media (prefers-reduced-motion:reduce){
+  .pcard{animation:none;opacity:1;transform:none}
+  .sheet .box,.sheet .veil{animation:none}
+  .pcard:hover{transform:none}
+}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -27,35 +291,795 @@
     <span class="badge" id="roleBadge">—</span>
     <div class="spacer"></div>
     <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
-  <div class="soon-wrap">
-    <div class="big" style="color:var(--violet)">👥</div>
-    <h2>メンバー紹介</h2>
-    <p>校のメンバーのプロフィールをまとめる画面です。</p>
-    <p><b>この画面はまだ準備中です。</b></p>
+  <div class="errbox" id="errBox" style="display:none"></div>
 
-    <div class="soon-list">
-      <div class="soon-item"><span>・</span><div><b>プロフィール</b><br>アイコン・Riot ID・ロール・自己紹介。</div></div>
-      <div class="soon-item"><span>・</span><div><b>ロール別の並び</b><br>コーチ / 生徒 / 合宿参加者などで絞り込み。</div></div>
-      <div class="soon-item"><span>・</span><div><b>戦績へのリンク</b><br>その人が出た大会と成績をたどれるように。</div></div>
+  <!-- 自分のカード -->
+  <div class="mehero">
+    <div class="mehero-in">
+      <img class="mav" id="meAvatar" alt="">
+      <div class="mtxt">
+        <h2 id="meHeroName">—</h2>
+        <p id="meHeroSub">読み込み中…</p>
+        <div class="meter" id="meMeter" style="display:none">
+          <div class="track"><div class="fill" id="meFill" style="width:0%"></div></div>
+          <div class="cap"><span>プロフィールの記入ぐあい</span><span id="meScore">0%</span></div>
+        </div>
+      </div>
+      <div class="mbtns">
+        <button class="mini grad" id="editBtn">✏️ 自分のプロフィールを書く</button>
+        <button class="mini" id="randBtn" title="だれかのプロフィールをランダムで開きます">🎲 だれか見る</button>
+      </div>
     </div>
-
-    <a class="mini grad" href="home.html">🏠 HOME に戻る</a>
   </div>
 
+  <div class="filters">
+    <div class="search"><input type="text" id="q" placeholder="名前・ひとこと・好きなコンプ・趣味で探す"></div>
+    <div id="roleChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <select class="sortsel" id="sortSel">
+      <option value="new">更新が新しい順</option>
+      <option value="name">名前順</option>
+      <option value="rank">ランク順</option>
+      <option value="full">記入が多い順</option>
+    </select>
+  </div>
+
+  <div class="wall" id="wall"></div>
+  <div class="empty-note" id="emptyNote" style="display:none"></div>
+
 </div>
+
+<!-- くわしく見る -->
+<div class="sheet" id="sheet">
+  <div class="veil" data-close="1"></div>
+  <div class="box" id="sheetBox"></div>
+</div>
+
+<!-- 画像の拡大 -->
+<div class="light" id="light"><div><img id="lightImg" alt=""><div class="cap" id="lightCap"></div></div></div>
+
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.6"></script>
-<script src="home-common.js?v=4.6"></script>
+<script src="core.js?v=4.7"></script>
+<script src="home-common.js?v=4.7"></script>
 <script>
 (function(){
-  const session = window.LBCore.Session.require();
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  if (!C || typeof C.loadProfiles !== "function"){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;' +
+      'font-family:sans-serif;line-height:1.9">' +
+      '<b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      'core.js を新しいものに差し替えてから、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+
+  const session = C.Session.require();
   if (!session) return;
-  window.MCCHome.boot(session);
+  const ctx = window.MCCHome.boot(session);
+  const me = C.Session.toPlayer(session);
+  const myId = me ? me.id : "";
+
+  let members = {};     // 全体名簿（ロール・ランク・アイコン）
+  let pcards  = {};     // 一覧用の軽いプロフィール（画像はサムネだけ）
+  let full    = {};     // くわしく開いた人の本体だけ、あとから入れる
+  let cards = [];       // 表示順に並べたもの
+  let roleFilter = "";
+  let sortBy = "new";
+  let query = "";
+  let openId = "";
+
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+  function showErr(where, e){
+    const msg = String((e && (e.message || e.name)) || e || "不明なエラー");
+    console.error("[メンバー紹介] " + where, e);
+    const b = $("errBox");
+    b.style.display = "";
+    b.innerHTML = "⚠️ <b>" + esc(where) + " でエラーが起きました。</b><br><code>" + esc(msg) + "</code>";
+  }
+
+  /* ============ データをまとめる ============ */
+  function personOf(id){
+    const m = members[id] || {};
+    const c = pcards[id] || C.normCard(null, id);
+    const dc = m.discord || {};
+    return {
+      id,
+      name: (c.displayName || m.name || dc.name || dc.username || "—"),
+      avatar: dc.avatar || "",
+      riotId: m.riotId || "",
+      rank: m.rank || null,
+      roles: Array.isArray(m.roles) ? m.roles : [],
+      card: c,
+      score: c.score,
+      written: !!c.published,
+      hidden: !!c.hidden,
+      updatedAt: c.updatedAt || m.updatedAt || 0
+    };
+  }
+
+  const TIER_ORD = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"];
+  function rankSort(r){
+    if (!r || !r.tier) return -1;
+    const t = TIER_ORD.indexOf(r.tier);
+    const d = ({ I:3, II:2, III:1, IV:0 })[r.division] || 0;
+    return (t < 0 ? 0 : t) * 1000 + d * 200 + (r.lp | 0);
+  }
+
+  function rebuild(){
+    const all = new Set(Object.keys(members).concat(Object.keys(pcards)));
+    let list = [...all].map(personOf);
+    // 管理者でなければ、非表示にされた人は出さない
+    if (!ctx.isAdmin) list = list.filter(x => !x.hidden || x.id === myId);
+    if (roleFilter) list = list.filter(x => x.roles.some(r => String(r.id) === roleFilter));
+    if (query){
+      const q = query.toLowerCase();
+      list = list.filter(x => {
+        const c = x.card;
+        const hay = [x.name, x.riotId, c.tagline].concat(c.comps, c.hobbies).join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    const cmp = {
+      new:  (a,b) => (b.written - a.written) || (b.updatedAt - a.updatedAt),
+      name: (a,b) => a.name.localeCompare(b.name, "ja"),
+      rank: (a,b) => rankSort(b.rank) - rankSort(a.rank),
+      full: (a,b) => b.score - a.score || (b.updatedAt - a.updatedAt)
+    }[sortBy];
+    list.sort(cmp);
+    // 書いていない人はいつも後ろ（名前順・ランク順のときも）
+    if (sortBy !== "new") list.sort((a,b) => (b.written - a.written));
+    cards = list;
+  }
+
+  /* ============ カードの壁 ============ */
+  function bandHtml(o, key){
+    const img = C.safeImg(o[key || "thumb"]);
+    return img
+      ? '<img src="' + esc(img) + '" alt="" loading="lazy" onerror="this.remove()">'
+      : '<div class="pat ' + esc(o.theme.pattern) + '"></div>';
+  }
+  function avatarHtml(x, cls, fcls){
+    const a = C.safeImg(x.avatar);
+    if (a) return '<img class="' + cls + '" src="' + esc(a) + '" alt="" ' +
+      'onerror="this.outerHTML=\'<div class=&quot;' + fcls + '&quot;>' + esc(x.name.slice(0,1)) + '</div>\'">';
+    return '<div class="' + fcls + '">' + esc(x.name.slice(0,1)) + "</div>";
+  }
+
+  function render(){
+    const wall = $("wall");
+    if (!cards.length){
+      wall.innerHTML = "";
+      $("emptyNote").style.display = "";
+      $("emptyNote").innerHTML = (query || roleFilter)
+        ? "さがしている人が見つかりませんでした。<br>しぼりこみを外してみてください。"
+        : "まだメンバーがいません。<br>みんながログインすると、ここに並びます。";
+      return;
+    }
+    $("emptyNote").style.display = "none";
+    wall.innerHTML = cards.map((x, i) => {
+      const c = x.card;
+      const col = C.profileThemeCss(c);
+      const tags = c.comps.concat(c.hobbies).slice(0, 3);
+      const restN = Math.max(0, c.nTag - tags.length);
+      return '<button class="pcard' + (x.written ? "" : " empty") + '" data-id="' + esc(x.id) + '"' +
+        ' style="--c:' + col + ';animation-delay:' + Math.min(i, 14) * 28 + 'ms">' +
+        (x.id === myId ? '<span class="mine">あなた</span>' : "") +
+        (x.hidden ? '<span class="hid">非表示</span>' : "") +
+        '<div class="band">' + bandHtml(c) + "</div>" +
+        '<div class="body">' +
+          avatarHtml(x, "pav", "pavf") +
+          '<div class="nm">' + esc(x.name) + "</div>" +
+          (c.tagline
+            ? '<div class="tl">' + esc(c.tagline) + "</div>"
+            : '<div class="tl none">' + (x.written ? "—" : "まだ自己紹介がありません") + "</div>") +
+          '<div class="meta">' +
+            (x.rank ? '<span class="rankpill" style="color:' + C.rankColor(x.rank) + '">' +
+              esc(C.rankShort(x.rank)) + "</span>" : "") +
+            (x.roles[0] ? '<span class="minirole"><span class="dot" style="background:' +
+              C.roleColorCss(x.roles[0].color) + '"></span>' + esc(x.roles[0].name || "") + "</span>" : "") +
+            tags.map(t => '<span class="tag">' + esc(t) + "</span>").join("") +
+            (restN > 0 ? '<span class="tag plain">+' + restN + "</span>" : "") +
+          "</div>" +
+          (c.nGallery
+            ? '<div class="strip"><i class="more">写真 ' + c.nGallery + "枚 ▸</i></div>"
+            : "") +
+          (x.written ? "" : '<div class="invite">' +
+            (x.id === myId ? "▶ あなたです。書いてみましょう！" : "▶ 書いてくれるとうれしい！") + "</div>") +
+        "</div></button>";
+    }).join("");
+    wall.querySelectorAll(".pcard").forEach(b =>
+      b.onclick = () => openDetail(b.getAttribute("data-id")));
+  }
+
+  function renderRoleChips(){
+    const count = {};
+    Object.values(members).forEach(m => (m.roles || []).forEach(r => {
+      if (!r || !r.id) return;
+      count[r.id] = count[r.id] || { id: String(r.id), name: r.name || r.id, color: r.color | 0, n: 0 };
+      count[r.id].n++;
+    }));
+    const list = Object.values(count).sort((a,b) => b.n - a.n).slice(0, 6);
+    $("roleChips").innerHTML =
+      '<button class="chip' + (roleFilter ? "" : " on") + '" data-role="">ぜんいん</button>' +
+      list.map(r => '<button class="chip' + (roleFilter === r.id ? " on" : "") + '" data-role="' + esc(r.id) + '">' +
+        '<span class="dot" style="background:' + C.roleColorCss(r.color) + '"></span>' +
+        esc(r.name) + " " + r.n + "</button>").join("");
+    $("roleChips").querySelectorAll(".chip").forEach(b => b.onclick = () => {
+      roleFilter = b.getAttribute("data-role");
+      renderRoleChips(); rebuild(); render();
+    });
+  }
+
+  /* ============ くわしく見る ============ */
+  function tagsHtml(arr){
+    return arr.map(t => '<span class="tag">' + esc(t) + "</span>").join("");
+  }
+  function factHtml(k, v, tags){
+    if (!v && !(tags && tags.length)) return "";
+    return '<div class="fact"><div class="k">' + esc(k) + "</div>" +
+      (v ? '<div class="v">' + esc(v) + "</div>" : "") +
+      (tags && tags.length ? '<div class="tags">' + tagsHtml(tags) + "</div>" : "") + "</div>";
+  }
+
+  function detailHtml(x, p){
+    const col = C.profileThemeCss(p);
+    const hdr = C.safeImg(p.header);
+    const facts =
+      factHtml("TFT歴", p.tft.since) +
+      factHtml("好きなコンプ", "", p.tft.comps) +
+      factHtml("好きなユニット", "", p.tft.units) +
+      factHtml("プレイスタイル", p.tft.style) +
+      factHtml("目標ランク", p.tft.goal);
+    const life =
+      factHtml("好きなこと・趣味", "", p.life.hobbies) +
+      factHtml("よくいる時間帯", "", p.life.hours);
+    const gal = p.gallery.map((g, i) => {
+      const s = C.safeImg(g.src);
+      if (!s) return "";
+      return '<figure data-g="' + i + '"><img src="' + esc(s) + '" alt="" loading="lazy">' +
+        (g.caption ? "<figcaption>" + esc(g.caption) + "</figcaption>" : "") + "</figure>";
+    }).join("");
+
+    const idx = cards.findIndex(c => c.id === x.id);
+    const prev = idx > 0 ? cards[idx-1] : null;
+    const next = idx >= 0 && idx < cards.length - 1 ? cards[idx+1] : null;
+
+    return '<div class="box-in" style="--c:' + col + '">' +
+      '<button class="close" data-close="1" aria-label="閉じる">✕</button>' +
+      '<div class="dhead">' +
+        (hdr ? '<img class="hb" src="' + esc(hdr) + '" alt="" onerror="this.remove()">'
+             : '<div class="pat ' + esc(p.theme.pattern) + '"></div>') +
+      "</div>" +
+      '<div class="dtop">' + avatarHtml(x, "dav", "davf") +
+        '<div class="dname"><h2>' + esc(x.name) + "</h2>" +
+          (x.riotId ? '<div class="rid">' + esc(x.riotId) + "</div>" : "") + "</div>" +
+        (x.id === myId ? '<button class="mini grad" id="dEdit">✏️ 書きかえる</button>' : "") +
+      "</div>" +
+      (p.tagline ? '<div class="dtag">' + esc(p.tagline) + "</div>" : "") +
+      '<div class="dchips">' +
+        (x.rank ? '<span class="rankpill" style="color:' + C.rankColor(x.rank) + '">' +
+          esc(C.rankLabel(x.rank)) + "</span>" : "") +
+        x.roles.map(r => '<span class="role-chip"><span class="dot" style="background:' +
+          C.roleColorCss(r.color) + '"></span>' + esc(r.name || r.id) + "</span>").join("") +
+      "</div>" +
+      '<div class="dbody">' +
+        (p.intro ? '<div class="psec"><h3>じこしょうかい</h3><div class="prose">' + esc(p.intro) + "</div></div>" : "") +
+        (facts ? '<div class="psec"><h3>TFTのこと</h3><div class="facts">' + facts + "</div></div>" : "") +
+        (life ? '<div class="psec"><h3>ひととなり</h3><div class="facts">' + life + "</div></div>" : "") +
+        (p.free.length
+          ? p.free.map(f => '<div class="psec"><h3>' + esc(f.title || "じゆうらん") + "</h3>" +
+              '<div class="freebox"><div class="prose">' + esc(f.body) + "</div></div></div>").join("")
+          : "") +
+        (gal ? '<div class="psec"><h3>ギャラリー</h3><div class="gal">' + gal + "</div></div>" : "") +
+        (p.links.length
+          ? '<div class="psec"><h3>リンク</h3><div class="dlinks">' +
+            p.links.map(k => '<a class="dlink" href="' + esc(k.url) + '" target="_blank" rel="noopener noreferrer">🔗 ' +
+              esc(k.label || k.url.replace(/^https?:\/\//, "").slice(0, 26)) + "</a>").join("") + "</div></div>"
+          : "") +
+        (!p.published
+          ? '<div class="empty-note">この人はまだ自己紹介を書いていません。<br>' +
+            (x.id === myId ? "あなたです。ぜひ書いてみてください！" : "書いてもらえるよう声をかけてみましょう。") + "</div>"
+          : "") +
+      "</div>" +
+      '<div class="dnav">' +
+        (prev ? '<button class="mini" data-go="' + esc(prev.id) + '">← ' + esc(prev.name.slice(0,8)) + "</button>" : "") +
+        '<a class="mini" href="lp.html">📈 LPの推移</a>' +
+        '<div class="sp"></div>' +
+        (ctx.isAdmin && x.id !== myId
+          ? '<button class="mini danger" id="dHide">' + (p.hidden ? "👁 表示にもどす" : "🚫 非表示にする") + "</button>"
+          : "") +
+        (next ? '<button class="mini" data-go="' + esc(next.id) + '">' + esc(next.name.slice(0,8)) + " →</button>" : "") +
+      "</div>" +
+      (p.updatedAt ? '<div class="dfoot">最終更新 ' + new Date(p.updatedAt).toLocaleString("ja-JP") + "</div>" : "") +
+      "</div>";
+  }
+
+  /* ★ 本体（画像入り）はここで初めて読む。
+     一覧では軽い版しか読んでいないので、人数が増えても重くならない。 */
+  async function openDetail(id){
+    const x = cards.find(c => c.id === id) || personOf(id);
+    if (!x) return;
+    openId = id;
+    const box = $("sheetBox");
+    $("sheet").classList.add("show");
+    document.body.style.overflow = "hidden";
+
+    if (!full[id]){
+      box.innerHTML = '<div class="empty-note">読み込み中…</div>';
+      box.scrollTop = 0;
+      try { full[id] = await C.loadProfile(id); }
+      catch(e){ full[id] = C.defaultProfile(id); }
+      if (openId !== id) return;      // 読んでいる間に別の人を開いたら捨てる
+    }
+    const p = full[id];
+    box.innerHTML = detailHtml(x, p);
+    box.scrollTop = 0;
+
+    box.querySelectorAll("[data-go]").forEach(b =>
+      b.onclick = () => openDetail(b.getAttribute("data-go")));
+    box.querySelectorAll(".gal figure").forEach(f => f.onclick = () => {
+      const g = p.gallery[Number(f.getAttribute("data-g"))];
+      if (!g) return;
+      $("lightImg").src = C.safeImg(g.src);
+      $("lightCap").textContent = g.caption || "";
+      $("light").classList.add("show");
+    });
+    if ($("dEdit")) $("dEdit").onclick = () => openEditor();
+    if ($("dHide")) $("dHide").onclick = async () => {
+      const to = !p.hidden;
+      if (to && !confirm(x.name + " のプロフィールを一覧から隠しますか？（中身は消えません）")) return;
+      try {
+        await C.setProfileHidden(id, to);
+        p.hidden = to;
+        if (pcards[id]) pcards[id].hidden = to;
+        rebuild(); render(); openDetail(id);
+        ctx.toast(to ? "非表示にしました" : "表示にもどしました");
+      } catch(e){ ctx.toast(e.message); }
+    };
+  }
+
+  function closeSheet(){
+    $("sheet").classList.remove("show");
+    $("sheetBox").innerHTML = "";
+    document.body.style.overflow = "";
+    openId = "";
+  }
+  $("sheet").addEventListener("click", e => {
+    if (e.target.getAttribute && e.target.getAttribute("data-close")) closeSheet();
+  });
+  $("light").onclick = () => $("light").classList.remove("show");
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if ($("light").classList.contains("show")) { $("light").classList.remove("show"); return; }
+    if ($("sheet").classList.contains("show")) closeSheet();
+  });
+
+  /* ============ 画像を小さくする ============
+     ブラウザの中で縮小＋圧縮してから保存する。
+     Firestore は1件あたり約1MBが上限なので、そのままでは入らないため。 */
+  function readFile(file){
+    return new Promise((ok, ng) => {
+      const r = new FileReader();
+      r.onload = () => ok(r.result);
+      r.onerror = () => ng(new Error("ファイルを読めませんでした"));
+      r.readAsDataURL(file);
+    });
+  }
+  function loadImg(src){
+    return new Promise((ok, ng) => {
+      const im = new Image();
+      im.onload = () => ok(im);
+      im.onerror = () => ng(new Error("画像として読めませんでした"));
+      im.src = src;
+    });
+  }
+  async function shrink(file, maxW, maxH, budget){
+    if (!/^image\//.test(file.type)) throw new Error("画像ファイルを選んでください");
+    if (file.size > 20 * 1024 * 1024) throw new Error("ファイルが大きすぎます（20MBまで）");
+    const im = await loadImg(await readFile(file));
+    let w = im.naturalWidth, h = im.naturalHeight;
+    const draw = (tw, th, q) => {
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(tw)); cv.height = Math.max(1, Math.round(th));
+      const g = cv.getContext("2d");
+      g.fillStyle = "#ffffff"; g.fillRect(0, 0, cv.width, cv.height);
+      g.drawImage(im, 0, 0, cv.width, cv.height);
+      return cv.toDataURL("image/jpeg", q);
+    };
+    const k = Math.min(1, maxW / w, maxH / h);
+    w = w * k; h = h * k;
+    let out = "";
+    // 画質 → 大きさ の順に落として、目安のサイズに収める
+    for (const scale of [1, 0.85, 0.72, 0.6, 0.5, 0.4]){
+      for (const q of [0.82, 0.72, 0.62, 0.52, 0.42]){
+        out = draw(w * scale, h * scale, q);
+        if (out.length * 0.75 <= budget) return out;
+      }
+    }
+    return out;
+  }
+
+  /* 一覧カード用の小さなサムネ（ヘッダー画像を思いきり縮めたもの）。
+     一覧ではこれしか読まないので、人数が増えても軽いまま。 */
+  async function makeThumb(header){
+    const src = C.safeImg(header);
+    if (!src) return "";
+    if (/^https?:/i.test(src)) return src;     // URLならそのまま（容量を使わない）
+    try {
+      const im = await loadImg(src);
+      const w = 360, h = Math.max(1, Math.round(im.naturalHeight * (360 / im.naturalWidth)));
+      const cv = document.createElement("canvas");
+      cv.width = w; cv.height = Math.min(h, 140);
+      const g = cv.getContext("2d");
+      g.drawImage(im, 0, 0, w, h);
+      return cv.toDataURL("image/jpeg", 0.55);
+    } catch(e){ return ""; }
+  }
+
+  /* ============ 編集フォーム ============ */
+  let ed = null;    // 編集中のプロフィール
+
+  async function openEditor(){
+    $("sheet").classList.add("show");
+    document.body.style.overflow = "hidden";
+    if (!full[myId]){
+      $("sheetBox").innerHTML = '<div class="empty-note">読み込み中…</div>';
+      try { full[myId] = await C.loadProfile(myId); }
+      catch(e){ full[myId] = C.defaultProfile(myId); }
+    }
+    ed = JSON.parse(JSON.stringify(full[myId]));
+    ed.id = myId;
+    renderEditor();
+    $("sheetBox").scrollTop = 0;
+  }
+
+  function renderEditor(){
+    const col = C.profileThemeCss(ed);
+    const box = $("sheetBox");
+    box.innerHTML =
+      '<div style="--c:' + col + '">' +
+      '<button class="close" data-close="1" aria-label="閉じる">✕</button>' +
+      '<div class="dhead">' +
+        (C.safeImg(ed.header)
+          ? '<img class="hb" src="' + esc(C.safeImg(ed.header)) + '" alt="" onerror="this.remove()">'
+          : '<div class="pat ' + esc(ed.theme.pattern) + '"></div>') +
+      "</div>" +
+      '<div class="dtop"><div class="dname" style="padding-bottom:10px">' +
+        '<h2>自分のプロフィール</h2>' +
+        '<div class="rid">書いた内容は、ログインした人みんなが見られます</div></div></div>' +
+
+      '<div class="ed">' +
+        sec("見た目") +
+        '<div class="row"><label>カードの色</label><div class="swatches" id="swColor"></div></div>' +
+        '<div class="row"><label>もよう</label><select id="edPattern">' +
+          C.PROFILE_PATTERNS.map(p => '<option value="' + p.id + '"' +
+            (ed.theme.pattern === p.id ? " selected" : "") + ">" + esc(p.name) + "</option>").join("") +
+          "</select><span class=\"hint\">ヘッダー画像がないときの背景です</span></div>" +
+        '<div class="row"><label>ヘッダー画像</label><div class="imgslot">' +
+          '<div class="imgprev" id="hdPrev"></div>' +
+          '<input type="file" id="hdFile" accept="image/*" style="display:none">' +
+          '<button class="mini" id="hdPick">📁 選ぶ</button>' +
+          '<button class="mini" id="hdUrl">🔗 URL</button>' +
+          '<button class="mini" id="hdClr">消す</button></div></div>' +
+
+        sec("名乗り") +
+        '<div class="row"><label>表示する名前</label>' +
+          '<input type="text" id="edName" maxlength="40" placeholder="' + esc(me ? me.name : "") + '（空ならDiscordの名前）"></div>' +
+        '<div class="row"><label>ひとこと</label>' +
+          '<input type="text" id="edTag" maxlength="60" placeholder="例: 毎日1位をねらってます！"></div>' +
+        '<div class="row" style="align-items:flex-start"><label>じこしょうかい</label></div>' +
+        '<textarea id="edIntro" maxlength="1200" placeholder="どんな人か、自由に書いてください。改行もそのまま出ます。"></textarea>' +
+
+        sec("TFTのこと") +
+        '<div class="row"><label>TFT歴</label><input type="text" id="edSince" maxlength="40" placeholder="例: Set9から / 3年くらい"></div>' +
+        '<div class="row"><label>好きなコンプ</label><input type="text" id="edComps" placeholder="カンマ区切り　例: リロール, メカ, 空を飛ぶやつ"></div>' +
+        '<div class="row"><label>好きなユニット</label><input type="text" id="edUnits" placeholder="カンマ区切り　例: アーリ, ヴェックス"></div>' +
+        '<div class="row"><label>プレイスタイル</label><input type="text" id="edStyle" maxlength="40" list="styleList" placeholder="選ぶか、自由に書けます">' +
+          '<datalist id="styleList">' + C.PLAY_STYLES.map(s => '<option value="' + esc(s) + '">').join("") + "</datalist></div>" +
+        '<div class="row"><label>目標ランク</label><input type="text" id="edGoal" maxlength="40" placeholder="例: マスター / 今期はエメラルド"></div>' +
+
+        sec("ひととなり") +
+        '<div class="row"><label>好きなこと</label><input type="text" id="edHobby" placeholder="カンマ区切り　例: ラーメン, 猫, カラオケ"></div>' +
+        '<div class="row"><label>よくいる時間帯</label><div id="hourChips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>' +
+
+        sec("じゆうらん（あなたらしさが出るところ）") +
+        '<div class="hint" style="margin-bottom:8px">見出しも中身も自由です。' +
+          '「最近ハマってるもの」「好きな配信者」「ここだけの話」など、なんでも。' +
+          '最大 ' + C.PROFILE_MAX_FREE + " つまで。</div>" +
+        '<div id="freeBox"></div>' +
+        '<button class="mini" id="freeAdd">＋ じゆうらんを足す</button>' +
+
+        sec("ギャラリー") +
+        '<div class="hint" style="margin-bottom:8px">趣味の写真、自作の画像、好きなスクショなど。' +
+          "最大 " + C.PROFILE_MAX_GALLERY + "枚。ファイルは自動で小さくしてから保存します。</div>" +
+        '<div class="gedit" id="galBox"></div>' +
+        '<div class="row" style="margin-top:9px">' +
+          '<input type="file" id="galFile" accept="image/*" multiple style="display:none">' +
+          '<button class="mini" id="galPick">📁 画像を足す</button>' +
+          '<button class="mini" id="galUrl">🔗 URLで足す</button></div>' +
+
+        sec("リンク") +
+        '<div id="linkBox"></div>' +
+        '<button class="mini" id="linkAdd">＋ リンクを足す</button>' +
+
+        '<div class="cap-meter" id="capMeter"><span>保存サイズ</span>' +
+          '<div class="track"><div class="fill" id="capFill"></div></div><span id="capTxt">—</span></div>' +
+        '<div class="hint">画像を入れると大きくなります。いっぱいのときは、枚数を減らすかURLで足してください' +
+          '（URLはサイズを使いません）。</div>' +
+      "</div>" +
+
+      '<div class="edfoot">' +
+        '<button class="mini grad" id="edSave">💾 保存して公開</button>' +
+        '<button class="mini" data-close="1">やめる</button>' +
+        '<div style="flex:1"></div>' +
+        (ed.published ? '<button class="mini danger" id="edDel">🗑 消す</button>' : "") +
+      "</div></div>";
+
+    // 値を入れる
+    $("edName").value  = ed.displayName;
+    $("edTag").value   = ed.tagline;
+    $("edIntro").value = ed.intro;
+    $("edSince").value = ed.tft.since;
+    $("edComps").value = ed.tft.comps.join(", ");
+    $("edUnits").value = ed.tft.units.join(", ");
+    $("edStyle").value = ed.tft.style;
+    $("edGoal").value  = ed.tft.goal;
+    $("edHobby").value = ed.life.hobbies.join(", ");
+
+    // 色
+    $("swColor").innerHTML = C.PROFILE_THEMES.map(t =>
+      '<button class="sw' + (ed.theme.color === t.id ? " on" : "") + '" data-c="' + t.id +
+      '" title="' + esc(t.name) + '" style="background:' + t.css + '"></button>').join("");
+    $("swColor").querySelectorAll(".sw").forEach(b => b.onclick = () => {
+      ed.theme.color = b.getAttribute("data-c"); pull(); renderEditor();
+    });
+    $("edPattern").onchange = () => { ed.theme.pattern = $("edPattern").value; pull(); renderEditor(); };
+
+    // 時間帯
+    $("hourChips").innerHTML = C.ACTIVE_HOURS.map(h =>
+      '<button class="chip' + (ed.life.hours.includes(h) ? " on" : "") + '" data-h="' + h + '">' + h + "</button>").join("");
+    $("hourChips").querySelectorAll(".chip").forEach(b => b.onclick = () => {
+      const h = b.getAttribute("data-h");
+      ed.life.hours = ed.life.hours.includes(h) ? ed.life.hours.filter(x => x !== h) : ed.life.hours.concat([h]);
+      b.classList.toggle("on");
+    });
+
+    renderFree(); renderGal(); renderLinks(); renderHeaderPrev(); updateCap();
+
+    // ヘッダー画像
+    $("hdPick").onclick = () => $("hdFile").click();
+    $("hdFile").onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        ctx.toast("画像を小さくしています…");
+        ed.header = await shrink(f, 1400, 460, 150 * 1024);
+        renderHeaderPrev(); updateCap(); ctx.toast("ヘッダー画像を入れました");
+      } catch(err){ ctx.toast(err.message); }
+      e.target.value = "";
+    };
+    $("hdUrl").onclick = () => {
+      const u = prompt("画像のURLを貼ってください（https://… ）", /^https?:/.test(ed.header) ? ed.header : "");
+      if (u == null) return;
+      const s = C.safeUrl(u.trim());
+      if (u.trim() && !s){ ctx.toast("このURLは使えません（https:// で始まる画像のURLにしてください）"); return; }
+      ed.header = s; renderHeaderPrev(); updateCap();
+    };
+    $("hdClr").onclick = () => { ed.header = ""; renderHeaderPrev(); updateCap(); };
+
+    // ギャラリー
+    $("galPick").onclick = () => $("galFile").click();
+    $("galFile").onchange = async e => {
+      const files = [...e.target.files];
+      e.target.value = "";
+      for (const f of files){
+        if (ed.gallery.length >= C.PROFILE_MAX_GALLERY){ ctx.toast("ギャラリーは " + C.PROFILE_MAX_GALLERY + "枚までです"); break; }
+        try {
+          ctx.toast("画像を小さくしています…（" + f.name.slice(0,18) + "）");
+          ed.gallery.push({ src: await shrink(f, 1000, 1000, 78 * 1024), caption: "" });
+        } catch(err){ ctx.toast(err.message); }
+      }
+      renderGal(); updateCap();
+    };
+    $("galUrl").onclick = () => {
+      if (ed.gallery.length >= C.PROFILE_MAX_GALLERY){ ctx.toast("ギャラリーは " + C.PROFILE_MAX_GALLERY + "枚までです"); return; }
+      const u = prompt("画像のURLを貼ってください（https://… ）", "");
+      if (!u) return;
+      const s = C.safeUrl(u.trim());
+      if (!s){ ctx.toast("このURLは使えません"); return; }
+      ed.gallery.push({ src: s, caption: "" });
+      renderGal(); updateCap();
+    };
+
+    $("freeAdd").onclick = () => {
+      if (ed.free.length >= C.PROFILE_MAX_FREE){ ctx.toast("じゆうらんは " + C.PROFILE_MAX_FREE + "つまでです"); return; }
+      pull(); ed.free.push({ title: "", body: "" }); renderFree(); updateCap();
+    };
+    $("linkAdd").onclick = () => {
+      if (ed.links.length >= C.PROFILE_MAX_LINKS){ ctx.toast("リンクは " + C.PROFILE_MAX_LINKS + "つまでです"); return; }
+      pull(); ed.links.push({ label: "", url: "" }); renderLinks();
+    };
+
+    box.querySelectorAll("textarea,input[type=text]").forEach(el =>
+      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(() => { pull(); updateCap(); }, 400); }));
+
+    $("edSave").onclick = save;
+    if ($("edDel")) $("edDel").onclick = async () => {
+      if (!confirm("自分のプロフィールを消します。よろしいですか？")) return;
+      try {
+        await C.deleteProfile(myId);
+        delete full[myId];
+        delete pcards[myId];
+        closeSheet(); rebuild(); render(); renderMe();
+        ctx.toast("プロフィールを消しました");
+      } catch(e){ ctx.toast(e.message); }
+    };
+  }
+  let capTimer = null;
+  function sec(t){ return '<div class="psec"><h3>' + esc(t) + "</h3></div>"; }
+
+  function renderHeaderPrev(){
+    const p = $("hdPrev");
+    const s = C.safeImg(ed.header);
+    p.innerHTML = s ? '<img src="' + esc(s) + '" alt="" onerror="this.remove()">' : "なし";
+  }
+
+  function renderFree(){
+    $("freeBox").innerHTML = ed.free.map((f, i) =>
+      '<div class="fsec"><div class="fh">' +
+        '<input type="text" class="f-t" data-i="' + i + '" maxlength="30" placeholder="見出し（例: 最近ハマってるもの）" value="' + esc(f.title) + '">' +
+        '<button class="mini" data-up="' + i + '" title="上へ">↑</button>' +
+        '<button class="mini danger" data-del="' + i + '">消す</button></div>' +
+        '<textarea class="f-b" data-i="' + i + '" maxlength="1200" placeholder="中身を自由に書いてください">' + esc(f.body) + "</textarea></div>").join("");
+    $("freeBox").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      pull(); ed.free.splice(Number(b.getAttribute("data-del")), 1); renderFree(); updateCap();
+    });
+    $("freeBox").querySelectorAll("[data-up]").forEach(b => b.onclick = () => {
+      const i = Number(b.getAttribute("data-up"));
+      if (i <= 0) return;
+      pull();
+      const t = ed.free[i]; ed.free[i] = ed.free[i-1]; ed.free[i-1] = t;
+      renderFree();
+    });
+    $("freeBox").querySelectorAll("textarea,input").forEach(el =>
+      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(() => { pull(); updateCap(); }, 400); }));
+  }
+
+  function renderGal(){
+    $("galBox").innerHTML = ed.gallery.map((g, i) => {
+      const s = C.safeImg(g.src);
+      return '<div class="gitem"><div class="th">' +
+        (s ? '<img src="' + esc(s) + '" alt="" onerror="this.remove()">' : "") + "</div>" +
+        '<input type="text" class="g-c" data-i="' + i + '" maxlength="60" placeholder="ひとこと（任意）" value="' + esc(g.caption) + '">' +
+        '<div class="bar"><button data-l="' + i + '">←</button><button data-r="' + i + '">→</button>' +
+        '<button data-x="' + i + '">消す</button></div></div>';
+    }).join("");
+    const mv = (i, j) => { pull(); const t = ed.gallery[i]; ed.gallery[i] = ed.gallery[j]; ed.gallery[j] = t; renderGal(); };
+    $("galBox").querySelectorAll("[data-l]").forEach(b => b.onclick = () => {
+      const i = Number(b.getAttribute("data-l")); if (i > 0) mv(i, i-1); });
+    $("galBox").querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
+      const i = Number(b.getAttribute("data-r")); if (i < ed.gallery.length - 1) mv(i, i+1); });
+    $("galBox").querySelectorAll("[data-x]").forEach(b => b.onclick = () => {
+      pull(); ed.gallery.splice(Number(b.getAttribute("data-x")), 1); renderGal(); updateCap(); });
+    $("galBox").querySelectorAll("input").forEach(el =>
+      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(pull, 400); }));
+  }
+
+  function renderLinks(){
+    $("linkBox").innerHTML = ed.links.map((k, i) =>
+      '<div class="row"><input type="text" class="l-l" data-i="' + i + '" maxlength="24" style="max-width:140px" placeholder="名前（例: X）" value="' + esc(k.label) + '">' +
+      '<input type="text" class="l-u" data-i="' + i + '" placeholder="https://…" value="' + esc(k.url) + '">' +
+      '<button class="mini danger" data-lx="' + i + '">消す</button></div>').join("");
+    $("linkBox").querySelectorAll("[data-lx]").forEach(b => b.onclick = () => {
+      pull(); ed.links.splice(Number(b.getAttribute("data-lx")), 1); renderLinks(); });
+    $("linkBox").querySelectorAll("input").forEach(el =>
+      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(pull, 400); }));
+  }
+
+  // 画面 → ed
+  const splitTags = s => String(s || "").split(/[,、\n]/).map(x => x.trim()).filter(Boolean);
+  function pull(){
+    if (!ed || !$("edName")) return;
+    ed.displayName = $("edName").value.trim();
+    ed.tagline     = $("edTag").value.trim();
+    ed.intro       = $("edIntro").value;
+    ed.tft.since   = $("edSince").value.trim();
+    ed.tft.comps   = splitTags($("edComps").value).slice(0, 8);
+    ed.tft.units   = splitTags($("edUnits").value).slice(0, 8);
+    ed.tft.style   = $("edStyle").value.trim();
+    ed.tft.goal    = $("edGoal").value.trim();
+    ed.life.hobbies = splitTags($("edHobby").value).slice(0, 10);
+    $("freeBox").querySelectorAll(".f-t").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.free[i]) ed.free[i].title = el.value; });
+    $("freeBox").querySelectorAll(".f-b").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.free[i]) ed.free[i].body = el.value; });
+    $("galBox").querySelectorAll(".g-c").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.gallery[i]) ed.gallery[i].caption = el.value; });
+    $("linkBox").querySelectorAll(".l-l").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.links[i]) ed.links[i].label = el.value; });
+    $("linkBox").querySelectorAll(".l-u").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.links[i]) ed.links[i].url = el.value.trim(); });
+  }
+
+  function updateCap(){
+    if (!$("capFill")) return;
+    const bytes = C.profileBytes(ed);
+    const pct = Math.min(100, Math.round(bytes / C.PROFILE_MAX_BYTES * 100));
+    $("capFill").style.width = pct + "%";
+    $("capTxt").textContent = Math.round(bytes / 1024) + "KB / " + Math.round(C.PROFILE_MAX_BYTES / 1024) + "KB";
+    $("capMeter").classList.toggle("warn", pct >= 92);
+  }
+
+  async function save(){
+    pull();
+    const btn = $("edSave");
+    btn.disabled = true; btn.textContent = "保存中…";
+    try {
+      // 一覧カード用の小さなサムネを作ってから保存する
+      ed.thumb = await makeThumb(ed.header);
+      const saved = await C.saveProfile(myId, ed, session);
+      full[myId] = saved;
+      pcards[myId] = C.cardOf(saved);
+      closeSheet(); rebuild(); render(); renderMe();
+      ctx.toast("プロフィールを公開しました！");
+    } catch(e){ ctx.toast(e.message); }
+    btn.disabled = false; btn.textContent = "💾 保存して公開";
+  }
+
+  /* ============ 自分のところ ============ */
+  function renderMe(){
+    const mine = pcards[myId];
+    const nm = (mine && mine.displayName) || (me && me.name) || "—";
+    $("meHeroName").textContent = nm;
+    const written = mine && mine.published;
+    $("meHeroSub").textContent = written
+      ? "あなたのプロフィールは公開中です。いつでも書きかえられます。"
+      : "まだ自己紹介がありません。書くと、みんなの一覧にあなたのカードが並びます。";
+    $("editBtn").textContent = written ? "✏️ 自分のプロフィールを書きかえる" : "✏️ 自分のプロフィールを書く";
+    const sc = mine ? mine.score : 0;
+    $("meMeter").style.display = written ? "" : "none";
+    $("meFill").style.width = sc + "%";
+    $("meScore").textContent = sc + "%";
+  }
+
+  /* ============ 起動 ============ */
+  $("editBtn").onclick = () => openEditor();
+  $("randBtn").onclick = () => {
+    const pool = cards.filter(c => c.written && c.id !== myId);
+    const from = pool.length ? pool : cards;
+    if (!from.length){ ctx.toast("まだだれもいません"); return; }
+    openDetail(from[Math.floor(Math.random() * from.length)].id);
+  };
+  let qTimer = null;
+  $("q").addEventListener("input", e => {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => { query = e.target.value.trim(); rebuild(); render(); }, 180);
+  });
+  $("sortSel").onchange = e => { sortBy = e.target.value; rebuild(); render(); };
+
+  Promise.all([
+    C.loadMembers().catch(e => { showErr("メンバー名簿の読み込み", e); return {}; }),
+    C.loadProfileCards().catch(e => { showErr("プロフィール一覧の読み込み", e); return {}; })
+  ]).then(([m, p]) => {
+    members = m || {};
+    pcards = p || {};
+    // 自分が名簿にまだ載っていなくても、自分のカードは出す
+    if (me && !members[myId]) members[myId] = {
+      id: myId, name: me.name, riotId: me.riotId, rank: me.rank,
+      discord: me.discord, roles: me.roles, updatedAt: Date.now()
+    };
+    renderRoleChips();
+    rebuild();
+    render();
+    renderMe();
+    // ?id=u_xxx で直接開く
+    const want = new URLSearchParams(location.search).get("id");
+    if (want && (pcards[want] || members[want])) openDetail(want);
+  });
 })();
 </script>
 </body>
