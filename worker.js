@@ -49,7 +49,7 @@
 const ALLOWED_REGIONS = ["asia", "americas", "europe"];
 const ALLOWED_PLATFORMS = ["jp1", "kr", "na1", "euw1", "eun1", "oc1", "br1", "la1", "la2", "tr1", "ru", "ph2", "sg2", "th2", "tw2", "vn2"];
 const DISCORD_API = "https://discord.com/api/v10";
-const WORKER_VERSION = "3.4";
+const WORKER_VERSION = "3.5";
 
 // ブラウザからのAPI呼び出しを許可するオリジン（"*" か "https://mo10c.github.io" 等）
 const ALLOW_ORIGIN = "*";
@@ -319,7 +319,8 @@ async function collectLp(env) {
   Object.keys(hist).forEach(id => { if (!nextHist[id]) nextHist[id] = hist[id]; });
 
   await fsPatch(env, "lboard_index/lp", {
-    members: nextMembers, hist: nextHist, updatedAt: Date.now(), lastCollect: today
+    members: nextMembers, hist: nextHist, updatedAt: Date.now(),
+    lastCollect: today, lastCollectAt: Date.now()
   });
 
   let announced = 0;

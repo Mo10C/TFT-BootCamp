@@ -1188,15 +1188,25 @@
     });
     return out;
   }
+  /* ★ 日付キーは「日本時間(JST)」で固定する。
+     Cloudflare Worker の集計(23:45 JST)も同じ計算をしているので、
+     海外や時差のある端末で見ても、同じ日の点が同じ日として並ぶ。
+     以前は端末のローカル時刻だったため、日付がズレて
+     ・グラフの線が飛ぶ ・1日に2点できる といった症状が出ていた。 */
+  const JST_MS = 9 * 3600 * 1000;
   function dayKey(d) {
-    d = d || new Date();
+    const t = (d instanceof Date) ? d.getTime() : (typeof d === "number" ? d : Date.now());
+    const j = new Date(t + JST_MS);
     const p = n => String(n).padStart(2, "0");
-    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+    return j.getUTCFullYear() + "-" + p(j.getUTCMonth() + 1) + "-" + p(j.getUTCDate());
   }
+  // 日本時間での「今 何時何分か」（集計時刻の案内に使う）
+  function jstNow() { return new Date(Date.now() + JST_MS); }
   function shiftDay(key, delta) {
     const [y, m, d] = key.split("-").map(Number);
-    const dt = new Date(y, m - 1, d + delta);
-    return dayKey(dt);
+    const dt = new Date(Date.UTC(y, m - 1, d + (delta | 0)));
+    const p = n => String(n).padStart(2, "0");
+    return dt.getUTCFullYear() + "-" + p(dt.getUTCMonth() + 1) + "-" + p(dt.getUTCDate());
   }
 
   const LP_DOC = "lp";
@@ -1246,6 +1256,9 @@
             label: String(g.label || "").trim()
           }))
         : [],
+      // ★ 最後に自動集計(23:45)が走った日と時刻。集計が動いているか確認するために表示する
+      lastCollect: /^\d{4}-\d{2}-\d{2}$/.test(raw.lastCollect) ? raw.lastCollect : "",
+      lastCollectAt: raw.lastCollectAt || 0,
       updatedAt: raw.updatedAt || 0
     };
   }
@@ -1266,35 +1279,48 @@
     return normLp(null);
   }
 
-  // 1人ぶんのLPを今日の日付で記録する（1日1点・同日は上書き）
-  async function recordLp(player) {
+  /* 1人ぶんのLPを今日の日付で記録する（1日1点・同日は上書き）
+     ★ opts.history === false のときは「名前・アイコン・Riot ID・ロール」だけを更新し、
+        ランク(tier/lp/abs)と履歴(hist)には一切触らない。
+        ログイン時にこれを呼ぶことで、集計対象の名簿だけを最新に保てる。 */
+  async function recordLp(player, opts) {
+    opts = opts || {};
+    const withHistory = opts.history !== false;
     if (!player || !player.id) return null;
     if (player.staff && !player.optIn) return null;   // 運営ロールはLPランキングに出さない
     const rank = player.rank || null;
     const abs = absLP(rank);
     const today = dayKey();
+    // 名簿としての情報（いつ書いても安全なもの）
     const entry = {
       name: player.name || "—",
       avatar: (player.discord && player.discord.avatar) || player.avatar || "",
       riotId: player.riotId || "",
       puuid: player.puuid || "",
-      tier: (rank && rank.tier) || "",
-      division: (rank && rank.division) || "",
-      lp: (rank && rank.lp) | 0,
-      abs: abs,
       roles: rolesOf(player),
       updatedAt: Date.now()
     };
+    // ランクと履歴は「集計」のときだけ書く（＝23:45の自動集計と、管理画面の手動集計）
+    if (withHistory) {
+      entry.tier = (rank && rank.tier) || "";
+      entry.division = (rank && rank.division) || "";
+      entry.lp = (rank && rank.lp) | 0;
+      entry.abs = abs;
+      entry.rankAt = Date.now();
+    }
     const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
-    if (abs != null) patch.hist = { [player.id]: { [today]: abs } };
+    if (withHistory && abs != null) patch.hist = { [player.id]: { [today]: abs } };
 
     const db = openDb();
     try {
       if (db) await db.collection("lboard_index").doc(LP_DOC).set(patch, { merge: true });
       else {
         const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
-        cur.members[player.id] = entry;
-        if (abs != null) { cur.hist[player.id] = cur.hist[player.id] || {}; cur.hist[player.id][today] = abs; }
+        cur.members[player.id] = Object.assign({}, cur.members[player.id] || {}, entry);
+        if (withHistory && abs != null) {
+          cur.hist[player.id] = cur.hist[player.id] || {};
+          cur.hist[player.id][today] = abs;
+        }
         cur.updatedAt = Date.now();
         localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
       }
@@ -1302,17 +1328,65 @@
     return entry;
   }
 
-  // 自分のLPを1日1回だけ記録する（ページを開くたびに書かないように）
-  async function recordLpForSelf(session) {
+  /* 指定した日の記録を全員ぶん消す。
+     旧版が「ページを開いた時点のランク」を書いてしまった日の掃除に使う。
+     ★ Firestore の merge では項目を消せないので、hist を丸ごと入れ替える。 */
+  async function deleteLpDay(day) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day || "")) throw new Error("日付の形式が正しくありません");
+    const cur = await loadLpData();
+    const hist = {};
+    let removed = 0;
+    Object.entries(cur.hist || {}).forEach(([id, series]) => {
+      const s = {};
+      Object.entries(series).forEach(([d, v]) => { if (d === day) removed++; else s[d] = v; });
+      hist[id] = s;
+    });
+    const db = openDb();
+    if (db) {
+      // set(merge:true) はマップを「足し算」するので項目を消せない。update で hist ごと置き換える。
+      await db.collection("lboard_index").doc(LP_DOC).update({ hist, updatedAt: Date.now() });
+    } else {
+      const raw = JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}");
+      raw.hist = hist; raw.updatedAt = Date.now();
+      localStorage.setItem(LP_LS_KEY, JSON.stringify(raw));
+    }
+    return removed;
+  }
+
+  /* 「集計を実行した」印を残す（管理画面から手動で回したとき用）。
+     自動集計(23:45)は Worker 側が同じ項目を書いている。 */
+  async function markLpCollected() {
+    const stamp = { lastCollect: dayKey(), lastCollectAt: Date.now(), updatedAt: Date.now() };
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(LP_DOC).set(stamp, { merge: true });
+      else {
+        const cur = JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}");
+        Object.assign(cur, stamp);
+        localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) { console.warn("集計時刻の記録に失敗", e); }
+  }
+
+  /* ログインした人を「集計の名簿」に載せる。
+     ★ ここでは LP の履歴も、表示中のランクも書き換えない。
+        ログイン時のランクは古いことがあり（ログインした日のまま）、
+        それを今日の値として書き込むと
+        ・数値がおかしくなる ・グラフの線が飛ぶ ・23:45の集計が上書きされる
+        という不具合になっていたため。
+        実際のLPは毎日23:45の自動集計だけが書き込む。 */
+  async function registerLpMember(session) {
     session = session || Session.get();
     const p = Session.toPlayer(session);
     if (!p) return false;
-    const flag = "mcc-lb2-lp-done-" + p.id + "-" + dayKey();
+    const flag = "mcc-lb2-lp-roster-" + p.id + "-" + dayKey();
     try { if (localStorage.getItem(flag)) return false; } catch (e) { }
-    const r = await recordLp(p);
+    const r = await recordLp(p, { history: false });
     try { if (r) localStorage.setItem(flag, "1"); } catch (e) { }
     return !!r;
   }
+  // 旧名（古いページが読み込まれていても壊れないように残す）
+  const recordLpForSelf = registerLpMember;
 
   /* =============================================================
      LPランキングの並び（グループ）
@@ -1500,9 +1574,10 @@
   }
   function lpStats(lp, id) {
     const h = (lp.hist && lp.hist[id]) || {};
-    const keys = Object.keys(h).sort();
-    if (!keys.length) return { latest: null, prev: null, base: null, dayDelta: null, baseDelta: null, prevDate: "", baseDate: "" };
     const today = dayKey();
+    // 未来の日付の点は無視する（端末の時計ズレで混ざることがある）
+    const keys = Object.keys(h).filter(k => k <= today).sort();
+    if (!keys.length) return { latest: null, prev: null, base: null, dayDelta: null, baseDelta: null, prevDate: "", baseDate: "" };
     const latestKey = keys[keys.length - 1];
     const beforeToday = keys.filter(k => k < today);
     const prevKey = beforeToday.length ? beforeToday[beforeToday.length - 1] : null;
@@ -1619,7 +1694,7 @@
   const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
   function weekdayOf(key) {
     const [y, m, d] = key.split("-").map(Number);
-    return new Date(y, m - 1, d).getDay();     // 0=日
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay();     // 0=日
   }
   function startOfWeek(key) { return shiftDay(key, -weekdayOf(key)); }
   function endOfWeek(key) { return shiftDay(key, 6 - weekdayOf(key)); }
@@ -2390,7 +2465,7 @@
 
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.5",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "4.6",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -2401,8 +2476,8 @@
     listAllBoards, createBoard, deleteBoard, slugify,
     defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
     cachedHomeConfig, homeConfigKey,
-    absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay,
-    loadLpData, recordLp, recordLpForSelf, setLpBaseline, lpSeries, lpStats,
+    absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
+    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, updateGlobalMember, removeGlobalMember,

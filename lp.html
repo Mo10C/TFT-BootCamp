@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.5">
+<link rel="stylesheet" href="ui.css?v=4.6">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -93,6 +93,13 @@
   background:color-mix(in srgb,var(--warn) 12%,var(--surface));
   border-bottom:1px solid var(--border)}
 .rolewarn b{color:var(--ink)}
+/* 集計が正常なときの帯（緑） */
+.okbox{padding:9px 16px;font-size:11.5px;line-height:1.7;color:var(--muted);
+  background:color-mix(in srgb,var(--accent) 9%,var(--surface));
+  border-bottom:1px solid var(--border)}
+.okbox b{color:var(--ink)}
+.okbox code,.rolewarn code{font-family:"Space Grotesk",monospace;font-size:10.5px;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
 
 /* 日付のものさし。全行のグラフがこの目盛りにそろっている */
 .ruler{display:flex;align-items:center;gap:11px;padding:7px 15px 6px;
@@ -217,6 +224,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     </div>
 
     <div class="rolewarn" id="errBox" style="display:none"></div>
+    <div class="rolewarn" id="collectBox" style="display:none"></div>
     <div class="rolewarn" id="roleWarn" style="display:none">
       ⚠️ <b>全員が「その他」に入っています。</b>
       LPデータにまだDiscordロールが入っていないためです。
@@ -243,8 +251,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.5"></script>
-<script src="home-common.js?v=4.5"></script>
+<script src="core.js?v=4.6"></script>
+<script src="home-common.js?v=4.6"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -278,8 +286,10 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   const H_BAND = 58;        // 通常のバンドの高さ(px)
   const H_OPEN = 190;       // 開いたときの高さ(px)
 
-  /* 自分のLPを1日1回記録（開くだけで履歴がたまる） */
-  C.recordLpForSelf(session).catch(()=>{});
+  /* ★ ここでは LP を記録しない。
+     ログインした人を「集計の名簿」に載せるだけ（名前・アイコン・ロールの更新）。
+     実際のLPは毎日 23:45（日本時間）の自動集計だけが書き込む。 */
+  (C.registerLpMember || C.recordLpForSelf)(session).catch(()=>{});
 
   /* ---------- 小物 ---------- */
   function avatarEl(m){
@@ -405,12 +415,16 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     if ($("roleWarn")) $("roleWarn").style.display = (order.length && noRole >= rows.length) ? "" : "none";
 
     // 日付のものさし（グラフ列の真上）
+    /* ★ 期間が短いと 左端／真ん中／右端 が同じ日付になり、文字が重なって見える。
+       日付が重複しないときだけ真ん中を出す。 */
     const mid = C.shiftDay(range.from, Math.round(days / 2));
+    const showMid = days >= 6 && mid !== range.from && mid !== range.to;
+    const oneDay  = range.from === range.to;
     $("rulerBar").innerHTML =
       '<span class="' + (range.anchored ? "base" : "") + '">' +
         (range.anchored ? "★ " : "") + md(range.from) + '</span>' +
-      '<span class="mid">' + md(mid) + '</span>' +
-      '<span>' + md(range.to) + '</span>';
+      (showMid ? '<span class="mid">' + md(mid) + '</span>' : "") +
+      (oneDay  ? "" : '<span>' + md(range.to) + '</span>');
 
     $("chartSub").textContent =
       md(range.from) + " 〜 " + md(range.to) + "（" + (days + 1) + "日）" +
@@ -595,10 +609,15 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     // 開いているときだけ、日付とLPの目盛りを足す
     if (detailed){
       const n = C.daysBetween(range.from, range.to);
-      for (let i = 0; i <= 3; i++){
-        const k = C.shiftDay(range.from, Math.round(n * i / 3));
+      // ★ 期間が短いと同じ日付が何度も出て重なるので、目盛りの数を日数に合わせる
+      const ticks = Math.max(1, Math.min(3, n));
+      const seen = {};
+      for (let i = 0; i <= ticks; i++){
+        const k = C.shiftDay(range.from, Math.round(n * i / ticks));
+        if (seen[k]) continue;
+        seen[k] = 1;
         const t = mk("text", { x:X(k), y:h-4,
-          "text-anchor": i === 0 ? "start" : (i === 3 ? "end" : "middle"),
+          "text-anchor": i === 0 ? "start" : (i === ticks ? "end" : "middle"),
           "font-size":"8.5", fill:"var(--muted)", "font-weight":"700" });
         t.textContent = md(k);
         svg.appendChild(t);
@@ -765,7 +784,40 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       "<br>縦の幅は既定ではその人に合わせて自動（右はしに「縦◯◯LP」と表示）。" +
       "<b>「縦をそろえる」</b>を押すと全員同じ縦幅になり、伸びの傾きをそのまま見比べられます。" +
       "<br>「前日」は<b>今日より前の直近の記録</b>との差です（毎日ログインしていない人でも比較できます）。" +
-      "グラフの中では、ティアをまたいで比べられるよう IRON IV 0LP を 0 とした通し数値で線を引いていますが、表示は <b>E2 79LP</b>（＝EMERALD II 79LP）のような短い形にしています。";
+      "グラフの中では、ティアをまたいで比べられるよう IRON IV 0LP を 0 とした通し数値で線を引いていますが、表示は <b>E2 79LP</b>（＝EMERALD II 79LP）のような短い形にしています。" +
+      "<br>LPは<b>毎日23:45（日本時間）に全員まとめて自動集計</b>されます。ページを開いた時点では記録されないので、" +
+      "その日の点が付くのは23:45以降です。";
+    renderCollectStatus();
+  }
+
+  /* ★ 自動集計(23:45)がちゃんと動いているかを出す。
+     動いていなければ「グラフが伸びない／数値が古い」の原因がここだと一目で分かる。 */
+  function renderCollectStatus(){
+    const box = $("collectBox");
+    if (!box) return;
+    box.className = "rolewarn";          // 毎回いったん警告の見た目に戻す
+    const today = C.dayKey();
+    const last  = lp.lastCollect || "";
+    const at    = lp.lastCollectAt ? new Date(lp.lastCollectAt + 9*3600*1000) : null;
+    const p = n => String(n).padStart(2,"0");
+    const hhmm = at ? (p(at.getUTCHours()) + ":" + p(at.getUTCMinutes())) : "";
+    if (!last){
+      box.style.display = "";
+      box.innerHTML = "⚠️ <b>自動集計がまだ1度も動いていません。</b>" +
+        "Cloudflare の Cron（<code>45 14 * * *</code> ＝日本時間23:45）と <code>RIOT_API_KEY</code> を確認してください。" +
+        "管理コンソール →「📈 LP」→「全員のLPを今すぐ記録」で手動集計もできます。";
+      return;
+    }
+    const behind = C.daysBetween(last, today);
+    if (behind >= 2){
+      box.style.display = "";
+      box.innerHTML = "⚠️ <b>自動集計が " + behind + "日 止まっています。</b>（最終集計 " + last +
+        (hhmm ? " " + hhmm : "") + "）Riot APIキーの期限切れが多い原因です。管理コンソールの「🔌 接続設定」で確認できます。";
+      return;
+    }
+    box.style.display = "";
+    box.className = "okbox";
+    box.innerHTML = "✅ 最終集計 <b>" + last + (hhmm ? " " + hhmm : "") + "</b>（日本時間）。毎日23:45に自動で更新されます。";
   }
 
   /* ---------- 起動 ----------

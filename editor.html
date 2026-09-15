@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.5">
+<link rel="stylesheet" href="ui.css?v=4.6">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -331,10 +331,13 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <div class="card">
       <h2>記録</h2>
       <div class="lead">
-        LPは<b>メンバーがログインした日に自動で1点ずつ記録</b>されます（1日1回）。<br>
-        全員ぶんをその場で取りたいときは下のボタンを使ってください。大会前後や合宿の初日・最終日に押すと、
-        きれいな比較ができます。
+        LPは<b>毎日23:45（日本時間）にサーバー側で全員まとめて記録</b>されます（1日1点）。<br>
+        <b>※ ページを開いても記録されません。</b>以前はログインした時点でも記録していたため、
+        ログイン時の古いランクが「その日の値」として入ってしまい、
+        数値やグラフがおかしくなっていました。いまは23:45の集計だけが書き込みます。<br>
+        大会前後や合宿の初日・最終日など、その場で取りたいときは下のボタンを使ってください。
       </div>
+      <div class="row" id="lpCollectStat" style="margin-bottom:4px"></div>
       <div class="row">
         <button class="mini grad" id="lpRecordAll">📈 全員のLPを今すぐ記録</button>
         <span class="hint">Riot APIで最新ランクを取得してから記録します</span>
@@ -349,6 +352,17 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
         <a class="mini" href="lp.html" target="_blank" rel="noopener">LPランキングを開く ↗</a>
       </div>
       <div class="hint" id="lpStat" style="margin-top:10px"></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+      <h2 style="font-size:13px">おかしな日の記録を消す</h2>
+      <div class="lead">
+        古い版では<b>ページを開いた時点のランク</b>が記録されてしまい、その日だけ数値が飛んでいることがあります。
+        グラフを見て<b>明らかにおかしい日</b>を選んで消してください（その日の点が全員ぶん消え、線はその前後をつなぎます）。
+        <b>消すと元に戻せません。</b>
+      </div>
+      <div class="row">
+        <select id="lpFixDay" style="min-width:180px"></select>
+        <button class="mini" id="lpFixDel">🗑 この日の記録を消す</button>
+      </div>
     </div>
 
     <div class="card">
@@ -630,8 +644,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.5"></script>
-<script src="home-common.js?v=4.5"></script>
+<script src="core.js?v=4.6"></script>
+<script src="home-common.js?v=4.6"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -1318,7 +1332,42 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
          (sorted.length && sorted[0] > lpData.baseline
            ? " ⚠️ 実際の記録は " + sorted[0] + " からです。それ以前は空白になります。" : ""))
       : "基準日は未設定です（グラフは直近30日・「基準」列は出ません）。";
+    renderCollectStat();
+    fillFixDays(sorted);
     renderLpRoles();
+  }
+
+  /* 自動集計(23:45)が動いているかを管理画面にも出す */
+  function renderCollectStat(){
+    const box = $("lpCollectStat");
+    if (!box) return;
+    const last = lpData.lastCollect || "";
+    const at = lpData.lastCollectAt ? new Date(lpData.lastCollectAt + 9*3600*1000) : null;
+    const p = n => String(n).padStart(2,"0");
+    const hhmm = at ? (p(at.getUTCHours()) + ":" + p(at.getUTCMinutes())) : "";
+    if (!last){
+      box.innerHTML = '<span class="hint">⚠️ <b>自動集計がまだ1度も動いていません。</b>' +
+        'Cloudflare の Cron（<code>45 14 * * *</code> ＝日本時間23:45）と RIOT_API_KEY を確認してください。</span>';
+      return;
+    }
+    const behind = C.daysBetween(last, C.dayKey());
+    box.innerHTML = '<span class="hint">' +
+      (behind >= 2 ? "⚠️ <b>自動集計が " + behind + "日 止まっています。</b>（" : "✅ 最終集計 <b>") +
+      last + (hhmm ? " " + hhmm : "") + (behind >= 2 ? "）Riot APIキーの期限切れが多い原因です。" : "</b>（日本時間）") +
+      "</span>";
+  }
+
+  /* 指定した日の記録を消す（ログイン時に書かれてしまった古い点の掃除用） */
+  function fillFixDays(sorted){
+    const sel = $("lpFixDay");
+    if (!sel) return;
+    const keep = sel.value;
+    sel.innerHTML = '<option value="">— 日を選ぶ —</option>' +
+      sorted.slice().reverse().map(d => {
+        const n = Object.values(lpData.hist).filter(h => h[d] != null).length;
+        return '<option value="' + d + '">' + d + "（" + n + "人）</option>";
+      }).join("");
+    if (keep) sel.value = keep;
   }
   $("lpSaveBase").onclick = async () => {
     try {
@@ -1332,6 +1381,20 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     catch(e){ toast(e.message); }
   };
   $("lpToday").onclick = () => { $("lpBaseline").value = C.dayKey(); };
+
+  $("lpFixDel").onclick = async () => {
+    const d = $("lpFixDay").value;
+    if (!d){ toast("消したい日を選んでください"); return; }
+    if (!confirm(d + " の記録を全員ぶん消します。元に戻せません。よろしいですか？")) return;
+    const btn = $("lpFixDel");
+    btn.disabled = true;
+    try {
+      const n = await C.deleteLpDay(d);
+      await loadLp();
+      toast(d + " の記録を " + n + "件 消しました");
+    } catch(e){ toast("消せませんでした: " + e.message); }
+    btn.disabled = false;
+  };
 
   $("lpRunCron").onclick = async () => {
     const url = C.RiotConfig.effective().workerUrl;
@@ -1371,6 +1434,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     }
     btn.disabled = false;
     btn.textContent = "📈 全員のLPを今すぐ記録";
+    if (ok && C.markLpCollected) await C.markLpCollected();   // 「最終集計」の表示を更新
     await loadLp();
     toast(`LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
   };
