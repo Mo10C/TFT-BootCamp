@@ -625,9 +625,15 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     C.PROFILE_CATS.forEach(c => { CAT[c.id] = c; });
 
     // 【私について】
+    const xLink = p.x
+      ? '<a class="fl" href="' + esc(p.x) + '" target="_blank" rel="noopener noreferrer">ひらく ↗</a>'
+      : "";
     const aboutFacts =
       factHtml("趣味", "", p.hobbies) +
-      factHtml("みんなで遊びたいゲーム", "", p.games);
+      factHtml("みんなで遊びたいゲーム", "", p.games) +
+      (p.x
+        ? '<div class="fact"><div class="k">X</div><div class="v">' + xLink + "</div></div>"
+        : "");
 
     // 【TFT】Riot ID は自動、Tactics Tool はリンクにする
     const ttLink = p.tactics
@@ -674,14 +680,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         (p.message
           ? '<div class="lastmsg"><div class="lh">みんなに一言</div>' +
             '<div class="prose">' + esc(p.message) + "</div></div>"
-          : "") +
-        (p.x || p.links.length
-          ? '<div class="psec"><h3>リンク</h3><div class="dlinks">' +
-            (p.x ? '<a class="dlink xx" href="' + esc(p.x) + '" target="_blank" rel="noopener noreferrer">' +
-              '<span class="lico">X</span>X（旧Twitter）</a>' : "") +
-            p.links.map(k => '<a class="dlink" href="' + esc(k.url) + '" target="_blank" rel="noopener noreferrer">' +
-              '<span class="lico">↗</span>' +
-              esc(k.label || k.url.replace(/^https?:\/\//, "").slice(0, 26)) + "</a>").join("") + "</div></div>"
           : "") +
         (!p.published
           ? '<div class="empty-note">この人はまだ自己紹介を書いていません。<br>' +
@@ -887,6 +885,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
           '<input type="text" id="edHobby" placeholder="カンマ区切り　例: ラーメン, 猫, カラオケ"></div>' +
         '<div class="row"><label>みんなで<br>遊びたいゲーム<i class="req">必須</i></label>' +
           '<input type="text" id="edGames" placeholder="カンマ区切り　例: TFT, マリオカート, Among Us"></div>' +
+        '<div class="row"><label>X</label>' +
+          '<input type="text" id="edX" placeholder="https://x.com/…"></div>' +
         freeBlock("about") +
         galBlock("about") +
         catClose() +
@@ -917,11 +917,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         sec("そのほか（任意）") +
         '<div class="row"><label>ひとこと</label>' +
           '<input type="text" id="edTag" maxlength="60" placeholder="例: 毎日1位をねらってます！（一覧カードに大きく出ます）"></div>' +
-        '<div class="row"><label>X</label>' +
-          '<input type="text" id="edX" placeholder="https://x.com/…"></div>' +
-        '<div class="row"><label>そのほかの<br>リンク</label><div style="flex:1;min-width:150px">' +
-          '<div id="linkBox"></div>' +
-          '<button class="mini" id="linkAdd">＋ リンクを足す</button></div></div>' +
 
         '<div class="cap-meter" id="capMeter"><span>保存サイズ</span>' +
           '<div class="track"><div class="fill" id="capFill"></div></div><span id="capTxt">—</span></div>' +
@@ -970,7 +965,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 
     C.PROFILE_CATS.forEach(c => { renderFree(c.id); renderGal(c.id); });
     wireGalleries();
-    renderLinks(); renderHeaderPrev(); updateCap(); updateReq();
+    renderHeaderPrev(); updateCap(); updateReq();
 
     // ヘッダー画像
     $("hdPick").onclick = () => $("hdFile").click();
@@ -991,11 +986,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       ed.header = s; renderHeaderPrev(); updateCap();
     };
     $("hdClr").onclick = () => { ed.header = ""; renderHeaderPrev(); updateCap(); };
-
-    $("linkAdd").onclick = () => {
-      if (ed.links.length >= C.PROFILE_MAX_LINKS){ ctx.toast("リンクは " + C.PROFILE_MAX_LINKS + "つまでです"); return; }
-      pull(); ed.links.push({ label: "", url: "" }); renderLinks();
-    };
 
     box.querySelectorAll("textarea,input[type=text]").forEach(el =>
       el.addEventListener("input", () => {
@@ -1173,17 +1163,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     });
   }
 
-  function renderLinks(){
-    $("linkBox").innerHTML = ed.links.map((k, i) =>
-      '<div class="row"><input type="text" class="l-l" data-i="' + i + '" maxlength="24" style="max-width:140px" placeholder="名前（例: X）" value="' + esc(k.label) + '">' +
-      '<input type="text" class="l-u" data-i="' + i + '" placeholder="https://…" value="' + esc(k.url) + '">' +
-      '<button class="mini danger" data-lx="' + i + '">消す</button></div>').join("");
-    $("linkBox").querySelectorAll("[data-lx]").forEach(b => b.onclick = () => {
-      pull(); ed.links.splice(Number(b.getAttribute("data-lx")), 1); renderLinks(); });
-    $("linkBox").querySelectorAll("input").forEach(el =>
-      el.addEventListener("input", () => { clearTimeout(capTimer); capTimer = setTimeout(pull, 400); }));
-  }
-
   // 画面 → ed
   const splitTags = s => String(s || "").split(/[,、\n]/).map(x => x.trim()).filter(Boolean);
   function pull(){
@@ -1212,8 +1191,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       const L = GAL_OF(el.getAttribute("data-cat")), i = +el.getAttribute("data-i");
       if (L[i]) L[i].caption = el.value;
     });
-    $("linkBox").querySelectorAll(".l-l").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.links[i]) ed.links[i].label = el.value; });
-    $("linkBox").querySelectorAll(".l-u").forEach(el => { const i = +el.getAttribute("data-i"); if (ed.links[i]) ed.links[i].url = el.value.trim(); });
   }
 
   function updateCap(){

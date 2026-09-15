@@ -2038,7 +2038,6 @@
   ];
   const PROFILE_MAX_FREE = 4;      // 自由項目の数（カテゴリごと）
   const PROFILE_MAX_GALLERY = 6;   // ギャラリーの枚数（カテゴリごと）
-  const PROFILE_MAX_LINKS = 5;
   // 1人ぶんの保存サイズの上限（Firestoreの1MBに対して余裕をみる）
   const PROFILE_MAX_BYTES = 820 * 1024;
 
@@ -2063,6 +2062,8 @@
       /* ===== 私について ===== */
       hobbies: [],           // 【趣味】必須
       games: [],             // 【みんなで遊びたいゲーム】必須
+      x: "",                 // X のURL（任意）
+      noX: false,
       aboutFree: [],         // 自由に足せる項目 [{title, body}]
       aboutGallery: [],      // 画像 [{src, caption}]（1枚ずつコメントが付く）
 
@@ -2079,9 +2080,6 @@
 
       /* ===== 任意 ===== */
       tagline: "",           // ひとこと（一覧カードに大きく出る）
-      x: "",                 // X のURL（任意）
-      noX: false,
-      links: [],             // そのほかのリンク [{label, url}]
 
       hidden: false,
       published: false,                // 一度でも保存したか
@@ -2114,6 +2112,8 @@
     d.hobbies = listOf(raw.hobbies, 10, 30);
     if (!d.hobbies.length && raw.life) d.hobbies = listOf(raw.life.hobbies, 10, 30);  // 古い版から
     d.games = listOf(raw.games, 10, 30);
+    d.x = safeUrl(raw.x);
+    d.noX = !!raw.noX;
     d.aboutFree = freeOf(raw.aboutFree);
     d.aboutGallery = galOf(raw.aboutGallery);
     // 古い版は自由項目・ギャラリーが1つずつだったので「私について」に引きつぐ
@@ -2133,13 +2133,6 @@
 
     // 任意
     d.tagline = strOf(raw.tagline, 60);
-    d.x = safeUrl(raw.x);
-    d.noX = !!raw.noX;
-    d.links = (Array.isArray(raw.links) ? raw.links : [])
-      .filter(k => k && k.url)
-      .map(k => ({ label: strOf(k.label, 24), url: safeUrl(k.url) }))
-      .filter(k => k.url)
-      .slice(0, PROFILE_MAX_LINKS);
     d.hidden = !!raw.hidden;
     d.published = !!raw.published;
     d.updatedAt = raw.updatedAt || 0;
@@ -2900,7 +2893,7 @@
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, updateGlobalMember, removeGlobalMember,
     PROFILE_THEMES, PROFILE_PATTERNS,
-    PROFILE_MAX_FREE, PROFILE_MAX_GALLERY, PROFILE_MAX_LINKS, PROFILE_MAX_BYTES,
+    PROFILE_MAX_FREE, PROFILE_MAX_GALLERY, PROFILE_MAX_BYTES,
     PROFILE_REQUIRED, PROFILE_CATS, missingRequired, tacticsUrlFor,
     defaultProfile, normProfile, loadProfiles, loadProfile, saveProfile,
     loadProfileCards, cardOf, normCard,
