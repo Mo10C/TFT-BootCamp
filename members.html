@@ -875,14 +875,16 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
           '<div class="ro">' + esc(me ? me.name : "—") +
           '<span class="auto">Discordから自動</span></div></div>' +
         '<div class="row"><label>ふりがな<i class="req">必須</i></label>' +
+          '<input type="text" id="edKana" maxlength="40" placeholder="例: もとせんせい"></div>' +
         '<div class="row"><label>呼び方・<br>ニックネーム<i class="req">必須</i></label>' +
+          '<input type="text" id="edNick" maxlength="30" placeholder="例: もとさん / もと"></div>' +
 
         /* ===== 私について ===== */
         catOpen("about") +
         '<div class="row"><label>趣味<i class="req">必須</i></label>' +
           '<input type="text" id="edHobby" placeholder="カンマ区切り　例: ラーメン, 猫, カラオケ"></div>' +
         '<div class="row"><label>みんなで<br>遊びたいゲーム<i class="req">必須</i></label>' +
-          '<input type="text" id="edGames" placeholder="カンマ区切り　例:マリオカート, Among Us"></div>' +
+          '<input type="text" id="edGames" placeholder="カンマ区切り　例: TFT, マリオカート, Among Us"></div>' +
         '<div class="row"><label>X</label>' +
           '<input type="text" id="edX" placeholder="https://x.com/…"></div>' +
         freeBlock("about") +
@@ -900,7 +902,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         '<div class="row"><label></label><label class="chk">' +
           '<input type="checkbox" id="edNoTt"> 持っていない</label></div>' +
         '<div class="row"><label>合宿での目標<i class="req">必須</i></label>' +
-          '<input type="text" id="edGoal" maxlength="120" placeholder="例:マスターになる！"></div>' +
+          '<input type="text" id="edGoal" maxlength="120" placeholder="例: エメラルドに上がる / 毎回4位以内"></div>' +
         '<div class="row" style="align-items:flex-start"><label>意気込み<i class="req">必須</i></label>' +
           '<textarea id="edSpirit" maxlength="300" style="min-height:64px" placeholder="例: 最後まで諦めずに走りきります！"></textarea></div>' +
         freeBlock("tft") +
