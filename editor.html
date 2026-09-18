@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.10">
+<link rel="stylesheet" href="ui.css?v=5.2">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -62,6 +62,15 @@ tr:last-child td{border-bottom:none}
 .ordbtn:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}
 .ordbtn:disabled{opacity:.35;cursor:default}
 .tile-main{min-width:0;display:flex;flex-direction:column;gap:7px}
+/* タイルの「中のリンク」（遊び場 → Codename generator / ITO など） */
+.kidsbox{margin-top:9px;padding:10px 11px;border-radius:12px;
+  border:1.5px dashed var(--border-strong);background:var(--surface-2)}
+.kidsbox-head{font-size:11px;font-weight:900;color:var(--muted);margin-bottom:7px}
+.kidrow{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
+.kidrow input[type=text]{flex:1;min-width:110px;border:1.5px solid var(--border-strong);
+  background:var(--surface);color:var(--ink);border-radius:9px;padding:6px 9px;font-size:12px}
+.kidrow .w-ico{width:50px;flex:none;text-align:center;font-size:16px;padding:6px}
+.kidrow .w-url{flex:1.4;min-width:150px;font-family:"Space Grotesk",monospace;font-size:11.5px}
 .tile-line{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tile-line input[type=text]{flex:1;min-width:130px}
 .tile-line .w-ico{width:56px;flex:none;text-align:center;font-size:17px;padding:6px}
@@ -94,6 +103,29 @@ tr:last-child td{border-bottom:none}
   font-family:"Zen Kaku Gothic New",-apple-system,sans-serif;border:1px solid #202225}
 .mprev b{color:#fff;font-weight:700}
 .mprev .ph{color:#72767d;font-size:11px;display:block;margin-bottom:7px;font-weight:700}
+
+/* ---- ランクアイコン ---- */
+.rkprev{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.rkprev .col{background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.rkprev .col.dc{background:#36393f;border-color:#202225;color:#dcddde}
+.rkprev .ph{font-size:11px;font-weight:900;color:var(--muted);margin-bottom:9px;display:block}
+.rkprev .col.dc .ph{color:#72767d}
+.rkprev .ln{font-size:13px;line-height:2.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rkrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 0;
+  border-bottom:1px solid var(--border)}
+.rkrow:last-child{border-bottom:none}
+.rkrow .pv{width:38px;height:38px;flex:none;display:grid;place-items:center}
+.rkrow .pv .rkico{width:34px;height:34px;margin:0}
+.rkrow .tn{width:132px;flex:none;font-size:12.5px;font-weight:900}
+.rkrow .tn small{display:block;font-size:10.5px;font-weight:400;color:var(--muted)}
+.rkrow .em{width:230px;height:34px;font-size:12.5px;font-family:ui-monospace,monospace}
+.rkrow .act{display:flex;gap:6px;flex-wrap:wrap}
+.rkrow .file{display:none}
+@media (max-width:760px){
+  .rkprev{grid-template-columns:1fr}
+  .rkrow .tn{width:auto}
+  .rkrow .em{width:100%}
+}
 
 /* 予定表 */
 .srow{display:flex;align-items:center;gap:9px;background:var(--surface-2);
@@ -159,9 +191,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 .lockscreen .who{display:inline-block;font-size:12px;font-weight:900;margin:10px 0 20px;
   padding:5px 14px;border-radius:999px;border:1.5px solid var(--border-strong)}
 </style>
-<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body class="portal-ui page-editor" id="page-top">
+<body>
 
 <div id="lockWrap" style="display:none">
   <div class="lockscreen">
@@ -178,11 +209,11 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 
 <div class="wrap" id="adminWrap" style="display:none">
 
-  <header class="site-header"><div class="top">
+  <div class="top">
     <div class="brand">
       <div class="hex">⚙️</div>
       <div>
-        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>管理コンソール</h1>
+        <h1>管理コンソール</h1>
         <div class="sub">クラウドハッシュテイル校 TOOLS</div>
       </div>
     </div>
@@ -192,8 +223,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" href="boards.html">🏆 大会一覧</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
-<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">CONTROL ROOM</p><h2 id="hero-heading">合宿を動かす、司令室。</h2><p class="hero-description">大会・メンバー・各種設定を管理。</p></div></div></section>
+  </div>
 
   <nav class="tabs" id="tabs">
     <button class="tab on" data-panel="p-home">🏠 HOME編集</button>
@@ -204,6 +234,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <button class="tab" data-panel="p-lp">📈 LP</button>
     <button class="tab" data-panel="p-snap">🏅 先生スナップショット</button>
     <button class="tab" data-panel="p-msg">💬 メッセージ</button>
+    <button class="tab" data-panel="p-rkicon">🛡 ランクアイコン</button>
     <button class="tab" data-panel="p-conn">🔌 接続設定</button>
     <button class="tab" data-panel="p-data">💾 データ</button>
   </nav>
@@ -590,6 +621,49 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     </div>
   </div>
 
+  <!-- ================= ランクアイコン ================= -->
+  <div class="panel" id="p-rkicon">
+    <div class="card">
+      <h2>ランクアイコン</h2>
+      <div class="lead">
+        ランクの横に出る紋章を、ティアごとに自分の画像へ差し替えられます。<br>
+        <b>サイト用</b>は画像（PNG/JPG）を選ぶだけ。自動で小さく（96px・約12KBまで）します。<br>
+        <b>Discord用</b>は画像を貼れないので、絵文字コードを入れます。
+        入れると投稿が <code>&lt;:master:123…&gt; MASTER 135LP</code> のようになります。
+      </div>
+      <div class="lead" style="margin-top:10px">
+        <b>サーバー絵文字のIDの調べ方</b><br>
+        Discord のどこでもいいので <code>\:絵文字の名前:</code> と打って送ると、
+        <code>&lt;:master:123456789012345678&gt;</code> という文字がそのまま出ます。
+        これをコピーして貼ってください。<br>
+        ふつうの絵文字（👑 など）をそのまま入れてもOKです。
+      </div>
+      <div class="row">
+        <button class="mini" id="rkResetAll">すべて既定の紋章に戻す</button>
+        <span class="hint" id="rkState">—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>プレビュー</h2>
+      <div class="lead">サイトでの見えかた（左）と、Discordでの見えかた（右）です。</div>
+      <div id="rkPrev" class="rkprev"></div>
+    </div>
+
+    <div class="card">
+      <h2>ティアごとの設定</h2>
+      <div id="rkRows"></div>
+    </div>
+
+    <div class="sticky-save" id="rkSave">
+      <span class="dirty-dot"></span>
+      <b style="font-size:12.5px">ランクアイコン</b>
+      <div class="spacer" style="flex:1"></div>
+      <button class="mini" id="rkReset">もとに戻す</button>
+      <button class="mini grad" id="rkApply">💾 保存</button>
+    </div>
+  </div>
+
   <!-- ================= 接続設定 ================= -->
   <div class="panel" id="p-conn">
     <div class="card">
@@ -646,8 +720,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.11"></script>
-<script src="home-common.js?v=4.10"></script>
+<script src="core.js?v=5.2"></script>
+<script src="home-common.js?v=5.2"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -707,6 +781,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     loadSched();
     loadSnap();
     loadMsgs();
+    initRkIcons();
     pullMembers(true);
   });
   store.onChange(render);
@@ -827,6 +902,74 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
   }
 
+  /* タイルの「中のリンク」（例: 遊び場 → Codename generator / ITO）の編集。
+     1つでも入っているタイルは、HOMEでは押すとその場で開くようになる。 */
+  function kidsEditor(t){
+    const wrap = document.createElement("div");
+    wrap.className = "kidsbox";
+    const head = document.createElement("div");
+    head.className = "kidsbox-head";
+    head.textContent = "中のリンク" + (t.children.length ? "（" + t.children.length + "つ）" : "（なし）");
+    const hint = document.createElement("span");
+    hint.className = "hint";
+    hint.textContent = t.children.length
+      ? " … 1つ以上あると、HOMEでは押すとその場で開きます"
+      : " … 追加すると、このタイルは押すとその場で開くようになります";
+    head.appendChild(hint);
+    wrap.appendChild(head);
+
+    t.children.forEach((k, ki) => {
+      const row = document.createElement("div");
+      row.className = "kidrow";
+      const ic = document.createElement("input");
+      ic.type = "text"; ic.className = "w-ico"; ic.value = k.icon; ic.maxLength = 4;
+      ic.title = "アイコン（絵文字）";
+      ic.oninput = () => { k.icon = ic.value; markDirty(); };
+      const nm = document.createElement("input");
+      nm.type = "text"; nm.value = k.name; nm.placeholder = "表示名";
+      nm.style.minWidth = "120px";
+      nm.oninput = () => { k.name = nm.value; markDirty(); };
+      const de = document.createElement("input");
+      de.type = "text"; de.value = k.desc; de.placeholder = "説明（任意）";
+      de.oninput = () => { k.desc = de.value; markDirty(); };
+      const ur = document.createElement("input");
+      ur.type = "text"; ur.className = "w-url"; ur.value = k.url;
+      ur.placeholder = "https://…（空ならリンクなし）";
+      ur.oninput = () => { k.url = ur.value; markDirty(); };
+      const ex = document.createElement("label");
+      ex.className = "chk";
+      const exc = document.createElement("input");
+      exc.type = "checkbox"; exc.checked = k.external !== false;
+      exc.onchange = () => { k.external = exc.checked; markDirty(); };
+      ex.appendChild(exc); ex.appendChild(document.createTextNode("別タブ"));
+      const up = document.createElement("button");
+      up.className = "ordbtn"; up.textContent = "▲"; up.disabled = (ki === 0);
+      up.onclick = () => { moveItem(t.children, ki, -1); markDirty(); renderTiles(); };
+      const dn = document.createElement("button");
+      dn.className = "ordbtn"; dn.textContent = "▼"; dn.disabled = (ki === t.children.length - 1);
+      dn.onclick = () => { moveItem(t.children, ki, 1); markDirty(); renderTiles(); };
+      const del = document.createElement("button");
+      del.className = "mini danger"; del.textContent = "削除";
+      del.onclick = () => {
+        if (!confirm("中のリンク「" + k.name + "」を削除しますか？")) return;
+        t.children.splice(ki, 1); markDirty(); renderTiles();
+      };
+      [ic, nm, de, ur, ex, up, dn, del].forEach(x => row.appendChild(x));
+      wrap.appendChild(row);
+    });
+
+    const add = document.createElement("button");
+    add.className = "mini";
+    add.textContent = "＋ 中のリンクを追加";
+    add.onclick = () => {
+      t.children.push(C.normChild({ icon: "🔗", name: "新しいリンク", url: "", external: true },
+        t.children.length));
+      markDirty(); renderTiles();
+    };
+    wrap.appendChild(add);
+    return wrap;
+  }
+
   function renderTiles(){
     const box = $("tileList");
     box.innerHTML = "";
@@ -875,9 +1018,18 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       const l3 = document.createElement("div");
       l3.className = "tile-line";
       const url = document.createElement("input");
-      url.type = "text"; url.className = "w-url"; url.value = t.url; url.placeholder = "members.html";
+      url.type = "text"; url.className = "w-url";
+      url.value = (t.url === "#" ? "" : t.url);
+      url.placeholder = "members.html　または　https://…（空ならリンクなし）";
       url.oninput = () => { t.url = url.value; markDirty(); };
-      l3.appendChild(url);
+      const ext = document.createElement("label");
+      ext.className = "chk";
+      const extc = document.createElement("input");
+      extc.type = "checkbox"; extc.checked = !!t.external;
+      extc.title = "チェックすると別タブで開きます（外部サイト向け）";
+      extc.onchange = () => { t.external = extc.checked; markDirty(); };
+      ext.appendChild(extc); ext.appendChild(document.createTextNode("別タブ"));
+      l3.appendChild(url); l3.appendChild(ext);
 
       // アイコン画像（空にすると既定の校章に戻る／"none" で絵文字）
       const l4 = document.createElement("div");
@@ -911,6 +1063,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 
       main.appendChild(l1); main.appendChild(l2); main.appendChild(l3);
       main.appendChild(l4); main.appendChild(rf);
+      main.appendChild(kidsEditor(t));
 
       const act = document.createElement("div");
       act.className = "tile-act";
@@ -1421,15 +1574,6 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   $("lpRecordAll").onclick = async () => {
     const targets = store.state.roster.filter(p => p.puuid);
     if (!targets.length){ toast("このボードにpuuid登録済みのメンバーがいません"); return; }
-    // 直前の状態で判定すると古いことがあるので、押した瞬間にもう一度読み直す
-    let freshLp = lpData;
-    try { freshLp = await C.loadLpData(); } catch(e){ /* 読めなければ手元の状態のまま判定 */ }
-    const locked = C.lpLockedToday(freshLp);
-    if (locked && !confirm(
-      "今日（" + C.dayKey() + "）はもう23:45の自動集計が済んでいます。\n" +
-      "その値を「今日ぶんの記録」として固定するため、この操作ではランク・LP履歴は上書きしません" +
-      "（名前・アイコンなどの名簿情報だけ更新します）。\n続けますか？"
-    )) return;
     const btn = $("lpRecordAll");
     btn.disabled = true;
     let ok = 0, ng = 0;
@@ -1437,7 +1581,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       try {
         const rank = await C.Riot.rank(p.puuid);
         store.updatePlayer(p.id, { rank });
-        await C.recordLp(Object.assign({}, p, { rank }), { lockedToday: locked });
+        await C.recordLp(Object.assign({}, p, { rank }));
         ok++;
       } catch(e){ ng++; console.warn(p.name, e); }
       btn.textContent = `📈 記録中 ${ok+ng}/${targets.length}`;
@@ -1445,11 +1589,9 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     }
     btn.disabled = false;
     btn.textContent = "📈 全員のLPを今すぐ記録";
-    if (ok && !locked && C.markLpCollected) await C.markLpCollected();   // 「最終集計」の表示を更新
+    if (ok && C.markLpCollected) await C.markLpCollected();   // 「最終集計」の表示を更新
     await loadLp();
-    toast(locked
-      ? `名簿だけ更新しました（今日ぶんのLPは23:45の集計で確定済みのため変更していません）`
-      : `LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
+    toast(`LP記録: 成功${ok}${ng?" / 失敗"+ng:""}`);
   };
 
   /* =============================================================
@@ -2219,8 +2361,33 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 
       const sub = document.createElement("div");
       sub.className = "sub";
-      sub.innerHTML = "投稿先: <b>" + esc(meta.where) + "</b>　／　いつ: " + esc(meta.when);
+      sub.innerHTML = "いつ: " + esc(meta.when);
       card.appendChild(sub);
+
+      /* ★ 投稿先をここで選べる（既定＝連絡事項）。
+         Worker は lboard_index/messages の channels を読んで投げ先を決める。 */
+      const chRow = document.createElement("div");
+      chRow.className = "mfield";
+      const chLbl = document.createElement("div");
+      chLbl.className = "mlbl";
+      chLbl.innerHTML = '投稿先のチャンネル<span class="tip">既定は「連絡事項」。変えると次回の投稿から反映されます</span>';
+      chRow.appendChild(chLbl);
+      const chSel = document.createElement("select");
+      chSel.style.height = "34px";
+      C.MSG_CHANNELS.forEach(c => {
+        const o = document.createElement("option");
+        o.value = c.id;
+        o.textContent = c.name + "（" + c.note + "）";
+        if (((msgEdit.channels || {})[key] || "notice") === c.id) o.selected = true;
+        chSel.appendChild(o);
+      });
+      chSel.onchange = () => {
+        if (!msgEdit.channels) msgEdit.channels = {};
+        msgEdit.channels[key] = chSel.value;
+        markMsgDirty();
+      };
+      chRow.appendChild(chSel);
+      card.appendChild(chRow);
 
       [["head", "見出し", "いちばん上の行。空にすると出ません"],
        ["line", "明細（件数ぶん繰り返し）", "1件につき1行。ここは空にできません"],
@@ -2273,6 +2440,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       rb.onclick = () => {
         const d = C.defaultMessages()[key];
         msgEdit[key] = { head: d.head, line: d.line, foot: d.foot };
+        if (!msgEdit.channels) msgEdit.channels = {};
+        msgEdit.channels[key] = "notice";
         markMsgDirty(); renderMsgs();
       };
       act.appendChild(rb);
@@ -2317,6 +2486,203 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     if (!confirm("すべての文面を既定に戻しますか？（保存するまで確定しません）")) return;
     msgEdit = C.normMessages(C.defaultMessages());
     markMsgDirty(); renderMsgs();
+  };
+
+  /* =============================================================
+     ランクアイコン
+     ・サイト用 … ティアごとに画像（PNGのデータURL）を持たせる
+     ・Discord用 … 絵文字コード（<:name:id> か ふつうの絵文字）
+     保存先は Firestore の lboard_index/rankicons（core.js が読む）
+     ============================================================= */
+  const RK_TIERS = [
+    ["IRON", "アイアン"], ["BRONZE", "ブロンズ"], ["SILVER", "シルバー"],
+    ["GOLD", "ゴールド"], ["PLATINUM", "プラチナ"], ["EMERALD", "エメラルド"],
+    ["DIAMOND", "ダイヤ"], ["MASTER", "マスター"], ["GRANDMASTER", "グランドマスター"],
+    ["CHALLENGER", "チャレンジャー"]
+  ];
+  const RK_MAX = 96;            // 画像の最大の辺（px）
+  const RK_BUDGET = 12 * 1024;  // 1枚あたりの目安（バイト）
+  let rkData = null, rkEdit = null, rkDirty = false;
+
+  function markRkDirty(){ rkDirty = true; $("rkSave").classList.add("dirty"); }
+
+  async function initRkIcons(){
+    try { rkData = await C.loadRankIcons(); }
+    catch(e){ rkData = { tiers:{}, updatedAt:0 }; }
+    rkEdit = JSON.parse(JSON.stringify(rkData));
+    rkDirty = false;
+    $("rkSave").classList.remove("dirty");
+    renderRk();
+  }
+
+  /* 画像を小さくする。アイコンは背景が透けていてほしいのでPNGのまま。 */
+  async function rkShrink(file){
+    if (!/^image\//.test(file.type)) throw new Error("画像ファイルを選んでください");
+    if (file.size > 10 * 1024 * 1024) throw new Error("ファイルが大きすぎます（10MBまで）");
+    const src = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => rej(new Error("読み込めませんでした"));
+      fr.readAsDataURL(file);
+    });
+    const im = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("画像として開けませんでした"));
+      i.src = src;
+    });
+    const draw = side => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = side;
+      const g = cv.getContext("2d");
+      // 正方形に収める（はみ出さないように内側へ）
+      const k = Math.min(side / im.naturalWidth, side / im.naturalHeight);
+      const w = im.naturalWidth * k, h = im.naturalHeight * k;
+      g.drawImage(im, (side - w) / 2, (side - h) / 2, w, h);
+      return cv.toDataURL("image/png");
+    };
+    let out = "";
+    for (const side of [RK_MAX, 80, 64, 56, 48, 40]){
+      out = draw(side);
+      if (out.length * 0.75 <= RK_BUDGET) return out;
+    }
+    return out;   // どうしても入らないときはいちばん小さいもの
+  }
+
+  function rkPreviewRank(tier){
+    const noDiv = /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(tier);
+    return { tier: tier, division: noDiv ? "" : "II", lp: 135 };
+  }
+
+  function renderRkPreview(){
+    const box = $("rkPrev");
+    // サイト用: core.js に一時的に編集中の設定を読ませる
+    const keep = C.rankIconSet();
+    const site = RK_TIERS.map(([t, jp]) => {
+      const r = rkPreviewRank(t);
+      const ov = (rkEdit.tiers || {})[t];
+      const icon = (ov && ov.img)
+        ? '<img class="rkico custom" src="' + esc(ov.img) + '" alt="">'
+        : C.rankIcon(r, { noOverride: true });
+      return '<div class="ln" style="color:' + C.rankColor(r) + '">' +
+             icon + esc(C.rankLabel(r)) + "</div>";
+    }).join("");
+    const dc = RK_TIERS.map(([t]) => {
+      const r = rkPreviewRank(t);
+      const em = ((rkEdit.tiers || {})[t] || {}).emoji || "";
+      return '<div class="ln">' + (em ? esc(em) + " " : "") + esc(C.rankLabel(r)) + "</div>";
+    }).join("");
+    box.innerHTML =
+      '<div class="col"><span class="ph">サイトでの見えかた</span>' + site + "</div>" +
+      '<div class="col dc"><span class="ph">Discordでの見えかた</span>' + dc +
+        '<div style="font-size:10.5px;color:#72767d;margin-top:10px;line-height:1.8">' +
+        "※ &lt;:名前:ID&gt; はここでは文字のまま出ますが、Discordでは画像（絵文字）になります。" +
+        "</div></div>";
+  }
+
+  function renderRk(){
+    $("rkState").textContent = (rkData && rkData.updatedAt)
+      ? ("保存済み（最終更新 " + new Date(rkData.updatedAt).toLocaleString("ja-JP") + "）")
+      : "まだ保存していません（既定の紋章が使われています）";
+
+    const box = $("rkRows");
+    box.innerHTML = "";
+    RK_TIERS.forEach(([t, jp]) => {
+      const ov = (rkEdit.tiers || {})[t] || { img: "", emoji: "" };
+      const row = document.createElement("div");
+      row.className = "rkrow";
+
+      const pv = document.createElement("div");
+      pv.className = "pv";
+      pv.innerHTML = ov.img
+        ? '<img class="rkico custom" src="' + esc(ov.img) + '" alt="">'
+        : C.rankIcon(rkPreviewRank(t), { noOverride: true });
+      row.appendChild(pv);
+
+      const tn = document.createElement("div");
+      tn.className = "tn";
+      tn.innerHTML = esc(t) + "<small>" + esc(jp) + (ov.img ? " ・画像あり" : "") + "</small>";
+      row.appendChild(tn);
+
+      const em = document.createElement("input");
+      em.type = "text";
+      em.className = "em";
+      em.placeholder = "<:master:123…> か 👑";
+      em.value = ov.emoji || "";
+      em.oninput = () => {
+        if (!rkEdit.tiers) rkEdit.tiers = {};
+        const cur = rkEdit.tiers[t] || { img: "", emoji: "" };
+        rkEdit.tiers[t] = { img: cur.img || "", emoji: em.value.trim() };
+        markRkDirty(); renderRkPreview();
+      };
+      row.appendChild(em);
+
+      const act = document.createElement("div");
+      act.className = "act";
+      const file = document.createElement("input");
+      file.type = "file"; file.accept = "image/*"; file.className = "file";
+      const pick = document.createElement("button");
+      pick.className = "mini";
+      pick.textContent = ov.img ? "画像を変える" : "画像を選ぶ";
+      pick.onclick = () => file.click();
+      file.onchange = async () => {
+        const f = file.files && file.files[0];
+        file.value = "";
+        if (!f) return;
+        pick.disabled = true; pick.textContent = "縮小中…";
+        try {
+          const img = await rkShrink(f);
+          if (!rkEdit.tiers) rkEdit.tiers = {};
+          const cur = rkEdit.tiers[t] || { img: "", emoji: "" };
+          rkEdit.tiers[t] = { img: img, emoji: cur.emoji || "" };
+          markRkDirty(); renderRk();
+          toast(t + " の画像を入れました（" + Math.round(img.length * 0.75 / 1024) + "KB）");
+        } catch(e){ toast(e.message); }
+        pick.disabled = false;
+      };
+      act.appendChild(file); act.appendChild(pick);
+
+      if (ov.img){
+        const del = document.createElement("button");
+        del.className = "mini danger";
+        del.textContent = "既定にもどす";
+        del.onclick = () => {
+          const cur = rkEdit.tiers[t] || {};
+          rkEdit.tiers[t] = { img: "", emoji: cur.emoji || "" };
+          markRkDirty(); renderRk();
+        };
+        act.appendChild(del);
+      }
+      row.appendChild(act);
+      box.appendChild(row);
+    });
+    renderRkPreview();
+  }
+
+  $("rkApply").onclick = async () => {
+    const btn = $("rkApply");
+    btn.disabled = true;
+    try {
+      rkData = await C.saveRankIcons(rkEdit);
+      rkEdit = JSON.parse(JSON.stringify(rkData));
+      rkDirty = false;
+      $("rkSave").classList.remove("dirty");
+      renderRk();
+      toast("ランクアイコンを保存しました");
+    } catch(e){ toast(e.message); }
+    btn.disabled = false;
+  };
+  $("rkReset").onclick = () => {
+    if (rkDirty && !confirm("編集中の内容を捨てて、保存されている設定に戻しますか？")) return;
+    rkEdit = JSON.parse(JSON.stringify(rkData));
+    rkDirty = false;
+    $("rkSave").classList.remove("dirty");
+    renderRk();
+  };
+  $("rkResetAll").onclick = () => {
+    if (!confirm("すべて既定の紋章に戻しますか？（Discordの絵文字も消えます／保存するまで確定しません）")) return;
+    rkEdit = { tiers: {}, updatedAt: 0 };
+    markRkDirty(); renderRk();
   };
 
   /* =============================================================
@@ -2393,6 +2759,5 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   $("resetBtn").onclick = () => { if (confirm("組卓・結果・設定を初期化しますか？（メンバーは残ります）")){ store.resetBoard(); toast("初期化しました"); } };
 })();
 </script>
-<script src="portal.js?v=6.0"></script>
 </body>
 </html>

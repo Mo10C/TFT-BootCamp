@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.10">
+<link rel="stylesheet" href="ui.css?v=5.2">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -175,16 +175,15 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 .tabledata th{color:var(--muted);font-size:10px;font-weight:700}
 .empty{padding:34px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
 </style>
-<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body class="portal-ui page-lp" id="page-top">
+<body>
 <div class="wrap viz">
 
-  <header class="site-header"><div class="top">
+  <div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-lp.png" alt="LPランキング" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>LPランキング</h1>
+        <h1>LPランキング</h1>
         <div class="sub">クラウドハッシュテイル校 TOOLS</div>
       </div>
     </div>
@@ -193,8 +192,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
-<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">RANKING</p><h2 id="hero-heading">積み重ねた一手を、成長に。</h2><p class="hero-description">ランクの推移と日々の成長を、仲間とともに。</p></div></div></section>
+  </div>
 
   <div class="panel">
     <div class="panel-head">
@@ -253,8 +251,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.11"></script>
-<script src="home-common.js?v=4.10"></script>
+<script src="core.js?v=5.2"></script>
+<script src="home-common.js?v=5.2"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -376,6 +374,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   };
   const round50 = v => Math.max(MIN_VSPAN, Math.ceil(v * 1.3 / 50) * 50);
 
+  // 管理コンソールでランクアイコンを差し替えたら描き直す
+  window.addEventListener("lb-rankicons", () => { try { render(); } catch(e){} });
   function render(){
     const box = $("rows");
     box.innerHTML = "";
@@ -473,7 +473,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       nm.appendChild(b);
     }
     const tier = document.createElement("div"); tier.className = "tier";
-    tier.textContent = C.rankLabel(rankOf(m));
+    tier.innerHTML = C.rankIconLabel(rankOf(m));   // ランクアイコン＋文字
     tier.style.color = C.rankColor(rankOf(m));
     txt.appendChild(nm); txt.appendChild(tier);
     who.appendChild(txt);
@@ -754,7 +754,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       const who = document.createElement("div"); who.className = "who";
       const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = x.m.name;
       const rs = document.createElement("div"); rs.className = "rs";
-      rs.textContent = C.rankLabel(rankOf(x.m));
+      rs.innerHTML = C.rankIconLabel(rankOf(x.m), { cls: "sm" });
       who.appendChild(nm); who.appendChild(rs);
       const g = document.createElement("div");
       g.className = "gain";
@@ -822,11 +822,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     try { fn(); } catch(e){ showErr(where, e); }
   }
 
-  function renderNote(){
-    const note = $("note");
-    if (note) note.textContent = "記録がある日のLPを表示しています。行をクリックすると詳細を確認できます。基準日より前の記録がない場合、過去のLPは表示できません。";
-  }
-
   function boot(data){
     lp = data || { members:{}, hist:{}, baseline:"", groupOrder:[] };
     rows = Object.values(lp.members || {});
@@ -839,7 +834,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     step("並べ替え",       sortRows);
     step("グラフの描画",   render);
     step("急上昇の集計",   renderCheer);
-    step("説明文の表示",   renderNote);
+    step("集計の状態",     renderCollectStatus);
   }
 
   C.loadLpData().then(boot, e => {
@@ -848,6 +843,5 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   });
 })();
 </script>
-<script src="portal.js?v=6.0"></script>
 </body>
 </html>

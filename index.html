@@ -224,10 +224,16 @@ body.viewer .pop{cursor:default}
   clip-path:polygon(4% 3%,96% 3%,96% 60%,50% 97%,4% 60%);
   box-shadow:inset 0 0 0 1.5px rgba(245,230,211,.9)}
 .brandmark.noimg::after{content:"C";color:#F5E6D3;font-weight:900;font-size:17px;transform:translateY(-3px)}
+
+/* ---- ランクアイコン（core.js の rankIcon が出すSVG／画像）----
+   このページは ui.css を読み込んでいないので、ここにも同じものを置く。 */
+.rkico{width:1.25em;height:1.25em;vertical-align:-.26em;margin-right:.3em;flex:none;display:inline-block}
+.rkico.lg{width:1.6em;height:1.6em;vertical-align:-.38em}
+.rkico.sm{width:1.05em;height:1.05em;vertical-align:-.2em;margin-right:.22em}
+.rkico.custom{object-fit:contain}
 </style>
-<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body class="portal-ui page-index" id="page-top">
+<body>
 <div id="lockWrap">
   <div class="ico">🚪</div>
   <h2>この大会は公開範囲が限定されています</h2>
@@ -242,11 +248,11 @@ body.viewer .pop{cursor:default}
 
 <div class="wrap" id="mainWrap">
 
-  <header class="site-header"><div class="top">
+  <div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-boards.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1 id="boardTitle">TFT リーダーボード</h1>
+        <h1 id="boardTitle">TFT リーダーボード</h1>
         <div class="sub">クラウドハッシュテイル校 ｜ <span id="boardIdLabel" class="num">default</span></div>
       </div>
     </div>
@@ -265,8 +271,7 @@ body.viewer .pop{cursor:default}
     <a class="iconbtn" href="editor.html" id="editorLink">⚙️ 管理</a>
     <button class="iconbtn" id="logoutBtn">ログアウト</button>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
-<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">BATTLE ARENA</p><h2 id="hero-heading">一戦ごとに、頂点へ。</h2><p class="hero-description">組卓・試合結果・総合順位を、このボードで。</p></div></div></section>
+  </div>
 
   <div class="settings">
     <label>大会名</label><input type="text" id="titleInput" placeholder="（例）第3回 校内カップ">
@@ -323,7 +328,7 @@ body.viewer .pop{cursor:default}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.11"></script>
+<script src="core.js?v=5.2"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -359,7 +364,7 @@ body.viewer .pop{cursor:default}
   /* ---- 自分のプロフィール表示 ---- */
   $("meAvatar").src = session.discord.avatar || "";
   $("meName").textContent = session.discord.name;
-  $("meRank").textContent = C.rankLabel(session.riot.rank);
+  $("meRank").innerHTML = C.rankIconLabel(session.riot.rank, { cls: "sm" });
   $("meRank").style.color = C.rankColor(session.riot.rank);
   $("logoutBtn").onclick = () => {
     if (!confirm("ログアウトしますか？（ボード上の登録は残ります）")) return;
@@ -492,6 +497,8 @@ body.viewer .pop{cursor:default}
   /* =============================================================
      描画
      ============================================================= */
+  // 管理コンソールでランクアイコンを差し替えたら描き直す
+  window.addEventListener("lb-rankicons", () => { try { render(); } catch(e){} });
   function render(){
     const s = store.state;
     if (curMatch > s.matchCount) curMatch = 0;
@@ -636,7 +643,7 @@ body.viewer .pop{cursor:default}
       }
       const pr = document.createElement("div");
       pr.className = "pr";
-      pr.textContent = C.rankLabel(p.rank);
+      pr.innerHTML = C.rankIconLabel(p.rank, { cls: "sm" });
       pr.style.color = C.rankColor(p.rank);
       const rd = document.createElement("div");
       rd.className = "rdots";
@@ -692,7 +699,8 @@ body.viewer .pop{cursor:default}
           seat.appendChild(sn);
           const sr = document.createElement("div");
           sr.className = "sr";
-          sr.textContent = (p && p.rank && p.rank.tier) ? p.rank.tier : "";
+          sr.innerHTML = (p && p.rank && p.rank.tier)
+            ? (C.rankIcon(p.rank, { cls: "sm" }) + p.rank.tier) : "";
           sr.style.color = C.rankColor(p && p.rank);
           seat.appendChild(sr);
           const rk = tb.placements[pid];
@@ -836,7 +844,7 @@ body.viewer .pop{cursor:default}
       nm.textContent = p ? p.name : "選手";
       const sub = document.createElement("div");
       sub.className = "dc-sub";
-      sub.textContent = C.rankLabel(p && p.rank);
+      sub.innerHTML = C.rankIconLabel(p && p.rank, { cls: "sm" });
       box.appendChild(nm); box.appendChild(sub);
       c.appendChild(box);
       return c;
@@ -940,7 +948,7 @@ body.viewer .pop{cursor:default}
           `<td><div class="cellp">` +
             `<img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'">` +
             `<div><div style="font-weight:900">${escapeHtml(r.name)}</div>` +
-            `<div class="rbadge-sm" style="color:${C.rankColor(p && p.rank)}">${escapeHtml(C.rankLabel(p && p.rank))}</div></div>` +
+            `<div class="rbadge-sm" style="color:${C.rankColor(p && p.rank)}">${C.rankIconLabel(p && p.rank, { cls: "sm" })}</div></div>` +
           `</div></td>` +
           `<td class="gm num">${r.games}</td><td class="pt num">${r.points}</td>`;
         tbl.appendChild(tr);
@@ -1036,6 +1044,5 @@ body.viewer .pop{cursor:default}
   }
 })();
 </script>
-<script src="portal.js?v=6.0"></script>
 </body>
 </html>

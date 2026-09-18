@@ -76,7 +76,11 @@
     if ($("meRank")) {
       const rk = $("meRank");
       const rank = session.riot && session.riot.rank;
-      rk.textContent = C.rankLabel(rank);
+      rk.innerHTML = C.rankIconLabel(rank, { cls: "sm" });
+      // 管理コンソールでアイコンを差し替えたら描き直す
+      window.addEventListener("lb-rankicons", () => {
+        try { rk.innerHTML = C.rankIconLabel(rank, { cls: "sm" }); } catch (e) { }
+      });
       rk.style.color = C.rankColor(rank);
       rk.style.borderColor = C.rankColor(rank);
     }

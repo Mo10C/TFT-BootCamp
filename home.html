@@ -12,19 +12,67 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.10">
+<link rel="stylesheet" href="ui.css?v=5.2">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<link rel="stylesheet" href="portal.css?v=6.0">
+<style>
+/* ---- タイルの中身（「遊び場」など）をHOMEの中で開く ----
+   .pops はグリッドなので、1行ぜんぶを使うとタイルの真下に開く。 */
+.kids{grid-column:1/-1;display:none;border-radius:20px;overflow:hidden;
+  border:1.5px solid color-mix(in srgb,var(--tint,var(--accent)) 42%,var(--border));
+  background:color-mix(in srgb,var(--tint,var(--accent)) 7%,var(--surface));
+  box-shadow:var(--shadow-soft);animation:kidsin .22s cubic-bezier(.2,.9,.3,1)}
+.kids.open{display:block}
+@keyframes kidsin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.kids-head{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:12.5px;
+  color:var(--muted);
+  background:color-mix(in srgb,var(--tint,var(--accent)) 13%,var(--surface));
+  border-bottom:1.5px solid color-mix(in srgb,var(--tint,var(--accent)) 26%,var(--border))}
+.kids-head b{color:color-mix(in srgb,var(--tint,var(--accent)) 80%,var(--ink));font-size:13.5px}
+.kids-close{margin-left:auto;border:1.5px solid var(--border-strong);background:var(--surface);
+  border-radius:999px;padding:3px 12px;font-size:11px;font-weight:900;color:var(--muted)}
+.kids-close:hover{border-color:var(--tint,var(--accent))}
+.kids-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:11px;padding:14px 16px 16px}
+.kid{display:flex;align-items:flex-start;gap:11px;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:15px;padding:12px 14px;
+  transition:transform .12s,border-color .12s,box-shadow .12s}
+.kid-tx{min-width:0;flex:1}
+.kid:hover{transform:translateY(-2px);border-color:var(--tint,var(--accent));box-shadow:var(--shadow-soft)}
+.kid.unset{opacity:.6;cursor:default}
+.kid.unset:hover{transform:none;border-color:var(--border);box-shadow:none}
+.kid-ico{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;font-size:20px;flex:none;
+  background:color-mix(in srgb,var(--tint,var(--accent)) 15%,var(--surface));
+  border:1.5px solid color-mix(in srgb,var(--tint,var(--accent)) 34%,var(--border))}
+.kid-nm{font-size:13.5px;font-weight:900;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kid-d{font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:2px}
+.kid-go{margin-top:5px;font-size:10.5px;font-weight:900;white-space:nowrap;
+  color:color-mix(in srgb,var(--tint,var(--accent)) 78%,var(--ink))}
+.kid.unset .kid-go{color:var(--muted)}
+.kids-empty{grid-column:1/-1;padding:18px 4px;text-align:center;font-size:12px;
+  color:var(--muted);line-height:1.9}
+/* 開いているタイルは押し込まれたように見せる */
+.pop.opened{border-color:var(--tint,var(--accent));
+  box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--tint,var(--accent)) 28%,transparent)}
+.pop[data-kids] .meta::after{content:" ▾"}
+.pop.opened .meta::after{content:" ▴"}
+/* リンク先が未設定のタイル */
+.pop.unset{opacity:.66;cursor:default}
+.pop.unset:hover{transform:none;border-color:var(--border);box-shadow:var(--shadow-pop)}
+@media (prefers-reduced-motion:reduce){
+  .kids{animation:none}
+  .kid:hover{transform:none}
+}
+</style>
 </head>
-<body class="portal-ui page-home" id="page-top">
+<body>
 <div class="wrap">
 
-  <header class="site-header"><div class="top">
+  <div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/emblem.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1 id="homeTitle">クラウドハッシュテイル校 TOOLS</h1>
+        <h1 id="homeTitle">クラウドハッシュテイル校 TOOLS</h1>
         <div class="sub" id="homeSub">Discordログイン式ホーム</div>
       </div>
     </div>
@@ -33,12 +81,10 @@
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="logoutBtn">ログアウト</button>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
-<section class="camp-hero cinematic-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="雲海に浮かぶ対戦アリーナと学びの城" fetchpriority="high" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TEAMFIGHT TACTICS COMMUNITY</p><p class="display-title" aria-hidden="true">PLAY TO<br><span>RISE.</span></p><h2 id="hero-heading">仲間と、まだ見ぬ高みへ。</h2><p class="hero-description">競い合う一戦も、学び合う時間も。<br>ここから始まる、あなたのTFTブートキャンプ。</p><div class="hero-actions"><a class="camp-cta" href="#camp-menu">合宿メニューを見る<span aria-hidden="true">↗</span></a><a class="hero-link" href="#about-camp">この合宿について <span aria-hidden="true">↘</span></a></div></div></div><div class="hero-bottom"><span>STRATEGY <i>/</i> COMMUNITY <i>/</i> GROWTH</span><a href="#camp-menu" class="scroll-cue">SCROLL TO EXPLORE <b aria-hidden="true">↓</b></a></div></section>
+  </div>
 
-  <main class="home-content"><div class="player-caption">YOUR CAMP <span>あなたのプレイヤー情報</span></div>
   <!-- 自分 -->
-  <div class="mecard"><span class="player-label">PLAYER<br>PROFILE</span>
+  <div class="mecard">
     <img id="meAvatar" alt="">
     <div class="who">
       <div class="nm" id="meName">—</div>
@@ -50,8 +96,9 @@
   </div>
 
   <!-- メニュー -->
-  <section class="sec camp-contents" aria-labelledby="contents-title"><div class="contents-heading" id="camp-menu"><div><p class="eyebrow"><span></span> EXPLORE THE CAMP</p><h2 id="contents-title">挑戦は、ここから。</h2></div><p>今日の一戦へ。仲間との出会いへ。<br>次の成長につながる場所を選ぼう。</p></div><div class="pops" id="pops"></div>
-  </section>
+  <div class="sec">
+    <div class="pops" id="pops"></div>
+  </div>
 
   <!-- ツール -->
   <div class="sec" id="toolsSec" style="display:none">
@@ -59,15 +106,12 @@
     <div class="grid" id="tools"></div>
   </div>
 
-<section class="about-camp" id="about-camp" aria-labelledby="about-title"><div class="about-visual"><img src="assets/portal/sky-arena.webp" alt="空に広がるブートキャンプの世界" loading="lazy" width="1536" height="1024"><span>BETTER<br>TOGETHER.</span></div><div class="about-copy"><p class="eyebrow"><span></span> THIS IS OUR BOOTCAMP</p><h2 id="about-title">ひとりの限界を、<br>みんなで超えていく。</h2><p>勝った一戦も、悔しかった一戦も。<br>仲間と振り返れば、次の一手が見えてくる。</p><p>大会で腕を試し、日々のランクを記録し、<br>同じ目標を持つ仲間とつながる。<br>ここは、TFTをもっと楽しむための場所。</p><a class="text-link" href="#camp-menu">次の挑戦を見つける <span aria-hidden="true">↗</span></a></div></section>
-</main>
-<footer class="site-footer"><a class="footer-brand" href="home.html">TFT <span>BOOTCAMP</span></a><p>クラウドハッシュテイル校</p><a class="back-to-top" href="#page-top" aria-label="ページの先頭へ">BACK TO TOP <span aria-hidden="true">↑</span></a></footer>
 </div>
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.11"></script>
-<script src="home-common.js?v=4.10"></script>
+<script src="core.js?v=5.2"></script>
+<script src="home-common.js?v=5.2"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -123,6 +167,83 @@
     return ic;
   }
 
+  /* タイルの中に入るリンクカード（「遊び場」の中身）を、HOMEの中でその場に開く。
+     .pops はグリッドなので、パネルに grid-column:1/-1 を当てると
+     ちょうどそのタイルの下の行いっぱいに広がる。 */
+  function kidsPanel(t){
+    const wrap = document.createElement("div");
+    wrap.className = "kids";
+    wrap.id = "kids-" + t.id;
+    wrap.style.setProperty("--tint", "var(--" + t.tint + ")");
+
+    const head = document.createElement("div");
+    head.className = "kids-head";
+    head.innerHTML = "<b>" + escapeHtml(t.name) + "</b> の中身";
+    const close = document.createElement("button");
+    close.className = "kids-close";
+    close.textContent = "✕ 閉じる";
+    close.onclick = () => toggleKids(t.id, false);
+    head.appendChild(close);
+    wrap.appendChild(head);
+
+    const grid = document.createElement("div");
+    grid.className = "kids-grid";
+    const kids = (t.children || []).filter(k => C.canSeeEntry(k, session));
+    if (!kids.length){
+      grid.innerHTML = '<div class="kids-empty">まだ何も入っていません。' +
+        '管理コンソール →「🏠 HOME編集」から中のリンクを追加できます。</div>';
+    }
+    kids.forEach(k => {
+      const unset = C.noLink(k.url);
+      const a = document.createElement(unset ? "div" : "a");
+      a.className = "kid" + (unset ? " unset" : "");
+      if (!unset){
+        a.href = k.url;
+        if (k.external){ a.target = "_blank"; a.rel = "noopener"; }
+      }
+      const ic = document.createElement("div");
+      ic.className = "kid-ico";
+      ic.textContent = k.icon || "🔗";
+      const tx = document.createElement("div");
+      tx.className = "kid-tx";
+      const nm = document.createElement("div");
+      nm.className = "kid-nm";
+      nm.textContent = k.name;
+      tx.appendChild(nm);
+      if (k.desc){
+        const d = document.createElement("div");
+        d.className = "kid-d";
+        d.textContent = k.desc;
+        tx.appendChild(d);
+      }
+      const go = document.createElement("div");
+      go.className = "kid-go";
+      go.textContent = unset ? "リンク先が未設定" : (k.external ? "開く ↗" : "開く →");
+      tx.appendChild(go);
+      a.appendChild(ic); a.appendChild(tx);
+      grid.appendChild(a);
+    });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+  function toggleKids(id, on){
+    const el = document.getElementById("kids-" + id);
+    const tile = document.querySelector('.pop[data-kids="' + id + '"]');
+    if (!el) return;
+    const open = (on == null) ? !el.classList.contains("open") : on;
+    // ひとつ開いたら、ほかは閉じる
+    document.querySelectorAll(".kids.open").forEach(x => x.classList.remove("open"));
+    document.querySelectorAll(".pop.opened").forEach(x => x.classList.remove("opened"));
+    if (open){
+      el.classList.add("open");
+      if (tile) tile.classList.add("opened");
+    }
+  }
+  function escapeHtml(x){
+    return String(x == null ? "" : x).replace(/[&<>"']/g, c =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  }
+
   function renderTiles(home){
     $("homeTitle").textContent = home.title;
     $("homeSub").textContent = home.subtitle;
@@ -134,13 +255,16 @@
       if (!t.enabled) return;
       if (!C.canSeeEntry(t, session)) return;
 
-      const a = document.createElement("a");
-      a.className = "pop" + (t.soon ? " soon" : "");
-      a.href = t.url || "#";
-      const label = document.createElement("span");
-      label.className = "menu-category";
-      label.textContent = ({boards:"TOURNAMENT", schedule:"SCHEDULE", members:"COMMUNITY", lp:"RANKING"})[t.id] || "EXPLORE";
-      a.appendChild(label);
+      const hasKids = (t.children || []).length > 0;
+      // リンク先が未設定のタイルは、押しても飛ばさず「未設定」と出す
+      const unset = !hasKids && C.noLink(t.url);
+      const a = document.createElement(unset ? "div" : "a");
+      a.className = "pop" + (t.soon ? " soon" : "") + (unset ? " unset" : "");
+      if (!unset && !hasKids){
+        a.href = t.url;
+        if (t.external){ a.target = "_blank"; a.rel = "noopener"; }
+      }
+      if (hasKids) a.dataset.kids = t.id;
       a.style.setProperty("--tint", "var(--" + t.tint + ")");
 
       if (t.soon){
@@ -158,9 +282,18 @@
       de.textContent = t.desc;
       const me = document.createElement("div");
       me.className = "meta";
-      me.textContent = t.soon ? "近日公開" : "開く →";
+      me.textContent = t.soon ? "近日公開"
+        : hasKids ? ("中を見る（" + t.children.length + "つ）")
+        : unset ? "リンク先が未設定です"
+        : (t.external ? "開く ↗" : "開く →");
       a.appendChild(ic); a.appendChild(nm); a.appendChild(de); a.appendChild(me);
       box.appendChild(a);
+
+      if (hasKids){
+        a.style.cursor = "pointer";
+        a.onclick = e => { e.preventDefault(); toggleKids(t.id); };
+        box.appendChild(kidsPanel(t));
+      }
 
       // 大会タイルだけ件数を出す
       if (t.url && t.url.indexOf("boards.html") === 0 && !t.soon){
@@ -244,6 +377,5 @@
   }).catch(e => console.warn("HOME設定", e));
 })();
 </script>
-<script src="portal.js?v=6.0"></script>
 </body>
 </html>

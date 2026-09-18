@@ -983,9 +983,26 @@
         { id: "boards",   icon: "🏆", img: "assets/tile-boards.png",   name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "leaf", enabled: true, soon: false, roleIds: [] },
         { id: "schedule", icon: "🗓", img: "assets/tile-schedule.png", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "leaf", enabled: true, soon: false, roleIds: [] },
         { id: "members",  icon: "👥", img: "assets/tile-members.png",  name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf", enabled: true, soon: true,  roleIds: [] },
-        { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] }
-      ],
-      tools: (((CFG.home || {}).tools) || []).slice(),
+        { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] },
+
+        /* ★ ここから下は外部ツールへの導線。
+           リンク先は【管理コンソール →「🏠 HOME編集」】で入れてください。
+           URLが空のあいだは「リンク先が未設定です」と出て、押しても飛びません。 */
+        { id: "sim1st",  icon: "🥇", img: "none", name: "1st simulator", desc: "1位を取る練習をするシミュレーター。",
+          url: "", external: true, tint: "sky",   enabled: true, soon: false, roleIds: [] },
+        { id: "coating", icon: "📘", img: "none", name: "Coating Note",  desc: "コーティングのメモ。",
+          url: "", external: true, tint: "mint",  enabled: true, soon: false, roleIds: [] },
+        { id: "augnote", icon: "📖", img: "none", name: "オーグメントノート", desc: "オーグメントの評価とメモ。",
+          url: "", external: true, tint: "gold",  enabled: true, soon: false, roleIds: [] },
+        { id: "playground", icon: "🎮", img: "none", name: "遊び場", desc: "みんなで遊べるものを置いてあります。",
+          url: "", external: false, tint: "coral", enabled: true, soon: false, roleIds: [],
+          children: [
+            { id: "codename", icon: "🕵️", name: "Codename generator", desc: "コードネームを作るツール。", url: "", external: true, roleIds: [] },
+            { id: "ito",      icon: "🎲", name: "ITO",                 desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true, roleIds: [] }
+          ] }
+      ].map(normTile),
+      tools: ((((CFG.home || {}).tools) || []).slice()).map(normTool),
+      channels: { promote: "notice", schedule: "notice", snapshot: "notice", final: "notice" },
       updatedAt: 0
     };
   }
@@ -999,6 +1016,26 @@
     lp: "assets/tile-lp.png"
   };
 
+  /* タイルの中に入るリンクカード（「遊び場」の中の Codename generator / ITO など）。
+     children が1つ以上あるタイルは、押すとHOMEの中でその場に開く。 */
+  function normChild(c, i) {
+    c = c || {};
+    return {
+      id: String(c.id || ("kid" + i)),
+      icon: String(c.icon || "🔗").slice(0, 4),
+      name: String(c.name || "無題").slice(0, 40),
+      desc: String(c.desc || "").slice(0, 120),
+      url: String(c.url || "").slice(0, 300),
+      external: c.external !== false,     // 中のリンクは外部サイトが基本
+      roleIds: Array.isArray(c.roleIds) ? c.roleIds.map(String).filter(Boolean) : []
+    };
+  }
+  // リンク先がまだ入っていないか（"#" や空は「未設定」とみなす）
+  function noLink(u) {
+    const v = String(u || "").trim();
+    return !v || v === "#";
+  }
+
   function normTile(t, i) {
     t = t || {};
     return {
@@ -1010,6 +1047,8 @@
       name: String(t.name || "無題").slice(0, 40),
       desc: String(t.desc || "").slice(0, 120),
       url: String(t.url || "#").slice(0, 300),
+      external: !!t.external,
+      children: Array.isArray(t.children) ? t.children.map(normChild) : [],
       tint: TINTS.includes(t.tint) ? t.tint : (TINT_LEGACY[t.tint] || "gold"),
       enabled: t.enabled !== false,
       soon: !!t.soon,
@@ -1282,15 +1321,10 @@
   /* 1人ぶんのLPを今日の日付で記録する（1日1点・同日は上書き）
      ★ opts.history === false のときは「名前・アイコン・Riot ID・ロール」だけを更新し、
         ランク(tier/lp/abs)と履歴(hist)には一切触らない。
-        ログイン時にこれを呼ぶことで、集計対象の名簿だけを最新に保てる。
-     ★ opts.lockedToday === true のときは、ランク・履歴もいっさい書かない
-        （名簿の情報だけ更新する）。23:45の自動集計がその日ぶんをもう記録し終えている
-        ときに、ブラウザからの「今すぐ記録」で数字を動かしてしまわないようにするため。
-        呼び出し側は lpLockedToday(lpData) で判定してから渡すこと。 */
+        ログイン時にこれを呼ぶことで、集計対象の名簿だけを最新に保てる。 */
   async function recordLp(player, opts) {
     opts = opts || {};
     const withHistory = opts.history !== false;
-    const locked = withHistory && opts.lockedToday === true;
     if (!player || !player.id) return null;
     if (player.staff && !player.optIn) return null;   // 運営ロールはLPランキングに出さない
     const rank = player.rank || null;
@@ -1305,9 +1339,8 @@
       roles: rolesOf(player),
       updatedAt: Date.now()
     };
-    // ランクと履歴は「集計」のときだけ書く（＝23:45の自動集計と、管理画面の手動集計）。
-    // ただし今日ぶんが自動集計で固定済み（locked）のときは、ここも書かずに素通りする。
-    if (withHistory && !locked) {
+    // ランクと履歴は「集計」のときだけ書く（＝23:45の自動集計と、管理画面の手動集計）
+    if (withHistory) {
       entry.tier = (rank && rank.tier) || "";
       entry.division = (rank && rank.division) || "";
       entry.lp = (rank && rank.lp) | 0;
@@ -1315,7 +1348,7 @@
       entry.rankAt = Date.now();
     }
     const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
-    if (withHistory && !locked && abs != null) patch.hist = { [player.id]: { [today]: abs } };
+    if (withHistory && abs != null) patch.hist = { [player.id]: { [today]: abs } };
 
     const db = openDb();
     try {
@@ -1323,7 +1356,7 @@
       else {
         const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
         cur.members[player.id] = Object.assign({}, cur.members[player.id] || {}, entry);
-        if (withHistory && !locked && abs != null) {
+        if (withHistory && abs != null) {
           cur.hist[player.id] = cur.hist[player.id] || {};
           cur.hist[player.id][today] = abs;
         }
@@ -1331,15 +1364,7 @@
         localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
       }
     } catch (e) { console.warn("LPの記録に失敗", e); return null; }
-    return Object.assign({}, entry, { locked });
-  }
-
-  /* 「今日ぶんはもう23:45の自動集計（または /collect の手動実行）で確定済みか」を判定する。
-     true の間は、ブラウザからの手動記録でランク・履歴を上書きさせないためのガードに使う。
-     lastCollect は worker.js 側の collectLp() が自動・手動どちらの実行でも同じ項目に書くため、
-     「サーバー側で本物のRiot APIを叩いて集計した日」の印としてそのまま使える。 */
-  function lpLockedToday(lpData) {
-    return !!(lpData && lpData.lastCollect === dayKey());
+    return entry;
   }
 
   /* 指定した日の記録を全員ぶん消す。
@@ -2092,9 +2117,6 @@
       /* ===== しめ ===== */
       message: "",           // 【みんなに一言】必須
 
-      /* ===== 任意 ===== */
-      tagline: "",           // ひとこと（一覧カードに大きく出る）
-
       hidden: false,
       published: false,                // 一度でも保存したか
       updatedAt: 0
@@ -2146,7 +2168,6 @@
     d.message = strOf(raw.message, 1200) || strOf(raw.intro, 1200);
 
     // 任意
-    d.tagline = strOf(raw.tagline, 60);
     d.hidden = !!raw.hidden;
     d.published = !!raw.published;
     d.updatedAt = raw.updatedAt || 0;
@@ -2177,6 +2198,7 @@
     { cat: "base",  key: "nickname", label: "呼び方・ニックネーム" },
     { cat: "about", key: "hobbies",  label: "趣味",                   list: true },
     { cat: "about", key: "games",    label: "みんなで遊びたいゲーム", list: true },
+    { cat: "about", key: "x",        label: "X",            url: true, none: "noX" },
     { cat: "tft",   key: "tactics",  label: "Tactics Tool", url: true, none: "noTactics" },
     { cat: "tft",   key: "goal",     label: "合宿での目標" },
     { cat: "tft",   key: "spirit",   label: "意気込み" },
@@ -2220,13 +2242,11 @@
       id: p.id,
       kana: p.kana,
       nickname: p.nickname,
-      tagline: p.tagline,
-      goal: p.goal,
       theme: { color: p.theme.color, pattern: p.theme.pattern },
       thumb: p.thumb || "",
-      hobbies: p.hobbies.slice(0, 3),
+      hobbies: p.hobbies.slice(0, 2),
       games: p.games.slice(0, 2),
-      nTag: Math.max(0, p.hobbies.length - 3),
+      nTag: p.hobbies.length + p.games.length,
       nGallery: p.aboutGallery.length + p.tftGallery.length,
       score: profileScore(p),
       hidden: !!p.hidden,
@@ -2239,13 +2259,11 @@
     if (!raw) return c;
     c.kana = strOf(raw.kana, 40);
     c.nickname = strOf(raw.nickname, 30);
-    c.tagline = strOf(raw.tagline, 60);
-    c.goal = strOf(raw.goal, 120);
     const th = raw.theme || {};
     c.theme.color = PROFILE_THEMES.some(t => t.id === th.color) ? th.color : "gold";
     c.theme.pattern = PROFILE_PATTERNS.some(p => p.id === th.pattern) ? th.pattern : "wave";
     c.thumb = strOf(raw.thumb, 90000);
-    c.hobbies = listOf(raw.hobbies, 3, 30);
+    c.hobbies = listOf(raw.hobbies, 2, 30);
     c.games = listOf(raw.games, 2, 30);
     c.nTag = raw.nTag | 0;
     c.nGallery = raw.nGallery | 0;
@@ -2413,7 +2431,7 @@
     // 必須がぜんぶ埋まって 80%、任意（ひとこと・ヘッダー・自由欄・ギャラリー）で 100%
     const need = PROFILE_REQUIRED.length;
     const done = need - missingRequired(p).length;
-    const extra = [!!p.tagline, !!p.header,
+    const extra = [!!p.header,
       p.aboutFree.length > 0 || p.tftFree.length > 0,
       p.aboutGallery.length > 0 || p.tftGallery.length > 0];
     return Math.round(done / need * 80 + extra.filter(Boolean).length / extra.length * 20);
@@ -2441,12 +2459,13 @@
   const MSG_META = {
     promote: {
       name: "ランクアップのお祝い",
-      where: "談話室",
+      where: "連絡事項",
       when: "毎日23:45の集計でティアが上がった人がいたとき",
       vars: {
         head: [["count", "人数"]],
-        line: [["emoji", "ティアの絵文字"], ["name", "名前"], ["from", "前のティア"],
-               ["to", "新しいティア"], ["division", "ディビジョン"], ["lp", "LP"]],
+        line: [["emoji", "新ティアの絵文字"], ["name", "名前"], ["from", "前のティア"],
+               ["to", "新しいティア"], ["rankLabel", "🛡 MASTER 135LP"],
+               ["division", "ディビジョン"], ["lp", "LP"]],
         foot: [["count", "人数"]]
       }
     },
@@ -2463,22 +2482,24 @@
     },
     snapshot: {
       name: "先生スナップショットの結果",
-      where: "談話室",
+      where: "連絡事項",
       when: "実施日の23:45",
       vars: {
         head: [["label", "呼び名"], ["maru", "①②…"], ["round", "回数"],
-               ["md", "10/31"], ["date", "2026-10-31"]],
+               ["md", "10/31"], ["date", "2026-10-31"],
+               ["time", "実行した時刻 23:45"]],
         line: [["medal", "🥇🥈🥉"], ["rank", "順位"], ["name", "名前"],
-               ["rankLabel", "MASTER 120LP"], ["point", "ポイント"]],
+               ["rankLabel", "🛡 MASTER 120LP（アイコンつき）"], ["point", "ポイント"]],
         foot: [["label", "呼び名"], ["maru", "①②…"]]
       }
     },
     final: {
       name: "代表先生の表彰",
-      where: "談話室",
+      where: "連絡事項",
       when: "最終回の23:45（結果のすぐあと）",
       vars: {
-        head: [["title", "表彰の名前"], ["label", "呼び名"], ["rounds", "全体の回数"], ["n", "選ばれる人数"]],
+        head: [["title", "表彰の名前"], ["label", "呼び名"], ["rounds", "全体の回数"], ["n", "選ばれる人数"],
+               ["md", "10/31"], ["time", "実行した時刻 23:45"]],
         line: [["medal", "🥇🥈🥉"], ["rank", "順位"], ["name", "名前"],
                ["total", "合計ポイント"], ["detail", "（①4pt + ②3pt）"]],
         foot: [["title", "表彰の名前"], ["n", "人数"]]
@@ -2499,7 +2520,7 @@
         foot: "みなさん参加おまちしています！"
       },
       snapshot: {
-        head: "📸 **{label}{maru}**　{md} 23:45 時点",
+        head: "📸 **{label}{maru}**　{md} {time} 時点",
         line: "{medal} **{rank}位　{name}**　{rankLabel}　**+{point}pt**",
         foot: "おつかれさまでした！"
       },
@@ -2515,7 +2536,8 @@
   function normMessages(raw) {
     raw = raw || {};
     const d = defaultMessages();
-    const out = { updatedAt: raw.updatedAt || 0 };
+    const out = { updatedAt: raw.updatedAt || 0, channels: {} };
+    const rc = raw.channels || {};
     MSG_KEYS.forEach(k => {
       const a = raw[k] || {};
       out[k] = {
@@ -2523,9 +2545,17 @@
         line: (typeof a.line === "string" && a.line.trim()) ? a.line : d[k].line,
         foot: typeof a.foot === "string" ? a.foot : d[k].foot
       };
+      // ★ 投稿先。既定は "notice"（連絡事項）。"chat" にすると談話室へ。
+      out.channels[k] = (rc[k] === "chat") ? "chat" : "notice";
     });
     return out;
   }
+  /* 投稿先の日本語名（管理画面の表示用） */
+  const MSG_CHANNELS = [
+    { id: "notice", name: "連絡事項", note: "DISCORD_SCHEDULE_CHANNEL_ID" },
+    { id: "chat",   name: "談話室",   note: "DISCORD_ANNOUNCE_CHANNEL_ID" }
+  ];
+  function channelName(id) { const c = MSG_CHANNELS.find(x => x.id === id); return c ? c.name : "連絡事項"; }
 
   async function loadMessages() {
     try {
@@ -2579,8 +2609,10 @@
     if (key === "promote") return {
       head: { count: 2 },
       rows: [
-        { emoji: "💠", name: "もと先生", from: "EMERALD", to: "DIAMOND", division: "IV", lp: 12 },
-        { emoji: "👑", name: "すいちゃん", from: "DIAMOND", to: "MASTER", division: "", lp: 5 }
+        { emoji: "💠", name: "もと先生", from: "EMERALD", to: "DIAMOND", division: "IV", lp: 12,
+          rankLabel: "DIAMOND IV 12LP" },
+        { emoji: "👑", name: "すいちゃん", from: "DIAMOND", to: "MASTER", division: "", lp: 5,
+          rankLabel: "MASTER 5LP" }
       ]
     };
     if (key === "schedule") return {
@@ -2591,7 +2623,7 @@
       ]
     };
     if (key === "snapshot") return {
-      head: { label: "先生スナップショット", maru: "①", round: 1, md: "10/31", date: "2026-10-31" },
+      head: { label: "先生スナップショット", maru: "①", round: 1, md: "10/31", date: "2026-10-31", time: "23:45" },
       rows: [
         { medal: "🥇", rank: 1, name: "あ先生", rankLabel: "MASTER 120LP", point: 4 },
         { medal: "🥈", rank: 2, name: "い先生", rankLabel: "DIAMOND I 40LP", point: 3 },
@@ -2600,7 +2632,7 @@
       ]
     };
     return {
-      head: { title: "代表先生", label: "先生スナップショット", rounds: 2, n: 4 },
+      head: { title: "代表先生", label: "先生スナップショット", rounds: 2, n: 4, md: "10/31", time: "23:45" },
       rows: [
         { medal: "🥇", rank: 1, name: "い先生", total: 7, detail: "（①3pt + ②4pt）" },
         { medal: "🥈", rank: 2, name: "あ先生", total: 7, detail: "（①4pt + ②3pt）" },
@@ -2890,9 +2922,207 @@
   }
   function rankColor(rank) { return (rank && TIER_COLORS[rank.tier]) || "var(--muted)"; }
 
+  /* =============================================================
+     ランクアイコン（IRON 〜 CHALLENGER）
+
+     ★ Riot の公式エンブレムは使っていません。自前で描いた紋章です。
+       盾のかたち＋中の記号でティアを表します。
+
+         IRON        …　横棒
+         BRONZE      …　山 ×1
+         SILVER      …　山 ×2
+         GOLD        …　山 ×3
+         PLATINUM    …　ひし形
+         EMERALD     …　六角形
+         DIAMOND     …　二重のひし形
+         MASTER      …　王冠（3つ山）＋翼
+         GRANDMASTER …　王冠＋台座＋翼
+         CHALLENGER  …　王冠（5つ山）＋台座＋翼
+
+     ・<defs> も グラデーションも使っていないので、
+       同じページに何個置いてもIDがぶつかりません。
+     ・色は自分で持っているのでライト／ダークどちらでもそのまま出せます。
+     ・使い方:  el.innerHTML = C.rankIcon(player.rank) + C.rankLabel(player.rank);
+       大きさは CSS の .rkico（ui.css）で文字に合わせています。
+     ============================================================= */
+  const SHIELD = "M12 2.4 L20.6 6.3 V12.9 C20.6 17.3 16.9 20.5 12 21.8 " +
+                 "C7.1 20.5 3.4 17.3 3.4 12.9 V6.3 Z";
+  const WING_L = "M3.1 8.6 L0.7 10.5 L3.1 12.4 Z";
+  const WING_R = "M20.9 8.6 L23.3 10.5 L20.9 12.4 Z";
+  const CROWN3 = "M7.5 16.6 L6.4 9.6 L9.5 11.9 L12 8.1 L14.5 11.9 L17.6 9.6 L16.5 16.6 Z";
+  const CROWN5 = "M7.3 16.6 L6.2 9.4 L8.7 11.6 L10.3 8.6 L12 11.2 L13.7 8.6 " +
+                 "L15.3 11.6 L17.8 9.4 L16.7 16.6 Z";
+  const BASE   = "M7.6 18.1 H16.4";
+
+  function chev(y) { return "M8.5 " + y + " L12 " + (y - 2.3) + " L15.5 " + y; }
+
+  // ティアごとの中身。glyph = 白で描く部分
+  const TIER_ART = {
+    IRON:        { wings: false, strokes: ["M8.8 14 H15.2"], fills: [] },
+    BRONZE:      { wings: false, strokes: [chev(15.2)], fills: [] },
+    SILVER:      { wings: false, strokes: [chev(13.8), chev(16.6)], fills: [] },
+    GOLD:        { wings: false, strokes: [chev(12.4), chev(15.2), chev(18)], fills: [] },
+    PLATINUM:    { wings: false, strokes: [], fills: ["M12 9 L15.6 13 L12 17 L8.4 13 Z"] },
+    EMERALD:     { wings: false, strokes: [],
+                   fills: ["M12 8.8 L15.7 11 V15.4 L12 17.6 L8.3 15.4 V11 Z"] },
+    DIAMOND:     { wings: false, strokes: ["M12 8.5 L16.1 13 L12 17.5 L7.9 13 Z"],
+                   fills: ["M12 11.2 L14 13 L12 14.8 L10 13 Z"] },
+    MASTER:      { wings: true,  strokes: [], fills: [CROWN3] },
+    GRANDMASTER: { wings: true,  strokes: [BASE], fills: [CROWN3] },
+    CHALLENGER:  { wings: true,  strokes: [BASE], fills: [CROWN5] },
+    RATED:       { wings: true,  strokes: [], fills: ["M12 8.4 L13.9 12.3 L18.2 12.9 " +
+                                                      "L15.1 15.9 L15.8 20.1 L12 18.1 " +
+                                                      "L8.2 20.1 L8.9 15.9 L5.8 12.9 " +
+                                                      "L10.1 12.3 Z"] }
+  };
+
+  function tierOf(rank) {
+    const t = (rank && rank.tier) ? String(rank.tier).toUpperCase() : "";
+    return TIER_ART[t] ? t : "";
+  }
+
+  /* =============================================================
+     ★ ランクアイコンの差し替え
+
+     Firestore の lboard_index/rankicons に、ティアごとの設定を持ちます。
+
+       { tiers: {
+           MASTER: { img: "data:image/png;base64,…",   // サイト用の画像（任意）
+                     emoji: "<:master:123456789>" }    // Discord用の絵文字（任意）
+         }, updatedAt }
+
+     ・img を入れると、サイトのアイコンがその画像に置きかわります。
+       空にすると自作の紋章（下のSVG）に戻ります。
+     ・emoji は Discord の投稿でティア名の前に入ります。
+       Discordは画像をテキストに埋め込めないため、絵文字コードを使います。
+         ふつうの絵文字      👑
+         サーバー絵文字      <:master:123456789012345678>
+     ・画面はすぐ描きたいので localStorage にも控えを持ち、
+       読み込みが終わったら差し替えます（loadRankIcons）。
+     ============================================================= */
+  const RKICON_LS = "mcc-lb2-rankicons";
+  let RKICONS = { tiers: {}, updatedAt: 0 };
+  try {
+    const raw = localStorage.getItem(RKICON_LS);
+    if (raw) RKICONS = normRankIcons(JSON.parse(raw));
+  } catch (e) { }
+
+  function normRankIcons(raw) {
+    raw = raw || {};
+    const src = raw.tiers || {};
+    const out = { tiers: {}, updatedAt: raw.updatedAt || 0 };
+    Object.keys(TIER_ART).forEach(t => {
+      const a = src[t] || {};
+      const img = typeof a.img === "string" ? a.img.trim() : "";
+      const emoji = typeof a.emoji === "string" ? a.emoji.trim().slice(0, 60) : "";
+      // javascript: などを弾く。使えるのは画像のデータURLと http(s) だけ。
+      const okImg = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(img) ||
+                    /^https?:\/\//i.test(img);
+      if (okImg || emoji) out.tiers[t] = { img: okImg ? img : "", emoji: emoji };
+    });
+    return out;
+  }
+  function rankIconSet() { return JSON.parse(JSON.stringify(RKICONS)); }
+  function rankIconOf(tier) { return (RKICONS.tiers || {})[tier] || { img: "", emoji: "" }; }
+  function tierEmoji(tier) { return rankIconOf(tier).emoji || ""; }
+
+  async function loadRankIcons() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc("rankicons").get();
+        if (snap.exists) {
+          RKICONS = normRankIcons(snap.data());
+          try { localStorage.setItem(RKICON_LS, JSON.stringify(RKICONS)); } catch (e) { }
+        }
+      }
+    } catch (e) { console.warn("ランクアイコンの読み込みに失敗", e); }
+    return rankIconSet();
+  }
+  /* ページを開いたら一度だけ最新を取りに行く。
+     変わっていたら "lb-rankicons" を飛ばすので、各ページはそれで描き直す。 */
+  function autoLoadRankIcons() {
+    const before = JSON.stringify(RKICONS.tiers || {});
+    loadRankIcons().then(() => {
+      if (JSON.stringify(RKICONS.tiers || {}) === before) return;
+      try { window.dispatchEvent(new CustomEvent("lb-rankicons", { detail: rankIconSet() })); }
+      catch (e) { }
+    }).catch(() => { });
+  }
+  if (typeof window !== "undefined") setTimeout(autoLoadRankIcons, 0);
+
+  async function saveRankIcons(set) {
+    if (!isAdmin()) throw new Error("ランクアイコンの編集は管理者のみです");
+    const m = normRankIcons(set);
+    m.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc("rankicons").set(m);
+    } catch (e) {
+      throw new Error("ランクアイコンを保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    RKICONS = m;
+    try { localStorage.setItem(RKICON_LS, JSON.stringify(m)); } catch (e) { }
+    return m;
+  }
+
+  /* ランクアイコンのSVG文字列を返す。
+     rankIcon(rank)              → <svg class="rkico">…</svg>
+     rankIcon(rank, { cls:"…" }) → class を足したいとき
+     ランクが無い人は薄いグレーの空の盾になります（レイアウトが崩れないように）。 */
+  function rankIcon(rank, opts) {
+    opts = opts || {};
+    const tier = tierOf(rank);
+    const cls0 = "rkico" + (opts.cls ? " " + opts.cls : "");
+    // ★ 管理コンソールで画像を登録していたら、そちらを使う
+    const ov = tier ? rankIconOf(tier) : null;
+    if (ov && ov.img && !opts.noOverride) {
+      const t0 = rankLabel(rank);
+      return '<img class="' + cls0 + ' custom" src="' + esc0(ov.img) + '"' +
+             (opts.aria ? ' alt="' + esc0(t0) + '"' : ' alt="" aria-hidden="true"') +
+             ' loading="lazy">';
+    }
+    const col = tier ? TIER_COLORS[tier] : "#9aa7b2";
+    const art = tier ? TIER_ART[tier] : { wings: false, strokes: [], fills: [] };
+    const cls = "rkico" + (opts.cls ? " " + opts.cls : "");
+    const title = tier ? rankLabel(rank) : "ランクなし";
+    const ink = "#fff";
+    let p = "";
+    if (art.wings) {
+      p += '<path d="' + WING_L + '" fill="' + col + '" opacity=".75"/>';
+      p += '<path d="' + WING_R + '" fill="' + col + '" opacity=".75"/>';
+    }
+    // 盾（本体）＋ 上半分の明るいハイライト
+    p += '<path d="' + SHIELD + '" fill="' + col + (tier ? '"' : '" opacity=".45"') + '/>';
+    p += '<path d="M12 2.4 L20.6 6.3 V11 H3.4 V6.3 Z" fill="#fff" opacity=".18"/>';
+    art.fills.forEach(d => { p += '<path d="' + d + '" fill="' + ink + '" opacity=".95"/>'; });
+    art.strokes.forEach(d => {
+      p += '<path d="' + d + '" fill="none" stroke="' + ink + '" stroke-width="1.9" ' +
+           'stroke-linecap="round" stroke-linejoin="round" opacity=".95"/>';
+    });
+    /* すぐ横にランク名の文字が出るので、読み上げは文字のほうに任せて
+       アイコンは aria-hidden にする（同じことを2回読まれないように）。
+       単独で置きたいときは { aria: true } を渡す。 */
+    const a11y = opts.aria
+      ? ' role="img" aria-label="' + esc0(title) + '"'
+      : ' aria-hidden="true" focusable="false"';
+    return '<svg class="' + cls + '" viewBox="0 0 24 24"' + a11y + '>' + p + '</svg>';
+  }
+  // 属性に入れる用の最小限のエスケープ
+  function esc0(t) {
+    return String(t == null ? "" : t)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  /* アイコン＋ラベルをまとめて返す。中身は innerHTML で入れてください。 */
+  function rankIconLabel(rank, opts) {
+    return rankIcon(rank, opts) + esc0(rankLabel(rank));
+  }
+  /* 一覧表示用（管理画面のプレビューなど） */
+  function rankTiers() { return Object.keys(TIER_ART); }
+
   /* ---- 公開 ---- */
   window.LBCore = {
-    VERSION: "4.9",           // 各ページはこれを見て core.js が古くないか判定する
+    VERSION: "5.2",           // 各ページはこれを見て core.js が古くないか判定する
     SEATS_PER_TABLE,
     pointsFor, makeStore,
     playerById, nameOf, avatarOf,
@@ -2902,9 +3132,10 @@
     normVisibility, canViewBoard, visibilityLabel,
     listAllBoards, createBoard, deleteBoard, slugify,
     defaultHomeConfig, normHomeConfig, loadHomeConfig, saveHomeConfig, canSeeEntry, TINTS,
+    normChild, noLink,
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
-    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, lpLockedToday, deleteLpDay, setLpBaseline, lpSeries, lpStats,
+    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, updateGlobalMember, removeGlobalMember,
@@ -2920,10 +3151,11 @@
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
-    fillTemplate, buildMessage, sampleMessageVars,
+    fillTemplate, buildMessage, sampleMessageVars, MSG_CHANNELS, channelName,
     isPresent, presentList,
     tableStandings, overallStandings,
     Riot, DiscordAuth, RiotConfig, Session,
-    rankLabel, rankColor
+    rankLabel, rankColor, rankIcon, rankIconLabel, rankTiers,
+    loadRankIcons, saveRankIcons, rankIconSet, rankIconOf, tierEmoji, normRankIcons
   };
 })();

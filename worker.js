@@ -144,7 +144,7 @@ const DEFAULT_MSG = {
     foot: "みなさん参加おまちしています！"
   },
   snapshot: {
-    head: "📸 **{label}{maru}**　{md} 23:45 時点",
+    head: "📸 **{label}{maru}**　{md} {time} 時点",
     line: "{medal} **{rank}位　{name}**　{rankLabel}　**+{point}pt**",
     foot: "おつかれさまでした！"
   },
@@ -175,11 +175,32 @@ async function getMsg(env, key) {
   try { saved = await fsGet(env, "lboard_index/messages"); } catch (e) { }
   const d = DEFAULT_MSG[key];
   const a = (saved && saved[key]) || {};
+  // ★ 投稿先も管理コンソールから変えられる。既定は "notice"（連絡事項）。
+  const chans = (saved && saved.channels) || {};
+  const ch = (chans[key] === "chat") ? "chat" : "notice";
   return {
     head: typeof a.head === "string" ? a.head : d.head,
     line: (typeof a.line === "string" && a.line.trim()) ? a.line : d.line,
-    foot: typeof a.foot === "string" ? a.foot : d.foot
+    foot: typeof a.foot === "string" ? a.foot : d.foot,
+    channel: ch
   };
+}
+
+/* ---- 投稿先チャンネルを決める ----
+   "notice"（連絡事項）= DISCORD_SCHEDULE_CHANNEL_ID
+   "chat"  （談話室）  = DISCORD_ANNOUNCE_CHANNEL_ID
+   片方しか設定されていなければ、そちらへ流す。
+   ★ 既定はすべて「連絡事項」。自動投稿が談話室に散らからないようにするため。 */
+function channelFor(env, which) {
+  const notice = env.DISCORD_SCHEDULE_CHANNEL_ID || "";
+  const chat   = env.DISCORD_ANNOUNCE_CHANNEL_ID || "";
+  return (which === "chat") ? (chat || notice) : (notice || chat);
+}
+function channelName(env, which) {
+  const notice = env.DISCORD_SCHEDULE_CHANNEL_ID || "";
+  const chat   = env.DISCORD_ANNOUNCE_CHANNEL_ID || "";
+  if (which === "chat") return chat ? "談話室" : (notice ? "連絡事項（談話室が未設定のため）" : "未設定");
+  return notice ? "連絡事項" : (chat ? "談話室（連絡事項が未設定のため）" : "未設定");
 }
 
 /* =============================================================
@@ -188,7 +209,7 @@ async function getMsg(env, key) {
    1) Firestore の lboard_index/lp から members を読む
    2) 各メンバーの puuid で Riot から最新ランクを取る
    3) hist に今日の絶対LPを書く / members を更新
-   4) ティアが上がった人がいれば Discord の談話室へお祝いを投稿
+   4) ティアが上がった人がいれば Discord（既定＝連絡事項）へお祝いを投稿
 
    Firestore はセキュリティルールが公開状態なので REST + Web APIキーで読み書きできる。
    （ルールを締めたら、ここもサービスアカウント認証に差し替えが必要）
@@ -208,6 +229,13 @@ function jstDayKey(now) {
   const d = new Date((now || Date.now()) + 9 * 3600 * 1000);   // JSTに寄せる
   const p = n => String(n).padStart(2, "0");
   return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
+}
+/* ★ いまの日本時間 HH:MM。文面の {time} に入る。
+   毎晩のCronなら "23:45"、管理画面から手で実行したときは実際に押した時刻になる。 */
+function jstHhmm(now) {
+  const d = new Date((now || Date.now()) + 9 * 3600 * 1000);
+  const p = n => String(n).padStart(2, "0");
+  return p(d.getUTCHours()) + ":" + p(d.getUTCMinutes());
 }
 
 /* ---- Firestore REST（公開ルール前提・Web APIキーを使用）---- */
@@ -328,15 +356,20 @@ async function collectLp(env) {
   return { ok: true, date: today, updated: ok, failed: ng, skipped: skip, promotions: promotions.length, announced };
 }
 
-/* ---- ランクアップを Discord の談話室へ投稿 ---- */
+/* ---- ランクアップを Discord へ投稿（既定は連絡事項）---- */
 async function announcePromotions(env, list) {
-  const ch = env.DISCORD_ANNOUNCE_CHANNEL_ID;
-  if (!ch || !env.DISCORD_BOT_TOKEN) return 0;
   const emoji = { BRONZE:"🥉", SILVER:"🥈", GOLD:"🥇", PLATINUM:"💎", EMERALD:"💚",
                   DIAMOND:"💠", MASTER:"👑", GRANDMASTER:"🔥", CHALLENGER:"🏆" };
   const tpl = await getMsg(env, "promote");
+  const ch = channelFor(env, tpl.channel);
+  if (!ch || !env.DISCORD_BOT_TOKEN) return 0;
+  // ★ 管理コンソールで登録した絵文字があればそちらを優先する
+  const custom = await getTierEmoji(env);
   const content = buildW(tpl, { count: list.length }, list.map(p => ({
-    emoji: emoji[p.to] || "🎉", name: p.name, from: p.from, to: p.to,
+    emoji: custom[String(p.to).toUpperCase()] || emoji[p.to] || "🎉",
+    fromEmoji: (custom[String(p.from).toUpperCase()] || emoji[p.from] || "").trim(),
+    name: p.name, from: p.from, to: p.to,
+    rankLabel: rankLabelW({ tier: p.to, division: p.division, lp: p.lp }, custom),
     division: p.division || "", lp: p.lp | 0
   })));
   const ok = await postTo(env, ch, content);
@@ -358,9 +391,8 @@ async function collectEndpoint(url, env) {
    きょうの日付（JST）の予定があれば1通だけ投稿する。
    予定が無い日は何もしない（毎朝おはようだけ流れると邪魔なので）。
 
-   ★ 投稿先は DISCORD_SCHEDULE_CHANNEL_ID（連絡事項）。
-      ランクアップのお祝いは DISCORD_ANNOUNCE_CHANNEL_ID（談話室）で別枠。
-      SCHEDULE 側が未設定のときだけ、談話室にフォールバックする。
+   ★ 投稿先は管理コンソール（Discord文面）で選べる。既定は「連絡事項」
+      ＝ DISCORD_SCHEDULE_CHANNEL_ID。未設定なら DISCORD_ANNOUNCE_CHANNEL_ID。
    ============================================================= */
 async function announceToday(env) {
   const today = jstDayKey();
@@ -387,10 +419,10 @@ async function announceToday(env) {
     note: String(e.note || "").trim() ? "　" + String(e.note).trim() : ""
   })));
 
-  const ch = env.DISCORD_SCHEDULE_CHANNEL_ID || env.DISCORD_ANNOUNCE_CHANNEL_ID;
+  const ch = channelFor(env, tpl.channel);
   const ok = await postTo(env, ch, content);
   return { ok: true, date: today, posted: ok ? todays.length : 0,
-           channel: env.DISCORD_SCHEDULE_CHANNEL_ID ? "連絡事項" : "談話室（連絡事項が未設定のため）",
+           channel: channelName(env, tpl.channel),
            events: todays.map(e => e.name), discord: ok ? "投稿しました" : "投稿できませんでした" };
 }
 
@@ -428,7 +460,7 @@ async function notifyEndpoint(url, env) {
    lboard_index/snapshot の設定を読み、きょうが実施日なら
      1) lboard_index/lp から「対象ロールを持つ人」を取り出す
      2) そのときのLP（絶対LP）が高い順に topN 人へ points を配る
-     3) 談話室へ結果を投稿し、results[今日] に保存する
+     3) Discord（既定＝連絡事項）へ結果を投稿し、results[今日] に保存する
      4) 最終回なら、全回の合計ポイントで「代表先生」を決めて表彰を投稿する
    ============================================================= */
 async function runSnapshot(env, opts) {
@@ -479,19 +511,23 @@ async function runSnapshot(env, opts) {
   const medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"];
 
   const tplS = await getMsg(env, "snapshot");
+  const emo = await getTierEmoji(env);
+  const nowMs = Date.now();
   const content = buildW(tplS, {
     label: label, maru: maru, round: round,
-    md: Number(today.slice(5, 7)) + "/" + Number(today.slice(8)), date: today
+    md: Number(today.slice(5, 7)) + "/" + Number(today.slice(8)), date: today,
+    // ★ 実際に走った日本時間。手動実行（force）のときも本当の時刻が入る。
+    time: jstHhmm(nowMs), hhmm: jstHhmm(nowMs)
   }, rows.map(r => ({
     medal: medal[r.rank - 1] || "✨", rank: r.rank, name: r.name,
-    rankLabel: rankLabelW(r), point: r.point
+    rankLabel: rankLabelW(r, emo), point: r.point
   })));
 
-  const ch = env.DISCORD_ANNOUNCE_CHANNEL_ID;
+  const ch = channelFor(env, tplS.channel);
   const posted = await postTo(env, ch, content);
 
-  const patch = { results: Object.assign({}, results, { [today]: { at: Date.now(), rows } }),
-                  updatedAt: Date.now() };
+  const patch = { results: Object.assign({}, results, { [today]: { at: nowMs, rows } }),
+                  updatedAt: nowMs };
 
   // 4) 最終回なら表彰
   let finalOut = null;
@@ -516,7 +552,9 @@ async function runSnapshot(env, opts) {
 
     const tplF = await getMsg(env, "final");
     const msg = buildW(tplF, {
-      title: finalTitle, label: label, rounds: dates.length, n: finalN
+      title: finalTitle, label: label, rounds: dates.length, n: finalN,
+      md: Number(today.slice(5, 7)) + "/" + Number(today.slice(8)), date: today,
+      time: jstHhmm(nowMs)
     }, chosen.map((t, i) => {
       const detail = dates.filter(d => t.per[d] != null)
         .map(d => (["①","②","③","④","⑤","⑥"][dates.indexOf(d)] || "") + (t.per[d] | 0) + "pt")
@@ -527,7 +565,7 @@ async function runSnapshot(env, opts) {
       };
     }));
 
-    const okF = await postTo(env, ch, msg);
+    const okF = await postTo(env, channelFor(env, tplF.channel), msg);
     patch.final = chosen;
     patch.finalAt = Date.now();
     finalOut = { posted: okF, chosen: chosen.map(t => t.name + " " + t.total + "pt") };
@@ -544,10 +582,32 @@ async function runSnapshot(env, opts) {
   };
 }
 
-function rankLabelW(r) {
+/* ★ 管理コンソール（ランクアイコン）で登録したDiscordの絵文字。
+   lboard_index/rankicons の tiers[TIER].emoji を使う。
+   Discordは画像をテキストに埋め込めないので、絵文字コードで代用する。
+     ふつうの絵文字     👑
+     サーバー絵文字     <:master:123456789012345678> */
+async function getTierEmoji(env) {
+  let doc = null;
+  try { doc = await fsGet(env, "lboard_index/rankicons"); } catch (e) { }
+  const t = (doc && doc.tiers) || {};
+  const out = {};
+  Object.keys(t).forEach(k => {
+    const e = t[k] && typeof t[k].emoji === "string" ? t[k].emoji.trim() : "";
+    if (e) out[String(k).toUpperCase()] = e;
+  });
+  return out;
+}
+function emojiOf(map, tier) {
+  const e = map && tier ? map[String(tier).toUpperCase()] : "";
+  return e ? e + " " : "";
+}
+
+function rankLabelW(r, emojiMap) {
   if (!r.tier) return "ランクなし";
   const noDiv = /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(r.tier);
-  return r.tier + (noDiv ? "" : " " + (r.division || "")) + " " + (r.lp | 0) + "LP";
+  return emojiOf(emojiMap, r.tier) +
+    r.tier + (noDiv ? "" : " " + (r.division || "")) + " " + (r.lp | 0) + "LP";
 }
 
 /* ---- 手動実行用。CRON_KEY を知っている人だけ ----
@@ -629,9 +689,9 @@ async function diagnostics(env) {
   out.checks.lpCollect = need.length
     ? "未設定のため毎日の集計は動きません: " + need.join(", ")
     : "OK: 毎日の集計に必要な設定は揃っています（Cron Trigger \"45 14 * * *\" の登録も必要）";
-  out.checks.announce = present("DISCORD_ANNOUNCE_CHANNEL_ID")
+  out.checks.announce = (present("DISCORD_SCHEDULE_CHANNEL_ID") || present("DISCORD_ANNOUNCE_CHANNEL_ID"))
     ? "OK: ランクアップを投稿します"
-    : "DISCORD_ANNOUNCE_CHANNEL_ID 未設定のため、お祝い投稿は行いません";
+    : "チャンネルIDが未設定のため、お祝い投稿は行いません";
 
   // 予定表の当日通知（毎朝9:00 JST → 連絡事項チャンネル）
   const schCh = present("DISCORD_SCHEDULE_CHANNEL_ID") || present("DISCORD_ANNOUNCE_CHANNEL_ID");
@@ -640,11 +700,23 @@ async function diagnostics(env) {
   out.checks.scheduleNotify = needSch.length
     ? "未設定のため当日通知は動きません: " + needSch.join(", ")
     : "OK: 当日9:00の予定通知に必要な設定は揃っています（Cron Trigger \"0 0 * * *\" の登録も必要）";
-  out.checks.scheduleChannel = present("DISCORD_SCHEDULE_CHANNEL_ID")
-    ? "予定は DISCORD_SCHEDULE_CHANNEL_ID（連絡事項）へ投稿します"
+  // ★ 自動投稿はすべて既定で「連絡事項」（DISCORD_SCHEDULE_CHANNEL_ID）へ。
+  //   管理コンソールの「Discord文面」で、投稿ごとに談話室へ変えられる。
+  out.checks.postChannel = present("DISCORD_SCHEDULE_CHANNEL_ID")
+    ? "既定の投稿先: 連絡事項（DISCORD_SCHEDULE_CHANNEL_ID）。ランクアップ・予定・スナップショット・表彰すべてここへ。"
     : (present("DISCORD_ANNOUNCE_CHANNEL_ID")
-        ? "⚠️ DISCORD_SCHEDULE_CHANNEL_ID が未設定のため、予定も談話室へ投稿されます"
+        ? "⚠️ DISCORD_SCHEDULE_CHANNEL_ID が未設定のため、すべて談話室（DISCORD_ANNOUNCE_CHANNEL_ID）へ投稿されます"
         : "投稿先が未設定です");
+  try {
+    if (present("FIREBASE_PROJECT_ID") && present("FIREBASE_API_KEY")) {
+      const md = await fsGet(env, "lboard_index/messages");
+      const cs = (md && md.channels) || {};
+      const jp = k => (cs[k] === "chat" ? "談話室" : "連絡事項");
+      out.checks.postChannelEach =
+        "ランクアップ=" + jp("promote") + " / 予定=" + jp("schedule") +
+        " / スナップショット=" + jp("snapshot") + " / 表彰=" + jp("final");
+    }
+  } catch (e) { }
   try {
     if (present("FIREBASE_PROJECT_ID") && present("FIREBASE_API_KEY")) {
       const doc = await fsGet(env, "lboard_index/schedule");

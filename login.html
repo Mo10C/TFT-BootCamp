@@ -123,25 +123,37 @@ button{font-family:inherit;cursor:pointer}
   clip-path:polygon(4% 3%,96% 3%,96% 60%,50% 97%,4% 60%);
   box-shadow:inset 0 0 0 1.5px rgba(245,230,211,.9)}
 .brandmark.noimg::after{content:"C";color:#F5E6D3;font-weight:900;font-size:17px;transform:translateY(-3px)}
+
+/* ---- ランクアイコン（core.js の rankIcon が出すSVG／画像）----
+   このページは ui.css を読み込んでいないので、ここにも同じものを置く。 */
+.rkico{width:1.25em;height:1.25em;vertical-align:-.26em;margin-right:.3em;flex:none;display:inline-block}
+.rkico.lg{width:1.6em;height:1.6em;vertical-align:-.38em}
+.rkico.sm{width:1.05em;height:1.05em;vertical-align:-.2em;margin-right:.22em}
+.rkico.custom{object-fit:contain}
 </style>
-<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body class="portal-ui page-login" id="page-top">
+<body>
 <div class="wrap">
 
-  <header class="site-header"><div class="top">
+  <div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/emblem.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>TFT リーダーボード <span style="font-weight:700;color:var(--muted)">LOGIN</span></h1>
+        <h1>TFT リーダーボード <span style="font-weight:700;color:var(--muted)">LOGIN</span></h1>
         <div class="sub">クラウドハッシュテイル校</div>
       </div>
     </div>
     <button class="theme-btn" id="themeBtn">🌙 ダーク</button>
-  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
-<section class="camp-hero cinematic-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="雲海に浮かぶ対戦アリーナと学びの城" fetchpriority="high" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TEAMFIGHT TACTICS COMMUNITY</p><p class="display-title" aria-hidden="true">PLAY TO<br><span>RISE.</span></p><h2 id="hero-heading">仲間と、まだ見ぬ高みへ。</h2><p class="hero-description">競い合う一戦も、学び合う時間も。<br>ここから始まる、あなたのTFTブートキャンプ。</p><div class="hero-actions"><a class="camp-cta" href="#join-camp">合宿に参加する<span aria-hidden="true">↗</span></a><span class="hero-requirement">Riot ID × Discord</span></div></div></div><div class="hero-bottom"><span>STRATEGY <i>/</i> COMMUNITY <i>/</i> GROWTH</span><a href="#join-camp" class="scroll-cue">SCROLL TO EXPLORE <b aria-hidden="true">↓</b></a></div></section>
+  </div>
 
-<main class="join-content" id="join-camp"><div class="contents-heading"><div><p class="eyebrow"><span></span> JOIN THE CAMP</p><h2>準備ができたら、参加しよう。</h2></div><p>2つのアカウントを連携して、<br>あなたのブートキャンプを始めよう。</p></div><div class="join-steps">
+  <div class="hero">
+    <img src="assets/moto-hero.png" alt="" onerror="this.style.display='none'">
+    <div>
+      <h2>ようこそ！ <span class="grad">ログインして参加</span>しよう</h2>
+      <p>Riot ID と Discord の2つを連携すると、自動で選手登録されてボードに入場できます。</p>
+    </div>
+  </div>
+
   <!-- STEP 1: Riot ID -->
   <div class="card" id="cardRiot">
     <div class="step-head">
@@ -183,22 +195,19 @@ button{font-family:inherit;cursor:pointer}
     <div class="msg" id="dcMsg"></div>
   </div>
 
-</div>
   <!-- 入場 -->
   <div class="enter-area">
     <button class="btn big" id="enterBtn" disabled>ボードに入場する →</button>
     <div class="note" id="enterNote">STEP 1 と STEP 2 の両方を完了すると入場できます。</div>
   </div>
 
-</main>
-<footer class="site-footer"><a class="footer-brand" href="home.html">TFT <span>BOOTCAMP</span></a><p>クラウドハッシュテイル校</p><a class="back-to-top" href="#page-top" aria-label="ページの先頭へ">BACK TO TOP <span aria-hidden="true">↑</span></a></footer>
 </div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.11"></script>
+<script src="core.js?v=5.2"></script>
 <script>
 (function(){
-  const { Riot, DiscordAuth, Session, rankLabel, rankColor, roleColorCss } = window.LBCore;
+  const { Riot, DiscordAuth, Session, rankLabel, rankColor, rankIconLabel, roleColorCss } = window.LBCore;
   const $ = id => document.getElementById(id);
   const CFG = window.MCC_LB_CONFIG || {};
 
@@ -232,6 +241,8 @@ button{font-family:inherit;cursor:pointer}
   function hideMsg(el){ el.className = "msg"; }
 
   /* ---- STEP1: Riot ---- */
+  // 管理コンソールでランクアイコンを差し替えたら描き直す
+  window.addEventListener("lb-rankicons", () => { try { renderRiot(); } catch(e){} });
   function renderRiot(){
     const r = draft.riot;
     if (r && r.puuid){
@@ -240,7 +251,7 @@ button{font-family:inherit;cursor:pointer}
       $("riotProfile").style.display = "flex";
       $("riotName").textContent = r.gameName + "#" + r.tagLine;
       const b = $("riotRank");
-      b.textContent = rankLabel(r.rank);
+      b.innerHTML = rankIconLabel(r.rank, { cls: "sm" });
       b.style.borderColor = rankColor(r.rank);
       b.style.color = rankColor(r.rank);
       $("riotInput").value = r.gameName + "#" + r.tagLine;
@@ -363,6 +374,5 @@ button{font-family:inherit;cursor:pointer}
   renderDiscord();
 })();
 </script>
-<script src="portal.js?v=6.0"></script>
 </body>
 </html>

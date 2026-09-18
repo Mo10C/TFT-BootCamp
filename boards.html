@@ -11,19 +11,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=4.10">
+<link rel="stylesheet" href="ui.css?v=5.2">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body class="portal-ui page-boards" id="page-top">
+<body>
 <div class="wrap">
 
-  <header class="site-header"><div class="top">
+  <div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-boards.png" alt="大会" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>大会</h1>
+        <h1>大会</h1>
         <div class="sub">クラウドハッシュテイル校 リーダーボード</div>
       </div>
     </div>
@@ -32,8 +31,7 @@
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
-<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">TOURNAMENTS</p><h2 id="hero-heading">勝負の舞台へ。</h2><p class="hero-description">大会を選んで、仲間と次の一戦へ。</p></div></div></section>
+  </div>
 
   <div class="sec">
     <div class="sec-head">
@@ -88,8 +86,8 @@
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=4.11"></script>
-<script src="home-common.js?v=4.10"></script>
+<script src="core.js?v=5.2"></script>
+<script src="home-common.js?v=5.2"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -281,6 +279,5 @@
     .catch(e => { console.warn("roles", e); });
 })();
 </script>
-<script src="portal.js?v=6.0"></script>
 </body>
 </html>
