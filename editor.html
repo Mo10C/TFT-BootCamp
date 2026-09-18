@@ -159,8 +159,9 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 .lockscreen .who{display:inline-block;font-size:12px;font-weight:900;margin:10px 0 20px;
   padding:5px 14px;border-radius:999px;border:1.5px solid var(--border-strong)}
 </style>
+<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body>
+<body class="portal-ui page-editor" id="page-top">
 
 <div id="lockWrap" style="display:none">
   <div class="lockscreen">
@@ -177,11 +178,11 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 
 <div class="wrap" id="adminWrap" style="display:none">
 
-  <div class="top">
+  <header class="site-header"><div class="top">
     <div class="brand">
       <div class="hex">⚙️</div>
       <div>
-        <h1>管理コンソール</h1>
+        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>管理コンソール</h1>
         <div class="sub">クラウドハッシュテイル校 TOOLS</div>
       </div>
     </div>
@@ -191,7 +192,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" href="boards.html">🏆 大会一覧</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  </div>
+  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
+<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">CONTROL ROOM</p><h2 id="hero-heading">合宿を動かす、司令室。</h2><p class="hero-description">大会・メンバー・各種設定を管理。</p></div></div></section>
 
   <nav class="tabs" id="tabs">
     <button class="tab on" data-panel="p-home">🏠 HOME編集</button>
@@ -2391,5 +2393,6 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   $("resetBtn").onclick = () => { if (confirm("組卓・結果・設定を初期化しますか？（メンバーは残ります）")){ store.resetBoard(); toast("初期化しました"); } };
 })();
 </script>
+<script src="portal.js?v=6.0"></script>
 </body>
 </html>

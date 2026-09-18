@@ -81,15 +81,16 @@ td.sat .dnum{color:var(--accent-2-deep)}
   .upname{font-size:12.5px}
 }
 </style>
+<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body>
+<body class="portal-ui page-schedule" id="page-top">
 <div class="wrap">
 
-  <div class="top">
+  <header class="site-header"><div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-schedule.png" alt="予定表" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <h1>予定表</h1>
+        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>予定表</h1>
         <div class="sub">クラウドハッシュテイル校 TOOLS</div>
       </div>
     </div>
@@ -98,7 +99,8 @@ td.sat .dnum{color:var(--accent-2-deep)}
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  </div>
+  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
+<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">SCHEDULE</p><h2 id="hero-heading">次の挑戦を、見逃さない。</h2><p class="hero-description">合宿の予定をチェックして、次の一戦に備えよう。</p></div></div></section>
 
   <div class="panel">
     <div class="panel-head">
@@ -244,5 +246,6 @@ td.sat .dnum{color:var(--accent-2-deep)}
   });
 })();
 </script>
+<script src="portal.js?v=6.0"></script>
 </body>
 </html>

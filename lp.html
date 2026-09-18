@@ -175,15 +175,16 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 .tabledata th{color:var(--muted);font-size:10px;font-weight:700}
 .empty{padding:34px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
 </style>
+<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body>
+<body class="portal-ui page-lp" id="page-top">
 <div class="wrap viz">
 
-  <div class="top">
+  <header class="site-header"><div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-lp.png" alt="LPランキング" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <h1>LPランキング</h1>
+        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>LPランキング</h1>
         <div class="sub">クラウドハッシュテイル校 TOOLS</div>
       </div>
     </div>
@@ -192,7 +193,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  </div>
+  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
+<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">RANKING</p><h2 id="hero-heading">積み重ねた一手を、成長に。</h2><p class="hero-description">ランクの推移と日々の成長を、仲間とともに。</p></div></div></section>
 
   <div class="panel">
     <div class="panel-head">
@@ -820,6 +822,11 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     try { fn(); } catch(e){ showErr(where, e); }
   }
 
+  function renderNote(){
+    const note = $("note");
+    if (note) note.textContent = "記録がある日のLPを表示しています。行をクリックすると詳細を確認できます。基準日より前の記録がない場合、過去のLPは表示できません。";
+  }
+
   function boot(data){
     lp = data || { members:{}, hist:{}, baseline:"", groupOrder:[] };
     rows = Object.values(lp.members || {});
@@ -841,5 +848,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   });
 })();
 </script>
+<script src="portal.js?v=6.0"></script>
 </body>
 </html>

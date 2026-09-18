@@ -358,15 +358,16 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   .pcard:hover{transform:none}
 }
 </style>
+<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body>
+<body class="portal-ui page-members" id="page-top">
 <div class="wrap">
 
-  <div class="top">
+  <header class="site-header"><div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-members.png" alt="メンバー紹介" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <h1>メンバー紹介</h1>
+        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>メンバー紹介</h1>
         <div class="sub">クラウドハッシュテイル校 TOOLS</div>
       </div>
     </div>
@@ -375,7 +376,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  </div>
+  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
+<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">PLAYERS</p><h2 id="hero-heading">ともに競い、ともに高める。</h2><p class="hero-description">プロフィールを通じて、仲間のことをもっと知ろう。</p></div></div></section>
 
   <div class="errbox" id="errBox" style="display:none"></div>
 
@@ -1396,5 +1398,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   });
 })();
 </script>
+<script src="portal.js?v=6.0"></script>
 </body>
 </html>

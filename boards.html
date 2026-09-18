@@ -14,15 +14,16 @@
 <link rel="stylesheet" href="ui.css?v=4.10">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="portal.css?v=6.0">
 </head>
-<body>
+<body class="portal-ui page-boards" id="page-top">
 <div class="wrap">
 
-  <div class="top">
+  <header class="site-header"><div class="top">
     <div class="brand">
       <div class="brandmark"><img src="assets/tile-boards.png" alt="大会" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
       <div>
-        <h1>大会</h1>
+        <div class="site-wordmark" aria-hidden="true">TFT <span>BOOTCAMP</span></div><h1>大会</h1>
         <div class="sub">クラウドハッシュテイル校 リーダーボード</div>
       </div>
     </div>
@@ -31,7 +32,8 @@
     <a class="iconbtn" href="home.html">🏠 HOME</a>
     <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
     <button class="iconbtn" id="themeBtn">🌙</button>
-  </div>
+  <nav class="camp-nav" aria-label="メインナビゲーション" hidden></nav></div></header>
+<section class="camp-hero interior-hero" aria-labelledby="hero-heading"><img class="hero-keyart" src="assets/portal/sky-arena.webp" alt="" width="1536" height="1024"><div class="hero-shade" aria-hidden="true"></div><div class="hero-inner"><div class="hero-copy"><p class="eyebrow"><span></span> TFT BOOTCAMP</p><p class="display-title">TOURNAMENTS</p><h2 id="hero-heading">勝負の舞台へ。</h2><p class="hero-description">大会を選んで、仲間と次の一戦へ。</p></div></div></section>
 
   <div class="sec">
     <div class="sec-head">
@@ -279,5 +281,6 @@
     .catch(e => { console.warn("roles", e); });
 })();
 </script>
+<script src="portal.js?v=6.0"></script>
 </body>
 </html>
