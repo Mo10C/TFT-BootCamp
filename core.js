@@ -1215,16 +1215,17 @@
            リンク先は【管理コンソール →「🏠 HOME編集」】で入れてください。
            URLが空のあいだは「リンク先が未設定です」と出て、押しても飛びません。 */
         { id: "sim1st",  icon: "🥇", img: "none", name: "1st simulator", desc: "1位を取る練習をするシミュレーター。",
-          url: "", external: true, tint: "sky",   enabled: true, soon: false, roleIds: [] },
-        { id: "coating", icon: "📘", img: "none", name: "Coating Note",  desc: "コーティングのメモ。",
-          url: "", external: true, tint: "mint",  enabled: true, soon: false, roleIds: [] },
+          url: "https://mo10c.github.io/TFT-Simulator/", external: true, tint: "sky",   enabled: true, soon: false, roleIds: [] },
+        { id: "coating", icon: "📘", img: "none", name: "コーチングノート",  desc: "コーチングのメモ。",
+          url: "https://mo10c.github.io/TFT-CoachingNote/", external: true, tint: "mint",  enabled: true, soon: false, roleIds: [] },
         { id: "augnote", icon: "📖", img: "none", name: "オーグメントノート", desc: "オーグメントの評価とメモ。",
           url: "", external: true, tint: "gold",  enabled: true, soon: false, roleIds: [] },
         { id: "playground", icon: "🎮", img: "none", name: "遊び場", desc: "みんなで遊べるものを置いてあります。",
           url: "", external: false, tint: "coral", enabled: true, soon: false, roleIds: [],
           children: [
-            { id: "codename", icon: "🕵️", name: "Codename generator", desc: "コードネームを作るツール。", url: "", external: true, roleIds: [] },
-            { id: "ito",      icon: "🎲", name: "ITO",                 desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true, roleIds: [] }
+            { id: "midterm",  icon: "📝", name: "中間試験",            desc: "TFTの実力をはかる中間試験。", url: "", external: true, roleIds: [] },
+            { id: "ito",      icon: "🎲", name: "ITO",                 desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true, roleIds: [] },
+            { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。", url: "", external: true, roleIds: [] }
           ] }
       ].map(normTile),
       tools: ((((CFG.home || {}).tools) || []).slice()).map(normTool),
