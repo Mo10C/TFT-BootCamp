@@ -1223,7 +1223,7 @@
         { id: "playground", icon: "🎮", img: "none", name: "遊び場", desc: "みんなで遊べるものを置いてあります。",
           url: "", external: false, tint: "coral", enabled: true, soon: false, roleIds: [],
           children: [
-            { id: "midterm",  icon: "📝", name: "中間試験",            desc: "TFTの実力をはかる中間試験。", url: "", external: true, roleIds: [] },
+            { id: "midterm",  icon: "📝", name: "中間試験",            desc: "みんなで一斉に答えるクイズ。", url: "exam.html", external: false, roleIds: [] },
             { id: "ito",      icon: "🎲", name: "ITO",                 desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true, roleIds: [] },
             { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。", url: "", external: true, roleIds: [] }
           ] }
@@ -1251,12 +1251,14 @@
     sim1st: "https://mo10c.github.io/TFT-Simulator/",
     coating: "https://mo10c.github.io/TFT-CoachingNote/"
   };
+  // 旧名のまま保存されているタイルの名前を読み替える
+  const TILE_NAME_LEGACY = { "Coating Note": "コーチングノート" };
   /* タイルの中に必ず入れておきたいリンク（idごと）。
      保存済みの設定に無いものだけを足す。※編集画面で消すとまた出てくるので、
      不要になったらこの表から消す。 */
   const TILE_KIDS = {
     playground: [
-      { id: "midterm",  icon: "📝", name: "中間試験",             desc: "TFTの実力をはかる中間試験。",        url: "", external: true },
+      { id: "midterm",  icon: "📝", name: "中間試験",             desc: "みんなで一斉に答えるクイズ。",      url: "exam.html", external: false },
       { id: "ito",      icon: "🎲", name: "ITO",                  desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true },
       { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。",        url: "", external: true }
     ]
@@ -1284,17 +1286,26 @@
 
   function normTile(t, i) {
     t = t || {};
+    const tid = String(t.id || ("tile" + i));
+    // URLが空（未設定）のときは既定のリンク先を補う
+    let turl = String(t.url || "#").slice(0, 300);
+    if (noLink(turl) && TILE_URL[tid]) turl = TILE_URL[tid];
+    // 「中のリンク」も、既定にあって保存済み設定に無いものを足す
+    const kids = Array.isArray(t.children) ? t.children.map(normChild) : [];
+    (TILE_KIDS[tid] || []).forEach(k => {
+      if (!kids.some(x => x.id === k.id)) kids.push(normChild(k, kids.length));
+    });
     return {
-      id: String(t.id || ("tile" + i)),
+      id: tid,
       icon: String(t.icon || "🔗").slice(0, 4),
       // ★ 画像アイコン。空なら icon（絵文字）を使う。
       //   読み込みに失敗したときも絵文字に戻るので、消えたままにはならない。
-      img: String(t.img || TILE_IMG[String(t.id || "")] || "").slice(0, 300),
-      name: String(t.name || "無題").slice(0, 40),
+      img: String(t.img || TILE_IMG[tid] || "").slice(0, 300),
+      name: (TILE_NAME_LEGACY[String(t.name || "").trim()] || String(t.name || "無題")).slice(0, 40),
       desc: String(t.desc || "").slice(0, 120),
-      url: String(t.url || "#").slice(0, 300),
+      url: turl,
       external: !!t.external,
-      children: Array.isArray(t.children) ? t.children.map(normChild) : [],
+      children: kids,
       tint: TINTS.includes(t.tint) ? t.tint : (TINT_LEGACY[t.tint] || "gold"),
       enabled: t.enabled !== false,
       soon: !!t.soon,
@@ -1314,13 +1325,23 @@
       roleIds: Array.isArray(t.roleIds) ? t.roleIds.map(String).filter(Boolean) : []
     };
   }
+  /* 保存済みのHOME設定に、既定タイルのうち「まだ無いもの」だけを足す。
+     （既存タイルの内容は一切変えない。要らないタイルは編集画面で
+       消すのではなく「表示しない」にすれば、ここで復活しない。） */
+  function mergeTiles(saved, defs) {
+    const out = saved.slice();
+    defs.forEach(dt => {
+      if (!out.some(t => t.id === dt.id)) out.push(dt);
+    });
+    return out;
+  }
   function normHomeConfig(h) {
     const d = defaultHomeConfig();
     h = h || {};
     return {
       title: typeof h.title === "string" && h.title.trim() ? h.title.trim() : d.title,
       subtitle: typeof h.subtitle === "string" ? h.subtitle : d.subtitle,
-      tiles: Array.isArray(h.tiles) && h.tiles.length ? h.tiles.map(normTile) : d.tiles,
+      tiles: mergeTiles(Array.isArray(h.tiles) && h.tiles.length ? h.tiles.map(normTile) : d.tiles, d.tiles),
       tools: Array.isArray(h.tools) ? h.tools.map(normTool) : d.tools.map(normTool),
       updatedAt: h.updatedAt || 0
     };

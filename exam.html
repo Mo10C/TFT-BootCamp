@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>中間試験 ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="中間試験 — Discordログイン式のリアルタイム参加型クイズ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+/* ---------- 共通の箱 ---------- */
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;
+  box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:14px}
+.panel-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:13px 17px;border-bottom:1px solid var(--border)}
+.panel-head h2{font-size:15px;font-weight:900}
+.panel-head .sub{font-size:10.5px;color:var(--muted)}
+.spacer{flex:1}
+.pbody{padding:15px 17px}
+.empty{padding:30px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
+.note{font-size:11.5px;color:var(--muted);line-height:1.75}
+
+/* ---------- ボタン ---------- */
+.xbtn{border:1.5px solid var(--border-strong);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:900;cursor:pointer;
+  font-family:inherit;transition:transform .1s,border-color .1s,box-shadow .1s}
+.xbtn:hover:not(:disabled){transform:translateY(-1px);border-color:var(--accent);box-shadow:var(--shadow-soft)}
+.xbtn:disabled{opacity:.42;cursor:default}
+.xbtn.main{background:var(--grad);border-color:transparent;color:#fff}
+.xbtn.ok{border-color:var(--accent);color:var(--accent-deep)}
+.xbtn.ng{border-color:var(--danger);color:var(--danger)}
+.xbtn.sm{padding:5px 11px;font-size:11px}
+.xbtn.on.ok{background:var(--accent);border-color:var(--accent);color:#fff}
+.xbtn.on.ng{background:var(--danger);border-color:var(--danger);color:#fff}
+.xrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---------- 進行状態バッジ ---------- */
+.state{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 13px;
+  font-size:11.5px;font-weight:900;border:1.5px solid var(--border-strong);background:var(--surface-2)}
+.state .dot{width:8px;height:8px;border-radius:99px;background:var(--muted)}
+.state.open .dot{background:var(--accent);animation:blink 1.1s infinite}
+.state.answers .dot{background:var(--gold)}
+.state.correct .dot{background:var(--accent-2-deep)}
+.state.leaderboard .dot{background:var(--gold)}
+@keyframes blink{50%{opacity:.25}}
+
+/* ---------- 問題の表示 ---------- */
+.qno{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;
+  letter-spacing:.1em;color:var(--muted)}
+.qtext{font-size:19px;font-weight:900;line-height:1.6;margin:6px 0 12px;word-break:break-word}
+.qtext.big{font-size:30px;line-height:1.5}
+.qimg{width:100%;max-height:44vh;object-fit:contain;border-radius:14px;
+  border:1.5px solid var(--border);background:var(--surface-2);margin-bottom:12px}
+.qimg.big{max-height:52vh}
+
+/* ---------- 回答フォーム ---------- */
+.opts{display:grid;gap:9px}
+.opt{display:flex;align-items:center;gap:11px;text-align:left;width:100%;
+  border:1.5px solid var(--border);background:var(--surface);border-radius:14px;
+  padding:13px 15px;font-size:14.5px;font-weight:700;color:var(--ink);cursor:pointer;
+  font-family:inherit;transition:transform .1s,border-color .1s}
+.opt:hover{transform:translateY(-1px);border-color:var(--accent)}
+.opt.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface));
+  box-shadow:inset 0 0 0 1.5px var(--accent)}
+.opt .k{flex:none;width:26px;height:26px;border-radius:9px;display:grid;place-items:center;
+  font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;
+  background:var(--surface-2);border:1.5px solid var(--border)}
+.opt.sel .k{background:var(--accent);border-color:var(--accent);color:#fff}
+textarea.ans,input.ans{width:100%;border:1.5px solid var(--border);border-radius:14px;
+  background:var(--surface);color:var(--ink);font-family:inherit;font-size:15px;
+  padding:12px 14px;line-height:1.6}
+textarea.ans:focus,input.ans:focus{outline:none;border-color:var(--accent)}
+.sent{display:flex;align-items:center;gap:10px;border-radius:14px;padding:13px 15px;
+  font-size:13px;font-weight:900;
+  border:1.5px solid color-mix(in srgb,var(--accent) 45%,var(--border));
+  background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.sent .val{font-weight:700;color:var(--muted)}
+
+/* ---------- 人のチップ（回答状況） ---------- */
+.people{display:flex;flex-wrap:wrap;gap:8px}
+.per{display:flex;align-items:center;gap:8px;border:1.5px solid var(--border);
+  border-radius:999px;padding:4px 12px 4px 4px;background:var(--surface);font-size:12px;font-weight:700}
+.per img{width:26px;height:26px;border-radius:999px;object-fit:cover;background:var(--surface-2)}
+.per.done{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 11%,var(--surface))}
+.per.done::after{content:"✓";color:var(--accent-deep);font-weight:900}
+.per.wait{opacity:.6}
+.per.wait::after{content:"…";color:var(--muted);font-weight:900}
+
+/* ---------- 回答カード（オープン時 / ジャッジ） ---------- */
+.acards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:11px}
+.acard{border:1.5px solid var(--border);border-radius:15px;background:var(--surface);padding:12px 14px}
+.acard.me{border-color:var(--accent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 40%,transparent)}
+.acard.ok{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.acard.ng{opacity:.55}
+.acard .who{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:900;color:var(--muted)}
+.acard .who img{width:22px;height:22px;border-radius:999px;object-fit:cover;background:var(--surface-2)}
+.acard .val{font-size:17px;font-weight:900;line-height:1.5;margin-top:7px;word-break:break-word}
+.acard .judge{display:flex;gap:6px;margin-top:9px}
+
+/* ---------- 正解表示 ---------- */
+.correct{border-radius:16px;padding:18px 20px;text-align:center;
+  border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.correct .lb{font-size:11.5px;font-weight:900;color:var(--accent-deep);letter-spacing:.1em}
+.correct .val{font-size:27px;font-weight:900;line-height:1.4;margin-top:5px;word-break:break-word}
+.myres{margin-top:12px;border-radius:14px;padding:14px;text-align:center;font-size:16px;font-weight:900;
+  border:1.5px solid var(--border);background:var(--surface-2)}
+.myres.hit{border-color:var(--accent);color:var(--accent-deep);
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+
+/* ---------- ランキング ---------- */
+.rank{display:flex;align-items:center;gap:12px;padding:11px 17px;border-bottom:1px solid var(--border)}
+.rank:last-child{border-bottom:none}
+.rank .no{flex:none;width:34px;font-family:"Space Grotesk",sans-serif;font-size:17px;font-weight:700;
+  font-variant-numeric:tabular-nums;text-align:center;color:var(--muted)}
+.rank.top1 .no{color:var(--gold);font-size:20px}
+.rank img{width:34px;height:34px;border-radius:999px;object-fit:cover;background:var(--surface-2)}
+.rank .nm{flex:1;min-width:0;font-size:14px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rank .sc{font-family:"Space Grotesk",sans-serif;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.rank .sc small{font-size:10.5px;color:var(--muted);font-weight:400;margin-left:3px}
+.rank.me{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
+
+/* ---------- 出題フォーム ---------- */
+.qrow{display:flex;align-items:flex-start;gap:11px;padding:11px 14px;border:1.5px solid var(--border);
+  border-radius:14px;margin-bottom:9px;background:var(--surface)}
+.qrow.cur{border-color:var(--accent);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 35%,transparent)}
+.qrow .ix{flex:none;font-family:"Space Grotesk",sans-serif;font-weight:700;color:var(--muted);width:24px}
+.qrow .tx{flex:1;min-width:0;font-size:13px;font-weight:700;line-height:1.5;word-break:break-word}
+.qrow .tx small{display:block;font-size:10.5px;color:var(--muted);font-weight:400;margin-top:3px}
+.fld{margin-bottom:11px}
+.fld label{display:block;font-size:11px;font-weight:900;color:var(--muted);margin-bottom:4px}
+.fld input,.fld textarea,.fld select{width:100%;border:1.5px solid var(--border);border-radius:11px;
+  background:var(--surface);color:var(--ink);font-family:inherit;font-size:13px;padding:9px 12px}
+.fld input:focus,.fld textarea:focus,.fld select:focus{outline:none;border-color:var(--accent)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{border:1.5px solid var(--border);background:var(--surface);border-radius:999px;
+  padding:6px 14px;font-size:11.5px;font-weight:900;color:var(--muted);cursor:pointer;font-family:inherit}
+.tab.on{border-color:var(--accent);color:var(--accent-deep);
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+
+@media (max-width:620px){
+  .qtext{font-size:17px}
+  .qtext.big{font-size:22px}
+  .correct .val{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/tile-exam.png" alt="中間試験" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div>
+        <h1>中間試験</h1>
+        <div class="sub">クラウドハッシュテイル校 TOOLS</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <span id="viewSw" class="tabs" style="display:none"></span>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div id="view"><div class="panel"><div class="empty">読み込み中…</div></div></div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  if (!C || !C.Session){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;' +
+      'font-family:sans-serif;line-height:1.9"><b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      'core.js を新しいものに差し替えて、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome ? window.MCCHome.boot(session) : { toast: t => alert(t) };
+  const toast = t => (ctx && ctx.toast ? ctx.toast(t) : alert(t));
+  const AM_ADMIN = C.isAdmin(session);
+
+  const me = {
+    id: String(session.discord.id),
+    name: session.discord.name || session.discord.username || "?",
+    avatar: session.discord.avatar || ""
+  };
+
+  /* =========================================================
+     保存先（既存のFirestoreルール match /lboard_index/{id} のまま使える）
+       lboard_index/exam         … 問題リスト＋進行状態
+       lboard_index/exam_answers … 回答（生徒が自分の分だけ書き込む）
+     ========================================================= */
+  const DOC_EXAM = "exam", DOC_ANS = "exam_answers";
+  const LS_EXAM = "mcc-exam", LS_ANS = "mcc-exam-answers";
+
+  function openDb(){
+    const fb = (window.MCC_LB_CONFIG || {}).firebase || {};
+    const ok = fb.apiKey && fb.projectId && typeof window.firebase !== "undefined" && firebase.firestore;
+    if (!ok) return null;
+    if (!firebase.apps.length) firebase.initializeApp(fb);
+    return firebase.firestore();
+  }
+  const db = openDb();
+  const ref = id => db ? db.collection("lboard_index").doc(id) : null;
+
+  const STATUS = ["waiting", "open", "answers", "correct", "leaderboard"];
+  const STATUS_JA = {
+    waiting: "待機中", open: "回答受付中", answers: "回答オープン",
+    correct: "正解発表", leaderboard: "ランキング"
+  };
+
+  function defaultExam(){
+    return { title: "中間試験", status: "waiting", currentId: "", questions: [], updatedAt: 0 };
+  }
+  function normQ(q, i){
+    q = q || {};
+    return {
+      id: String(q.id || ("q" + (i + 1))),
+      text: String(q.text || ""),
+      image: String(q.image || ""),
+      type: q.type === "choice" ? "choice" : "text",
+      options: Array.isArray(q.options) ? q.options.map(String).filter(Boolean).slice(0, 8) : [],
+      answer: String(q.answer || ""),
+      point: Number(q.point) > 0 ? Number(q.point) : 1
+    };
+  }
+  function normExam(e){
+    const d = defaultExam();
+    e = e || {};
+    return {
+      title: String(e.title || d.title),
+      status: STATUS.includes(e.status) ? e.status : "waiting",
+      currentId: String(e.currentId || ""),
+      questions: Array.isArray(e.questions) ? e.questions.map(normQ) : [],
+      updatedAt: e.updatedAt || 0
+    };
+  }
+
+  /* 手元の状態。onSnapshot（Firestoreなしのときは localStorage）で更新される */
+  let exam = normExam(readLs(LS_EXAM));
+  let answers = readLs(LS_ANS) || {};   // { [qid]: { [discordId]: {...} }, _players: { [id]: {...} } }
+
+  function readLs(k){ try { return JSON.parse(localStorage.getItem(k) || "null"); } catch(e){ return null; } }
+  function writeLs(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+
+  async function saveExam(patch){
+    const next = normExam(Object.assign({}, exam, patch, { updatedAt: Date.now() }));
+    if (db) await ref(DOC_EXAM).set(next);
+    else { exam = next; writeLs(LS_EXAM, next); render(); }
+  }
+  async function writeAnswer(qid, obj){
+    const patch = {}; patch[qid] = {}; patch[qid][me.id] = obj;
+    if (db) await ref(DOC_ANS).set(patch, { merge: true });
+    else {
+      answers[qid] = Object.assign({}, answers[qid], patch[qid]);
+      writeLs(LS_ANS, answers); render();
+    }
+  }
+  async function judge(qid, uid, ok){
+    const patch = {}; patch[qid] = {}; patch[qid][uid] = { ok: ok };
+    if (db) await ref(DOC_ANS).set(patch, { merge: true });
+    else {
+      answers[qid] = answers[qid] || {};
+      answers[qid][uid] = Object.assign({}, answers[qid][uid], { ok: ok });
+      writeLs(LS_ANS, answers); render();
+    }
+  }
+  async function markPresent(){
+    const patch = { _players: {} };
+    patch._players[me.id] = { name: me.name, avatar: me.avatar, at: Date.now() };
+    if (db) await ref(DOC_ANS).set(patch, { merge: true });
+    else {
+      answers._players = Object.assign({}, answers._players, patch._players);
+      writeLs(LS_ANS, answers);
+    }
+  }
+  async function resetAll(){
+    if (!confirm("全員の回答と得点を消します。よろしいですか？")) return;
+    if (db) await ref(DOC_ANS).set({});
+    else { answers = {}; writeLs(LS_ANS, answers); render(); }
+    toast("回答をリセットしました");
+  }
+
+  /* ---------- 取り出し用の小道具 ---------- */
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const KEYS = "ABCDEFGH";
+  function curQ(){ return exam.questions.find(q => q.id === exam.currentId) || null; }
+  function curIndex(){ return exam.questions.findIndex(q => q.id === exam.currentId); }
+  function ansOf(qid){ return (answers && answers[qid]) || {}; }
+  function myAns(qid){ return ansOf(qid)[me.id] || null; }
+  function players(){
+    const map = Object.assign({}, (answers && answers._players) || {});
+    // 回答だけして presence が無い人も拾う
+    exam.questions.forEach(q => Object.entries(ansOf(q.id)).forEach(([uid, a]) => {
+      if (!map[uid]) map[uid] = { name: (a && a.name) || uid, avatar: (a && a.avatar) || "" };
+    }));
+    return map;
+  }
+  function scores(){
+    const ps = players(), out = {};
+    Object.entries(ps).forEach(([uid, p]) => out[uid] = { id: uid, name: p.name, avatar: p.avatar, score: 0, hits: 0 });
+    exam.questions.forEach(q => Object.entries(ansOf(q.id)).forEach(([uid, a]) => {
+      if (!out[uid]) out[uid] = { id: uid, name: (a && a.name) || uid, avatar: (a && a.avatar) || "", score: 0, hits: 0 };
+      if (a && a.ok === true){ out[uid].score += q.point; out[uid].hits++; }
+    }));
+    return Object.values(out).sort((x, y) => y.score - x.score || x.name.localeCompare(y.name));
+  }
+  function avatarTag(url, alt){
+    return '<img src="' + esc(url || "") + '" alt="' + esc(alt || "") + '" ' +
+      'onerror="this.style.visibility=\'hidden\'">';
+  }
+
+  /* =========================================================
+     画面の切り替え（生徒 / 進行 / 出題）
+     ========================================================= */
+  function wantView(){
+    const v = new URLSearchParams(location.search).get("view");
+    if ((v === "host" || v === "admin") && AM_ADMIN) return v;
+    return "student";
+  }
+  let view = wantView();
+  function setView(v){
+    view = v;
+    const u = new URL(location.href);
+    if (v === "student") u.searchParams.delete("view"); else u.searchParams.set("view", v);
+    history.replaceState(null, "", u);
+    render();
+  }
+  if (AM_ADMIN){
+    const sw = $("viewSw");
+    sw.style.display = "";
+    [["student","🙋 生徒"],["host","📺 進行"],["admin","⚙️ 出題"]].forEach(([k, label]) => {
+      const b = document.createElement("button");
+      b.className = "tab" + (view === k ? " on" : "");
+      b.dataset.v = k; b.textContent = label;
+      b.onclick = () => setView(k);
+      sw.appendChild(b);
+    });
+    $("editorLink").style.display = "";
+  }
+  function syncSw(){
+    document.querySelectorAll("#viewSw .tab").forEach(b =>
+      b.classList.toggle("on", b.dataset.v === view));
+  }
+
+  /* =========================================================
+     部品
+     ========================================================= */
+  function stateBadge(){
+    return '<span class="state ' + exam.status + '"><span class="dot"></span>' +
+      esc(STATUS_JA[exam.status]) + "</span>";
+  }
+  function questionBlock(q, big){
+    if (!q) return '<div class="empty">問題が選ばれていません。</div>';
+    const i = curIndex();
+    return '<div class="qno">Q' + (i < 0 ? "?" : i + 1) + " / " + exam.questions.length + "</div>" +
+      '<div class="qtext' + (big ? " big" : "") + '">' + esc(q.text) + "</div>" +
+      (q.image ? '<img class="qimg' + (big ? " big" : "") + '" src="' + esc(q.image) +
+        '" alt="" onerror="this.style.display=\'none\'">' : "");
+  }
+  function peopleBlock(q){
+    const ps = players(), a = q ? ansOf(q.id) : {};
+    const list = Object.entries(ps);
+    if (!list.length) return '<div class="note">まだ誰も参加していません。</div>';
+    const done = list.filter(([uid]) => a[uid] && a[uid].text != null).length;
+    return '<div class="note" style="margin-bottom:9px"><b>' + done + " / " + list.length +
+      "</b> 人が回答済み</div><div class=\"people\">" +
+      list.map(([uid, p]) => {
+        const ok = a[uid] && a[uid].text != null;
+        return '<span class="per ' + (ok ? "done" : "wait") + '">' +
+          avatarTag(p.avatar, p.name) + esc(p.name) + "</span>";
+      }).join("") + "</div>";
+  }
+  function answerCards(q, opts){
+    opts = opts || {};
+    if (!q) return "";
+    const a = ansOf(q.id);
+    const ps = players();
+    const rows = Object.entries(a).filter(([uid, v]) => v && v.text != null);
+    if (!rows.length) return '<div class="empty">まだ回答がありません。</div>';
+    return '<div class="acards">' + rows.map(([uid, v]) => {
+      const p = ps[uid] || {};
+      const cls = uid === me.id ? " me" : (v.ok === true ? " ok" : (v.ok === false ? " ng" : ""));
+      return '<div class="acard' + cls + '">' +
+        '<div class="who">' + avatarTag(p.avatar || v.avatar, v.name) + esc(v.name || p.name || uid) + "</div>" +
+        '<div class="val">' + esc(v.text) + "</div>" +
+        (opts.judge
+          ? '<div class="judge">' +
+            '<button class="xbtn sm ok' + (v.ok === true ? " on" : "") + '" data-j="1" data-u="' + esc(uid) + '">◯ 正解</button>' +
+            '<button class="xbtn sm ng' + (v.ok === false ? " on" : "") + '" data-j="0" data-u="' + esc(uid) + '">✗</button>' +
+            "</div>"
+          : (v.ok === true ? '<div class="note" style="margin-top:7px;color:var(--accent-deep)"><b>◯ 正解</b></div>' : "")) +
+        "</div>";
+    }).join("") + "</div>";
+  }
+  function correctBlock(q){
+    if (!q) return "";
+    const mine = myAns(q.id);
+    return '<div class="correct"><div class="lb">正解</div><div class="val">' +
+      esc(q.answer || "（講師が口頭で発表）") + "</div></div>" +
+      (mine
+        ? '<div class="myres' + (mine.ok === true ? " hit" : "") + '">' +
+          (mine.ok === true ? "◯ 正解！ +" + q.point + "点" : (mine.ok === false ? "✗ ざんねん" : "判定待ち")) +
+          '<div class="note" style="margin-top:4px">あなたの回答：' + esc(mine.text) + "</div></div>"
+        : "");
+  }
+  function rankBlock(){
+    const list = scores();
+    if (!list.length) return '<div class="empty">まだ得点がありません。</div>';
+    return list.map((p, i) =>
+      '<div class="rank' + (i === 0 ? " top1" : "") + (p.id === me.id ? " me" : "") + '">' +
+      '<div class="no">' + (i + 1) + "</div>" + avatarTag(p.avatar, p.name) +
+      '<div class="nm">' + esc(p.name) + "</div>" +
+      '<div class="sc">' + p.score + "<small>点 / " + p.hits + "問</small></div></div>").join("");
+  }
+
+  /* =========================================================
+     ① 生徒の画面
+     ========================================================= */
+  function viewStudent(){
+    const q = curQ();
+    let body = "";
+
+    if (exam.status === "waiting"){
+      body = '<div class="panel"><div class="panel-head"><div><h2>' + esc(exam.title) + "</h2>" +
+        '<div class="sub">進行役の合図を待っています</div></div><div class="spacer"></div>' + stateBadge() + "</div>" +
+        '<div class="pbody"><div class="empty">🪑 まもなく始まります。<br>この画面のままお待ちください。</div>' +
+        peopleBlock(null) + "</div></div>";
+    }
+    else if (exam.status === "open"){
+      const mine = myAns(q ? q.id : "");
+      body = '<div class="panel"><div class="panel-head"><div><h2>問題</h2>' +
+        '<div class="sub">回答を送ってください（送信後も変更できます）</div></div>' +
+        '<div class="spacer"></div>' + stateBadge() + "</div>" +
+        '<div class="pbody">' + questionBlock(q) +
+        (mine ? '<div class="sent">📨 送信ずみ <span class="val">' + esc(mine.text) + "</span></div>" +
+                '<div class="xrow" style="margin-top:10px"><button class="xbtn sm" id="reAns">✏️ 書き直す</button></div>'
+              : formBlock(q)) +
+        "</div></div>";
+    }
+    else if (exam.status === "answers"){
+      body = '<div class="panel"><div class="panel-head"><div><h2>みんなの回答</h2>' +
+        '<div class="sub">判定を待っています</div></div><div class="spacer"></div>' + stateBadge() + "</div>" +
+        '<div class="pbody">' + questionBlock(q) + answerCards(q) + "</div></div>";
+    }
+    else if (exam.status === "correct"){
+      body = '<div class="panel"><div class="panel-head"><div><h2>正解発表</h2></div>' +
+        '<div class="spacer"></div>' + stateBadge() + "</div>" +
+        '<div class="pbody">' + questionBlock(q) + correctBlock(q) + "</div></div>";
+    }
+    else {
+      body = '<div class="panel"><div class="panel-head"><div><h2>ランキング</h2>' +
+        '<div class="sub">現在の合計得点</div></div><div class="spacer"></div>' + stateBadge() + "</div>" +
+        rankBlock() + "</div>";
+    }
+    $("view").innerHTML = body;
+
+    const form = $("ansForm");
+    if (form) bindForm(q);
+    const re = $("reAns");
+    if (re) re.onclick = () => {
+      const mine = myAns(q.id) || {};
+      $("view").querySelector(".sent").outerHTML = formBlock(q, mine.text);
+      re.parentNode.remove();
+      bindForm(q);
+    };
+  }
+  function formBlock(q, prefill){
+    if (!q) return '<div class="empty">問題が届いていません。</div>';
+    if (q.type === "choice" && q.options.length){
+      return '<div id="ansForm" class="opts">' + q.options.map((o, i) =>
+        '<button class="opt' + (prefill === o ? " sel" : "") + '" data-v="' + esc(o) + '">' +
+        '<span class="k">' + KEYS[i] + "</span>" + esc(o) + "</button>").join("") + "</div>";
+    }
+    return '<div id="ansForm">' +
+      '<textarea class="ans" id="ansTx" rows="2" placeholder="回答を入力…">' + esc(prefill || "") + "</textarea>" +
+      '<div class="xrow" style="margin-top:10px"><button class="xbtn main" id="ansSend">送信する</button>' +
+      '<span class="note">送信後も、締め切りまでは書き直せます。</span></div></div>';
+  }
+  function bindForm(q){
+    const box = $("ansForm");
+    if (!box) return;
+    box.querySelectorAll(".opt").forEach(b => b.onclick = () => send(q, b.dataset.v));
+    const btn = $("ansSend");
+    if (btn) btn.onclick = () => {
+      const v = ($("ansTx").value || "").trim();
+      if (!v) return toast("回答を入力してください");
+      send(q, v);
+    };
+  }
+  function send(q, text){
+    // 選択式は自動で正誤をつける。記述式は null（管理画面で手動ジャッジ）。
+    const auto = (q.type === "choice" && q.answer)
+      ? (String(text).trim() === String(q.answer).trim())
+      : null;
+    writeAnswer(q.id, {
+      name: me.name, avatar: me.avatar, text: String(text).slice(0, 200),
+      ok: auto, at: Date.now()
+    }).then(() => toast("送信しました")).catch(e => toast("送信できませんでした：" + (e.code || e.message)));
+  }
+
+  /* =========================================================
+     ② 進行（画面共有）の画面
+     ========================================================= */
+  function viewHost(){
+    const q = curQ(), i = curIndex();
+    let mid = "";
+    if (exam.status === "waiting") mid = '<div class="empty">🎬 「この問題を出す」を押すと始まります。</div>' + peopleBlock(null);
+    else if (exam.status === "open") mid = questionBlock(q, true) + peopleBlock(q);
+    else if (exam.status === "answers") mid = questionBlock(q, true) + answerCards(q);
+    else if (exam.status === "correct") mid = questionBlock(q, true) + correctBlock(q) + '<div style="height:12px"></div>' + answerCards(q);
+    else mid = rankBlock();
+
+    $("view").innerHTML =
+      '<div class="panel"><div class="panel-head"><div><h2>' + esc(exam.title) + "</h2>" +
+      '<div class="sub">画面共有用 ・ 全員の画面がこの状態に同期します</div></div>' +
+      '<div class="spacer"></div>' + stateBadge() + "</div>" +
+      '<div class="pbody">' + mid + "</div></div>" + controlPanel();
+    bindControls();
+  }
+
+  /* =========================================================
+     ③ 出題・管理の画面
+     ========================================================= */
+  let editId = null;
+  function viewAdmin(){
+    const q = curQ();
+    $("view").innerHTML =
+      controlPanel() +
+      '<div class="panel"><div class="panel-head"><div><h2>🖊 手動ジャッジ</h2>' +
+      '<div class="sub">記述式は、ここで ◯ / ✗ を付けると得点に入ります</div></div>' +
+      '<div class="spacer"></div><button class="xbtn sm" id="allOk">全員に◯</button></div>' +
+      '<div class="pbody">' + (q ? answerCards(q, { judge: true }) : '<div class="empty">問題が選ばれていません。</div>') + "</div></div>" +
+      '<div class="panel"><div class="panel-head"><div><h2>📚 問題リスト</h2>' +
+      '<div class="sub">' + exam.questions.length + "問</div></div><div class=\"spacer\"></div>" +
+      '<button class="xbtn sm" id="addQ">＋ 問題を追加</button>' +
+      '<button class="xbtn sm ng" id="resetAll">回答リセット</button></div>' +
+      '<div class="pbody">' + qListHtml() + editorHtml() + "</div></div>";
+    bindControls();
+    bindAdmin();
+  }
+  function qListHtml(){
+    if (!exam.questions.length) return '<div class="empty">まだ問題がありません。「＋ 問題を追加」から作成してください。</div>';
+    return exam.questions.map((q, i) =>
+      '<div class="qrow' + (q.id === exam.currentId ? " cur" : "") + '">' +
+      '<div class="ix">' + (i + 1) + "</div>" +
+      '<div class="tx">' + esc(q.text || "（問題文なし）") +
+      "<small>" + (q.type === "choice" ? "選択式（" + q.options.length + "択）" : "記述式") +
+      " ・ " + q.point + "点" + (q.answer ? " ・ 正解：" + esc(q.answer) : " ・ 正解未設定") + "</small></div>" +
+      '<div class="xrow">' +
+      '<button class="xbtn sm" data-use="' + esc(q.id) + '">出す</button>' +
+      '<button class="xbtn sm" data-edit="' + esc(q.id) + '">編集</button>' +
+      '<button class="xbtn sm ng" data-del="' + esc(q.id) + '">削除</button></div></div>').join("");
+  }
+  function editorHtml(){
+    if (!editId) return "";
+    const q = exam.questions.find(x => x.id === editId) || normQ({ id: editId }, 0);
+    return '<div class="panel" style="margin:12px 0 0"><div class="panel-head"><h2>問題の編集</h2></div>' +
+      '<div class="pbody">' +
+      '<div class="fld"><label>問題文</label><textarea id="eText" rows="3">' + esc(q.text) + "</textarea></div>" +
+      '<div class="fld"><label>画像URL（盤面スクショなど・空でOK）</label><input id="eImg" value="' + esc(q.image) + '"></div>' +
+      '<div class="fld"><label>形式</label><select id="eType">' +
+      '<option value="text"' + (q.type === "text" ? " selected" : "") + ">記述式（手動ジャッジ）</option>" +
+      '<option value="choice"' + (q.type === "choice" ? " selected" : "") + ">選択式（自動ジャッジ）</option></select></div>" +
+      '<div class="fld"><label>選択肢（1行に1つ・選択式のときだけ使います）</label>' +
+      '<textarea id="eOpts" rows="4">' + esc(q.options.join("\n")) + "</textarea></div>" +
+      '<div class="fld"><label>正解（選択式は選択肢と同じ文字列。記述式は表示用）</label>' +
+      '<input id="eAns" value="' + esc(q.answer) + '"></div>' +
+      '<div class="fld"><label>配点</label><input id="ePoint" type="number" min="1" value="' + q.point + '"></div>' +
+      '<div class="xrow"><button class="xbtn main" id="eSave">保存する</button>' +
+      '<button class="xbtn" id="eCancel">やめる</button></div></div></div>';
+  }
+
+  /* ---------- 進行ボタン（進行画面と管理画面で共通） ---------- */
+  function controlPanel(){
+    const i = curIndex();
+    const hasQ = exam.questions.length > 0;
+    const next = exam.questions[i + 1];
+    return '<div class="panel"><div class="panel-head"><div><h2>🎛 進行</h2>' +
+      '<div class="sub">押すと全員の画面がすぐ切り替わります</div></div>' +
+      '<div class="spacer"></div>' + stateBadge() + "</div>" +
+      '<div class="pbody"><div class="xrow">' +
+      '<select id="pickQ" style="max-width:260px;border:1.5px solid var(--border);border-radius:11px;' +
+      'background:var(--surface);color:var(--ink);font-family:inherit;font-size:12.5px;padding:8px 11px">' +
+      (hasQ ? exam.questions.map((q, n) =>
+        '<option value="' + esc(q.id) + '"' + (q.id === exam.currentId ? " selected" : "") + ">Q" + (n + 1) + "：" +
+        esc((q.text || "（問題文なし）").slice(0, 22)) + "</option>").join("")
+        : '<option value="">問題がありません</option>') + "</select>" +
+      '<button class="xbtn main" id="btnOpen"' + (hasQ ? "" : " disabled") + ">▶ この問題を出す</button>" +
+      '<button class="xbtn" id="btnShow"' + (exam.status === "open" ? "" : " disabled") + ">👀 一斉オープン</button>" +
+      '<button class="xbtn" id="btnCorrect"' + (exam.status === "answers" || exam.status === "correct" ? "" : " disabled") + ">🎯 正解発表</button>" +
+      '<button class="xbtn" id="btnRank">🏆 ランキング</button>' +
+      '<button class="xbtn" id="btnNext"' + (next ? "" : " disabled") + ">⏭ 次の問題へ</button>" +
+      '<button class="xbtn sm" id="btnWait">⏸ 待機に戻す</button>' +
+      "</div></div></div>";
+  }
+  function bindControls(){
+    const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+    on("btnOpen", () => {
+      const id = $("pickQ") ? $("pickQ").value : "";
+      if (!id) return toast("問題がありません");
+      saveExam({ currentId: id, status: "open" });
+    });
+    on("btnShow",    () => saveExam({ status: "answers" }));
+    on("btnCorrect", () => saveExam({ status: "correct" }));
+    on("btnRank",    () => saveExam({ status: "leaderboard" }));
+    on("btnWait",    () => saveExam({ status: "waiting" }));
+    on("btnNext", () => {
+      const n = exam.questions[curIndex() + 1];
+      if (n) saveExam({ currentId: n.id, status: "open" });
+    });
+  }
+  function bindAdmin(){
+    const q = curQ();
+    // ジャッジ
+    $("view").querySelectorAll("[data-j]").forEach(b => b.onclick = () => {
+      if (!q) return;
+      judge(q.id, b.dataset.u, b.dataset.j === "1");
+    });
+    const allOk = $("allOk");
+    if (allOk) allOk.onclick = () => {
+      if (!q) return;
+      Object.keys(ansOf(q.id)).forEach(uid => judge(q.id, uid, true));
+    };
+    // 問題リスト
+    $("view").querySelectorAll("[data-use]").forEach(b => b.onclick = () =>
+      saveExam({ currentId: b.dataset.use, status: "open" }));
+    $("view").querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+      editId = b.dataset.edit; render();
+    });
+    $("view").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+      if (!confirm("この問題を削除しますか？")) return;
+      saveExam({ questions: exam.questions.filter(x => x.id !== b.dataset.del) });
+    });
+    const add = $("addQ");
+    if (add) add.onclick = () => {
+      const id = "q" + Date.now().toString(36);
+      editId = id;
+      saveExam({ questions: exam.questions.concat([normQ({ id: id, text: "" }, exam.questions.length)]) });
+    };
+    const rs = $("resetAll");
+    if (rs) rs.onclick = resetAll;
+    // 編集フォーム
+    const save = $("eSave");
+    if (save) save.onclick = () => {
+      const next = exam.questions.map(x => x.id !== editId ? x : normQ({
+        id: editId,
+        text: $("eText").value,
+        image: $("eImg").value,
+        type: $("eType").value,
+        options: ($("eOpts").value || "").split("\n").map(s => s.trim()).filter(Boolean),
+        answer: $("eAns").value,
+        point: $("ePoint").value
+      }, 0));
+      editId = null;
+      saveExam({ questions: next }).then(() => toast("保存しました"));
+    };
+    const cancel = $("eCancel");
+    if (cancel) cancel.onclick = () => { editId = null; render(); };
+  }
+
+  /* =========================================================
+     描画とリアルタイム購読
+     ========================================================= */
+  function render(){
+    syncSw();
+    if (view === "host") viewHost();
+    else if (view === "admin") viewAdmin();
+    else viewStudent();
+  }
+
+  if (db){
+    ref(DOC_EXAM).onSnapshot(snap => {
+      exam = normExam(snap.exists ? snap.data() : null);
+      writeLs(LS_EXAM, exam);
+      render();
+    }, e => { console.warn("exam", e); toast("同期できませんでした：" + (e.code || e.message)); });
+
+    ref(DOC_ANS).onSnapshot(snap => {
+      answers = (snap.exists ? snap.data() : {}) || {};
+      writeLs(LS_ANS, answers);
+      render();
+    }, e => console.warn("exam_answers", e));
+  } else {
+    // Firestore未設定でも、1台の中では動くようにしておく（動作確認用）
+    render();
+    window.addEventListener("storage", () => {
+      exam = normExam(readLs(LS_EXAM)); answers = readLs(LS_ANS) || {}; render();
+    });
+  }
+
+  markPresent().catch(() => {});
+  render();
+})();
+</script>
+</body>
+</html>
