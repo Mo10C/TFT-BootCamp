@@ -1243,6 +1243,25 @@
     lp: "assets/tile-lp.png"
   };
 
+  /* 既定のリンク先（idごと）。
+     すでにHOME設定を保存してある場合、そこにはURLが入っていないので、
+     ここを見て自動で補う。※編集画面でURLを入れれば、そちらが優先される。
+     「未設定」に戻したいときは、この表から消す。 */
+  const TILE_URL = {
+    sim1st: "https://mo10c.github.io/TFT-Simulator/",
+    coating: "https://mo10c.github.io/TFT-CoachingNote/"
+  };
+  /* タイルの中に必ず入れておきたいリンク（idごと）。
+     保存済みの設定に無いものだけを足す。※編集画面で消すとまた出てくるので、
+     不要になったらこの表から消す。 */
+  const TILE_KIDS = {
+    playground: [
+      { id: "midterm",  icon: "📝", name: "中間試験",             desc: "TFTの実力をはかる中間試験。",        url: "", external: true },
+      { id: "ito",      icon: "🎲", name: "ITO",                  desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true },
+      { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。",        url: "", external: true }
+    ]
+  };
+
   /* タイルの中に入るリンクカード（「遊び場」の中の Codename generator / ITO など）。
      children が1つ以上あるタイルは、押すとHOMEの中でその場に開く。 */
   function normChild(c, i) {
