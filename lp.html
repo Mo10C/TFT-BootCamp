@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=5.2">
+<link rel="stylesheet" href="ui.css?v=5.3">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -57,13 +57,26 @@
 
 .lrk{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;color:var(--muted);
   width:22px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
-.lwho{width:150px;flex:none;display:flex;align-items:center;gap:9px;min-width:0}
+.lwho{width:168px;flex:none;display:flex;align-items:center;gap:9px;min-width:0}
 .lwho .txt{min-width:0}
+/* 名前が長くても、バッジと ↗ は最後まで見えるようにする。
+   はみ出して消えるのは名前の文字だけ。 */
 .lwho .nm{font-size:12.5px;font-weight:900;line-height:1.3;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  display:flex;align-items:center;gap:0;min-width:0}
+.lwho .nm .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* ---- tactics.tools へのリンク ----
+   名前の横の小さな ↗。行を開く操作とぶつからないよう、
+   クリックは押した本人だけで止める（stopPropagation）。 */
+.ttl{display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;margin-left:5px;border-radius:5px;flex:none;
+  color:var(--muted);vertical-align:-3px;
+  transition:background .15s,color .15s}
+.ttl svg{width:11px;height:11px}
+.ttl:hover{background:color-mix(in srgb,var(--cyan) 16%,transparent);color:var(--cyan-deep)}
 .lwho .nm .meb{font-size:8.5px;font-weight:900;color:var(--accent-deep);
   border:1.5px solid color-mix(in srgb,var(--accent) 55%,transparent);
-  border-radius:999px;padding:0 5px;margin-left:5px}
+  border-radius:999px;padding:0 5px;margin-left:5px;
+  flex:none;white-space:nowrap}
 .lwho .tier{font-size:10px;font-weight:900;line-height:1.3;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -105,7 +118,7 @@
 .ruler{display:flex;align-items:center;gap:11px;padding:7px 15px 6px;
   border-bottom:1px solid var(--border);background:var(--surface-2)}
 .ruler .pad-rk{width:22px;flex:none}
-.ruler .pad-who{width:150px;flex:none;font-size:9.5px;font-weight:900;color:var(--muted)}
+.ruler .pad-who{width:168px;flex:none;font-size:9.5px;font-weight:900;color:var(--muted)}
 .ruler .pad-dl{width:106px;flex:none;font-size:9.5px;font-weight:900;color:var(--muted);text-align:right}
 /* グラフ内側の余白（PAD.l / PAD.r）と同じだけ空けて、目盛りを線の始点・終点に合わせる */
 .ruler .bar{flex:1;min-width:0;display:flex;justify-content:space-between;
@@ -251,8 +264,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=5.2"></script>
-<script src="home-common.js?v=5.2"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -467,10 +480,31 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     who.appendChild(avatarEl(m));
     const txt = document.createElement("div"); txt.className = "txt";
     const nm = document.createElement("div"); nm.className = "nm";
-    nm.appendChild(document.createTextNode(m.name));
+    const nmT = document.createElement("span");
+    nmT.className = "t";
+    nmT.textContent = m.name;
+    nm.appendChild(nmT);
     if (m.id === myId){
       const b = document.createElement("span"); b.className = "meb"; b.textContent = "あなた";
       nm.appendChild(b);
+    }
+    // tactics.tools を別タブで開く。Riot ID が分かっている人だけ出す。
+    {
+      const url = C.tacticsUrlFor(m.riotId, "jp");
+      if (url){
+        const a = document.createElement("a");
+        a.className = "ttl";
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.title = m.riotId + " を tactics.tools で見る";
+        a.setAttribute("aria-label", m.name + " の tactics.tools");
+        a.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>';
+        // 行をタップすると開閉するので、リンクのクリックはここで止める
+        a.onclick = e => e.stopPropagation();
+        a.onpointerdown = e => e.stopPropagation();
+        nm.appendChild(a);
+      }
     }
     const tier = document.createElement("div"); tier.className = "tier";
     tier.innerHTML = C.rankIconLabel(rankOf(m));   // ランクアイコン＋文字

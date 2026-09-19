@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="ui.css?v=5.2">
+<link rel="stylesheet" href="ui.css?v=5.3">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
@@ -228,6 +228,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   <nav class="tabs" id="tabs">
     <button class="tab on" data-panel="p-home">🏠 HOME編集</button>
     <button class="tab" data-panel="p-board">🏆 このボード</button>
+    <button class="tab" data-panel="p-teams">👫 チーム</button>
     <button class="tab" data-panel="p-boards">🗂 大会の管理</button>
     <button class="tab" data-panel="p-members">👥 メンバー</button>
     <button class="tab" data-panel="p-sched">🗓 予定表</button>
@@ -297,6 +298,20 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     </div>
 
     <div class="card">
+      <h2>🎮 形式</h2>
+      <div class="lead">
+        <b>個人戦</b>は1卓8人。<b>ダブルアップ</b>は2人1組で1卓4チーム（＝8人）です。<br>
+        ⚠️ 形式を変えると、<b>いまの配置と順位はすべて消えます</b>（ペアの設定は残ります）。
+      </div>
+      <div class="row">
+        <label class="chk"><input type="radio" name="bmode" id="modeSolo"> 個人戦</label>
+        <label class="chk" style="margin-left:10px"><input type="radio" name="bmode" id="modeDouble"> ダブルアップ（2人1組）</label>
+        <button class="mini grad" id="saveMode" style="margin-left:10px">形式を保存</button>
+      </div>
+      <div class="hint" id="modeHint" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
       <h2>🚪 公開範囲</h2>
       <div class="lead">ロールを指定すると、そのロールを持つ人だけが入場できます。管理者は常に入場できます。</div>
       <div class="row">
@@ -311,6 +326,35 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   </div>
 
   <!-- ================= 大会の管理 ================= -->
+  <!-- ================= チーム（ダブルアップ） ================= -->
+  <div class="panel" id="p-teams">
+    <div class="card">
+      <h2>👫 チーム <span class="badge" id="teamCount">0組</span></h2>
+      <div class="lead">
+        ダブルアップは<b>2人1組</b>で戦います。ここでペアを作ります。<br>
+        ・<b>ポイントはチームに付きます。</b>途中で中身の2人を入れ替えても、そのチームが貯めたptは残ります<br>
+        ・チーム名は空でOK（2人の名前から自動で作ります）<br>
+        ・出欠はチーム単位です。片方のチェックを外すと相方ごと外れます
+      </div>
+      <div class="row">
+        <button class="mini grad" id="autoPair">余っている人を2人ずつ組ませる</button>
+        <button class="mini" id="addTeam">空のチームを作る</button>
+        <span class="hint" id="teamHint"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ペアが決まっていない人 <span class="badge" id="restCount">0人</span></h2>
+      <div class="lead">右のプルダウンからチームに入れられます。</div>
+      <div id="restList"></div>
+    </div>
+
+    <div class="card">
+      <h2>チーム一覧</h2>
+      <div id="teamList"></div>
+    </div>
+  </div>
+
   <div class="panel" id="p-boards">
     <div class="card">
       <h2>大会（ボード）一覧</h2>
@@ -720,8 +764,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=5.2"></script>
-<script src="home-common.js?v=5.2"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -1230,6 +1274,132 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   $("saveTitle").onclick = () => { store.setBoardTitle($("titleInput").value); toast("大会名を保存しました"); };
 
   /* =============================================================
+     形式（個人戦 / ダブルアップ）とチーム
+     ============================================================= */
+  function renderMode(){
+    const s = store.state;
+    const DBL = C.isDouble(s);
+    $("modeSolo").checked = !DBL;
+    $("modeDouble").checked = DBL;
+    $("modeHint").textContent = DBL
+      ? "現在: ダブルアップ（2人1組・1卓4チーム）。ペアは「👫 チーム」で作ります。"
+      : "現在: 個人戦（1卓8人）。";
+  }
+  $("saveMode").onclick = () => {
+    const want = $("modeDouble").checked ? "doubleup" : "solo";
+    if (want === store.state.mode){ toast("いまの形式のままです"); return; }
+    if (!confirm("形式を「" + (want === "doubleup" ? "ダブルアップ" : "個人戦") +
+                 "」に変えます。\nいまの配置と順位はすべて消えます。よろしいですか？")) { renderMode(); return; }
+    store.setMode(want);
+    toast(want === "doubleup" ? "ダブルアップにしました。つぎは「👫 チーム」でペアを作ってください" : "個人戦にしました");
+  };
+
+  function teamAvatar(p){
+    const im = document.createElement("img");
+    im.src = (p && p.discord && p.discord.avatar) || "";
+    im.onerror = function(){ this.style.visibility = "hidden"; };
+    im.style.cssText = "width:30px;height:30px;border-radius:999px;object-fit:cover;flex:none";
+    return im;
+  }
+  function renderTeams(){
+    const s = store.state;
+    const teams = C.teamsOf(s);
+    const rest = C.unpairedPlayers(s);
+    $("teamCount").textContent = teams.length + "組";
+    $("restCount").textContent = rest.length + "人";
+    $("teamHint").textContent = C.isDouble(s)
+      ? "" : "※ いまは個人戦です。ここの設定は「🎮 形式」をダブルアップにすると使われます";
+
+    const rb = $("restList");
+    rb.innerHTML = "";
+    if (!rest.length){
+      rb.innerHTML = '<div class="hint">全員ペアが決まっています。</div>';
+    } else {
+      rest.forEach(p => {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--border)";
+        row.appendChild(teamAvatar(p));
+        const who = document.createElement("div");
+        who.style.cssText = "flex:1;min-width:140px";
+        who.innerHTML = '<div style="font-weight:800;font-size:13px">' + esc(p.name) + "</div>" +
+          '<div class="hint">' + esc(p.riotId || "—") + " ・ " + esc(C.rankLabel(p.rank)) + "</div>";
+        row.appendChild(who);
+        const sel = document.createElement("select");
+        const open = teams.filter(t => (t.members || []).length < 2);
+        sel.innerHTML = '<option value="">チームに入れる…</option>' +
+          open.map(t => '<option value="' + t.id + '">' + esc(C.teamLabel(s, t)) + "</option>").join("") +
+          '<option value="__new">＋ この人で新しいチームを作る</option>';
+        sel.onchange = () => {
+          if (!sel.value) return;
+          if (sel.value === "__new") store.createTeam([p.id]);
+          else store.addToTeam(sel.value, p.id);
+          toast(p.name + " をチームに入れました");
+        };
+        row.appendChild(sel);
+        rb.appendChild(row);
+      });
+    }
+
+    const box = $("teamList");
+    box.innerHTML = "";
+    if (!teams.length){
+      box.innerHTML = '<div class="hint">まだチームがありません。上の「余っている人を2人ずつ組ませる」が手早いです。</div>';
+      return;
+    }
+    teams.forEach((t, i) => {
+      const ms = C.teamMembers(s, t);
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 0;border-bottom:1px solid var(--border)";
+      const no = document.createElement("div");
+      no.style.cssText = "width:24px;flex:none;font-weight:900;color:var(--muted)";
+      no.textContent = (i + 1);
+      row.appendChild(no);
+      ms.forEach(p => row.appendChild(teamAvatar(p)));
+      const who = document.createElement("div");
+      who.style.cssText = "flex:1;min-width:160px";
+      who.innerHTML = '<div style="font-weight:800;font-size:13px">' + esc(C.teamLabel(s, t)) + "</div>" +
+        '<div class="hint">' +
+        (ms.length ? ms.map(p => esc(p.name) + "（" + esc(C.rankLabel(p.rank)) + "）").join(" ＋ ")
+                   : "まだ誰も入っていません") +
+        (ms.length === 1 ? " ／ あと1人" : "") + "</div>";
+      row.appendChild(who);
+      const ni = document.createElement("input");
+      ni.type = "text";
+      ni.value = t.name || "";
+      ni.placeholder = "チーム名（任意）";
+      ni.style.cssText = "width:170px";
+      ni.onchange = () => { store.setTeamName(t.id, ni.value); toast("チーム名を変えました"); };
+      row.appendChild(ni);
+      const act = document.createElement("div");
+      act.style.cssText = "display:flex;gap:6px;flex-wrap:wrap";
+      ms.forEach(p => {
+        const b = document.createElement("button");
+        b.className = "mini";
+        b.textContent = p.name + " を外す";
+        b.onclick = () => { store.removeFromTeam(p.id); toast(p.name + " を外しました"); };
+        act.appendChild(b);
+      });
+      const del = document.createElement("button");
+      del.className = "mini danger";
+      del.textContent = "チーム削除";
+      del.title = "このチームが貯めたptも消えます";
+      del.onclick = () => {
+        if (!confirm("「" + C.teamLabel(s, t) + "」を削除しますか？\nこのチームが貯めたptも消えます。")) return;
+        store.removeTeam(t.id);
+        toast("削除しました");
+      };
+      act.appendChild(del);
+      row.appendChild(act);
+      box.appendChild(row);
+    });
+  }
+  $("autoPair").onclick = () => {
+    const n = store.autoPairTeams();
+    toast(n ? (n + "組つくりました") : "組ませられる人がいません（2人以上必要です）");
+  };
+  $("addTeam").onclick = () => { store.createTeam([]); toast("空のチームを作りました"); };
+
+  /* =============================================================
      大会の管理
      ============================================================= */
   async function renderBoardList(){
@@ -1305,6 +1475,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   function render(){
     const s = store.state;
     if (document.activeElement !== $("titleInput")) $("titleInput").value = s.title || "";
+    renderMode();
+    renderTeams();
     const nPart = C.participants(s).length;
     const nStaff = s.roster.length - nPart;
     $("memCount").textContent = s.roster.length + "人" + (nStaff ? "（参加 " + nPart + " / 運営 " + nStaff + "）" : "");

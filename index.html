@@ -136,6 +136,28 @@ button{font-family:inherit;cursor:pointer}
 .seat .empty{font-size:11px;color:var(--muted)}
 .seat .rankpill{font-size:10.5px;font-weight:900;padding:1px 8px;border-radius:999px;background:var(--grad);color:#fff;flex:none}
 
+/* ---- ダブルアップ（2人1組）----
+   参加者POPと席の中身が「1人」から「2人」に変わる。
+   枠そのものは同じものを使うので、DnDのコードはそのまま動く。 */
+.duo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.duo .m{display:flex;align-items:center;gap:6px;min-width:0}
+.duo .m img{width:22px;height:22px;border-radius:999px;object-fit:cover;flex:none;
+  border:1px solid var(--border)}
+.duo .m .nm{font-size:12px;font-weight:700;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.duo .m .tr{font-size:9.5px;font-weight:800;letter-spacing:.03em;flex:none}
+.duo .solo1{font-size:11px;color:var(--muted)}
+.pop.team{max-width:260px}
+.seat.team{align-items:flex-start;padding:7px 10px;min-height:56px}
+.seat.team .duo{flex:1}
+.tname{font-size:10.5px;font-weight:900;color:var(--pink-deep);
+  letter-spacing:.02em;margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nopair{margin-bottom:12px;padding:12px 15px;border-radius:14px;font-size:12.5px;line-height:1.85;
+  background:color-mix(in srgb,var(--gold) 10%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--gold) 45%,transparent)}
+.nopair b{font-weight:900}
+
 /* ---- ドラッグ&ドロップ（組卓）----
    管理者のときだけ有効。掴めるものには grab カーソルを出す。 */
 body.admin .pop, body.admin .seat.filled{cursor:grab}
@@ -328,7 +350,7 @@ body.viewer .pop{cursor:default}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=5.2"></script>
+<script src="core.js?v=5.3"></script>
 <script>
 (function(){
   const C = window.LBCore;
@@ -507,7 +529,10 @@ body.viewer .pop{cursor:default}
     if (document.activeElement !== $("titleInput")) $("titleInput").value = s.title || "";
     if (document.activeElement !== $("matchCountInput")) $("matchCountInput").value = s.matchCount;
     if (document.activeElement !== $("tableCountInput")) $("tableCountInput").value = s.tableCount;
-    $("capHint").textContent = `定員 ${s.tableCount * C.SEATS_PER_TABLE}人（8人×${s.tableCount}卓）`;
+    const DBL = C.isDouble(s);
+    $("capHint").textContent = DBL
+      ? `定員 ${s.tableCount * 4}チーム／${s.tableCount * 8}人（4チーム×${s.tableCount}卓）`
+      : `定員 ${s.tableCount * C.SEATS_PER_TABLE}人（8人×${s.tableCount}卓）`;
 
     renderRoleBar(s);
     renderTabs(s);
@@ -516,7 +541,18 @@ body.viewer .pop{cursor:default}
     document.querySelector(".pbar").style.display = isResults ? "none" : "";
     $("tables").style.display = isResults ? "none" : "";
     $("dndHint").style.display = (isResults || !IS_ADMIN) ? "none" : "";
+    $("dndHint").innerHTML = DBL
+      ? '🖐 <b>チームPOPを卓へドラッグ</b>して配置できます。卓どうしのドラッグで<b>入れ替え</b>、チームバーへ戻すと<b>卓から外す</b>。タップで選んで卓をタップする方法も使えます。'
+      : '🖐 <b>参加者POPを卓の席へドラッグ</b>して配置できます。席どうしのドラッグで<b>入れ替え</b>、参加者バーへ戻すと<b>席から外す</b>。タップで選んで席をタップする方法も使えます。';
     $("results").style.display = isResults ? "" : "none";
+
+    /* 見出しを差し替える。中の人数カウンタを消さないよう作り直す。 */
+    {
+      const tEl = document.querySelector(".pbar-head .title");
+      tEl.innerHTML = (DBL ? "👫 チーム" : "👥 参加者") +
+        '（<span id="presentCount" class="num">0</span>/<span id="rosterCount" class="num">0</span>）';
+    }
+    renderNoPair(s);
 
     if (isResults) renderResults(s);
     else { renderPops(s); renderTables(s); }
@@ -584,7 +620,136 @@ body.viewer .pop{cursor:default}
   }
 
   /* ---- 参加者POP ---- */
+  /* ペアが決まっていない人の案内（ダブルアップのときだけ） */
+  function renderNoPair(s){
+    let box = document.getElementById("nopair");
+    if (!box){
+      box = document.createElement("div");
+      box.id = "nopair";
+      box.className = "nopair";
+      const pbar = document.querySelector(".pbar");
+      pbar.parentNode.insertBefore(box, pbar);
+    }
+    if (!C.isDouble(s)){ box.style.display = "none"; return; }
+    const rest = C.unpairedPlayers(s);
+    if (!rest.length){ box.style.display = "none"; return; }
+    box.style.display = "";
+    box.innerHTML = "⚠️ まだペアが決まっていない人が <b>" + rest.length + "人</b> います（" +
+      rest.slice(0, 6).map(p => escapeHtml(p.name)).join("・") +
+      (rest.length > 6 ? " ほか" : "") + "）。<br>" +
+      (IS_ADMIN
+        ? '管理コンソールの「👫 チーム」でペアを作ってください。ペアが決まるまで卓に置けません。'
+        : 'ペアが決まるまで卓に入れません。主催の設定を待ってください。');
+  }
+
+  /* 2人ぶんの名前とアイコンを描く */
+  function duoEl(s, team){
+    const wrap = document.createElement("div");
+    wrap.className = "duo";
+    const ms = C.teamMembers(s, team);
+    if (!ms.length){
+      const e = document.createElement("div");
+      e.className = "solo1";
+      e.textContent = "（まだ誰も入っていません）";
+      wrap.appendChild(e);
+      return wrap;
+    }
+    ms.forEach(p => {
+      const row = document.createElement("div");
+      row.className = "m";
+      const img = document.createElement("img");
+      img.src = (p.discord && p.discord.avatar) || "";
+      img.onerror = function(){ this.style.visibility = "hidden"; };
+      const nm = document.createElement("div");
+      nm.className = "nm";
+      nm.textContent = p.name + (p.id === myPid ? " ⭐" : "");
+      const tr = document.createElement("div");
+      tr.className = "tr";
+      tr.innerHTML = (p.rank && p.rank.tier)
+        ? (C.rankIcon(p.rank, { cls: "sm" }) + p.rank.tier) : "";
+      tr.style.color = C.rankColor(p.rank);
+      row.appendChild(img); row.appendChild(nm); row.appendChild(tr);
+      wrap.appendChild(row);
+    });
+    if (ms.length < 2){
+      const e = document.createElement("div");
+      e.className = "solo1";
+      e.textContent = "（相方がまだ決まっていません）";
+      wrap.appendChild(e);
+    }
+    return wrap;
+  }
+
+  /* ダブルアップ用の参加者バー（並ぶのはチーム） */
+  function renderTeamPops(s){
+    const box = $("pops");
+    box.innerHTML = "";
+    const teams = C.teamsOf(s);
+    if (!teams.length){
+      const e = document.createElement("div");
+      e.className = "nobody";
+      e.innerHTML = "まだチームがありません。<br>" +
+        "<b>" + (IS_ADMIN ? "管理コンソールの「👫 チーム」でペアを作ってください。" : "主催がペアを作るのを待ってください。") + "</b>" +
+        "<span class='hint'>2人1組でひとつのチームになります</span>";
+      box.appendChild(e);
+      $("presentCount").textContent = 0;
+      $("rosterCount").textContent = 0;
+      return;
+    }
+    let present = 0;
+    teams.forEach(tm => {
+      const ms = C.teamMembers(s, tm);
+      const pr = s.matches[curMatch] && s.matches[curMatch].present;
+      const isOn = Array.isArray(pr) ? pr.includes(tm.id) : true;
+      if (isOn) present++;
+      const mine = ms.some(p => p.id === myPid);
+      const canToggle = IS_ADMIN || mine;
+      const dim = roleFilter && !ms.some(p => C.hasRole(p, roleFilter));
+      const pop = document.createElement("div");
+      pop.dataset.pid = tm.id;
+      pop.className = "pop team"
+        + (selectedPid === tm.id ? " sel" : "")
+        + (isOn ? "" : " off")
+        + (dim ? " dim" : "");
+      if (IS_ADMIN && isOn) pop.title = "ドラッグして卓へ（タップで選択してから卓をタップでもOK）";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = isOn;
+      cb.disabled = !canToggle;
+      cb.title = canToggle ? "この試合に参加する（2人まとめて）" : "他のチームの出欠は主催のみ変更できます";
+      cb.onclick = e => {
+        e.stopPropagation();
+        if (!canToggle){ cb.checked = isOn; toast("他のチームの出欠は主催のみが変更できます"); return; }
+        const anyone = ms[0];
+        if (!anyone){ toast("このチームにはまだ誰も入っていません"); cb.checked = isOn; return; }
+        store.setPresent(curMatch, anyone.id, cb.checked);
+      };
+      pop.appendChild(cb);
+
+      const info = document.createElement("div");
+      info.style.minWidth = "0";
+      const tn = document.createElement("div");
+      tn.className = "tname";
+      tn.textContent = C.teamLabel(s, tm);
+      info.appendChild(tn);
+      info.appendChild(duoEl(s, tm));
+      pop.appendChild(info);
+
+      pop.onclick = () => {
+        if (!IS_ADMIN) return;
+        if (!isOn){ toast("不参加のチームは配置できません（チェックを入れてください）"); return; }
+        selectedPid = (selectedPid === tm.id) ? null : tm.id;
+        render();
+      };
+      box.appendChild(pop);
+    });
+    $("presentCount").textContent = present;
+    $("rosterCount").textContent = teams.length;
+  }
+
   function renderPops(s){
+    if (C.isDouble(s)) return renderTeamPops(s);
     const box = $("pops");
     box.innerHTML = "";
     let present = 0;
@@ -681,13 +846,42 @@ body.viewer .pop{cursor:default}
       card.appendChild(h);
       const seats = document.createElement("div");
       seats.className = "seats";
+      const DBL = C.isDouble(s);
       tb.seats.forEach((pid, si) => {
         const seat = document.createElement("div");
         seat.dataset.t = t;
         seat.dataset.s = si;
         if (pid) seat.dataset.pid = pid;
-        seat.className = "seat" + (pid ? " filled" : "") + (selectedPid && !pid ? " target" : "");
-        if (pid){
+        seat.className = "seat" + (DBL ? " team" : "") + (pid ? " filled" : "") +
+          (selectedPid && !pid ? " target" : "");
+        if (pid && DBL){
+          const tm = C.teamById(s, pid);
+          const info = document.createElement("div");
+          info.style.minWidth = "0";
+          info.style.flex = "1";
+          const tn = document.createElement("div");
+          tn.className = "tname";
+          tn.textContent = C.teamLabel(s, pid);
+          info.appendChild(tn);
+          info.appendChild(duoEl(s, tm));
+          seat.appendChild(info);
+          const rk0 = tb.placements[pid];
+          if (rk0){
+            const pill = document.createElement("span");
+            pill.className = "rankpill num";
+            pill.textContent = rk0 + "位";
+            seat.appendChild(pill);
+          }
+          seat.onclick = () => {
+            if (!IS_ADMIN) return;
+            if (selectedPid && selectedPid !== pid){
+              store.assignSeat(curMatch, t, si, selectedPid);
+              selectedPid = null;
+            } else {
+              if (confirm("「" + C.teamLabel(s, pid) + "」を卓から外しますか？")) store.clearSeat(curMatch, t, si);
+            }
+          };
+        } else if (pid){
           const p = C.playerById(s, pid);
           const img = document.createElement("img");
           img.src = (p && p.discord && p.discord.avatar) || "";
@@ -722,11 +916,11 @@ body.viewer .pop{cursor:default}
         } else {
           const em = document.createElement("span");
           em.className = "empty";
-          em.textContent = "空席 " + (si+1);
+          em.textContent = (DBL ? "チーム枠 " : "空席 ") + (si+1);
           seat.appendChild(em);
           seat.onclick = () => {
             if (!IS_ADMIN) return;
-            if (!selectedPid){ toast("先に参加者POPをタップして選択してください"); return; }
+            if (!selectedPid){ toast(DBL ? "先にチームをタップして選択してください" : "先に参加者POPをタップして選択してください"); return; }
             store.assignSeat(curMatch, t, si, selectedPid);
             selectedPid = null;
           };
@@ -936,20 +1130,34 @@ body.viewer .pop{cursor:default}
       const h = document.createElement("h3");
       h.textContent = "🏆 全体順位（累計pt）";
       card.appendChild(h);
+      const DBL = C.isDouble(s);
       const rows = C.overallStandings(s);
       const tbl = document.createElement("table");
-      tbl.innerHTML = "<tr><th>順位</th><th>選手</th><th style='text-align:right'>試合数</th><th style='text-align:right'>pt</th></tr>";
+      tbl.innerHTML = "<tr><th>順位</th><th>" + (DBL ? "チーム" : "選手") +
+        "</th><th style='text-align:right'>試合数</th><th style='text-align:right'>pt</th></tr>";
       rows.forEach((r, i) => {
-        const p = C.playerById(s, r.pid);
         const tr = document.createElement("tr");
         const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":"";
-        tr.innerHTML =
-          `<td class="rk num">${medal ? '<span class="medal">'+medal+'</span>' : (i+1)}</td>` +
-          `<td><div class="cellp">` +
+        let who;
+        if (DBL){
+          const ms = r.members || [];
+          who = '<td><div class="cellp">' +
+            ms.map(x => '<img src="' + ((x.discord && x.discord.avatar) || "") + '" onerror="this.style.visibility=\'hidden\'">').join("") +
+            '<div><div style="font-weight:900">' + escapeHtml(r.name) + "</div>" +
+            '<div class="rbadge-sm" style="color:var(--muted)">' +
+            ms.map(x => C.rankIcon(x.rank, { cls: "sm" }) + escapeHtml(x.name)).join(" ＋ ") +
+            "</div></div></div></td>";
+        } else {
+          const p = C.playerById(s, r.pid);
+          who = `<td><div class="cellp">` +
             `<img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'">` +
             `<div><div style="font-weight:900">${escapeHtml(r.name)}</div>` +
             `<div class="rbadge-sm" style="color:${C.rankColor(p && p.rank)}">${C.rankIconLabel(p && p.rank, { cls: "sm" })}</div></div>` +
-          `</div></td>` +
+          `</div></td>`;
+        }
+        tr.innerHTML =
+          `<td class="rk num">${medal ? '<span class="medal">'+medal+'</span>' : (i+1)}</td>` +
+          who +
           `<td class="gm num">${r.games}</td><td class="pt num">${r.points}</td>`;
         tbl.appendChild(tr);
       });
@@ -976,19 +1184,31 @@ body.viewer .pop{cursor:default}
         card.appendChild(h);
 
         const tbl = document.createElement("table");
-        tbl.innerHTML = "<tr><th>選手</th><th>順位</th><th style='text-align:right'>pt</th></tr>";
+        const DBL2 = C.isDouble(s);
+        const PLACES = DBL2 ? [1,2,3,4] : [1,2,3,4,5,6,7,8];
+        tbl.innerHTML = "<tr><th>" + (DBL2 ? "チーム" : "選手") +
+          "</th><th>順位</th><th style='text-align:right'>pt</th></tr>";
         tb.seats.forEach(pid => {
           if (!pid) return;
-          const p = C.playerById(s, pid);
+          const p = DBL2 ? null : C.playerById(s, pid);
           const rk = tb.placements[pid] || "";
           const tr = document.createElement("tr");
           const tdP = document.createElement("td");
-          tdP.innerHTML = `<div class="cellp"><img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'"><b>${escapeHtml(p ? p.name : "—")}</b></div>`;
+          if (DBL2){
+            const ms = C.teamMembers(s, pid);
+            tdP.innerHTML = '<div class="cellp">' +
+              ms.map(x => '<img src="' + ((x.discord && x.discord.avatar) || "") + '" onerror="this.style.visibility=\'hidden\'">').join("") +
+              "<div><b>" + escapeHtml(C.teamLabel(s, pid)) + "</b>" +
+              '<div class="rbadge-sm" style="color:var(--muted)">' +
+              ms.map(x => escapeHtml(x.name)).join(" ＋ ") + "</div></div></div>";
+          } else {
+            tdP.innerHTML = `<div class="cellp"><img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'"><b>${escapeHtml(p ? p.name : "—")}</b></div>`;
+          }
           const tdR = document.createElement("td");
           if (IS_ADMIN){
             const sel = document.createElement("select");
             sel.className = "place";
-            sel.innerHTML = '<option value="">—</option>' + [1,2,3,4,5,6,7,8].map(n => `<option value="${n}" ${rk===n?"selected":""}>${n}位</option>`).join("");
+            sel.innerHTML = '<option value="">—</option>' + PLACES.map(n => `<option value="${n}" ${rk===n?"selected":""}>${n}位</option>`).join("");
             sel.onchange = () => store.setPlacement(m, t, pid, parseInt(sel.value,10) || 0);
             tdR.appendChild(sel);
           } else {
@@ -1010,7 +1230,10 @@ body.viewer .pop{cursor:default}
   async function autoFetch(m, t, btn){
     const s = store.state;
     const tb = s.matches[m].tables[t];
+    const DBL = C.isDouble(s);
+    // ダブルアップは「チーム＝2人ぶんの puuid」で探す
     const players = tb.seats.filter(Boolean).map(pid => {
+      if (DBL) return { pid, puuids: C.teamMembers(s, pid).map(x => x.puuid).filter(Boolean) };
       const p = C.playerById(s, pid);
       return { pid, puuid: p ? p.puuid : "" };
     });
@@ -1018,18 +1241,26 @@ body.viewer .pop{cursor:default}
     btn.disabled = true;
     try {
       btn.textContent = "取得中…";
-      const r = await C.Riot.autoDetectTable(players, msg => { btn.textContent = "…"; }, { min: 2 });
+      const r = await C.Riot.autoDetectTable(players, msg => { btn.textContent = "…"; },
+        { min: 2, mode: DBL ? "doubleup" : "solo" });
       if (!r){
-        toast("直近の履歴に、この卓の人が2人以上そろったマッチが見つかりませんでした");
+        toast(DBL
+          ? "直近の履歴に、この卓のチームが2組以上そろったダブルアップの試合が見つかりませんでした。手入力してください"
+          : "直近の履歴に、この卓の人が2人以上そろったマッチが見つかりませんでした");
         return;
       }
       Object.entries(r.placements).forEach(([pid, rank]) => store.setPlacement(m, t, pid, rank));
+      const unit = DBL ? "組" : "人";
       if (r.matched < r.total){
-        const names = r.missingPids.map(pid => C.nameOf(s, pid)).join("・");
-        toast("⚠️ " + r.matched + "/" + r.total + "人ぶん反映しました。" +
-              names + " は同じマッチに見つからなかったので手入力してください");
+        const names = r.missingPids.map(pid => DBL ? C.teamLabel(s, pid) : C.nameOf(s, pid)).join("・");
+        toast("⚠️ " + r.matched + "/" + r.total + unit + "ぶん反映しました。" +
+              names + " は同じ試合に見つからなかったので手入力してください");
       } else {
-        toast("順位を反映しました（" + r.matched + "人）");
+        toast("順位を反映しました（" + r.matched + unit + "）" + (r.scaled ? " ※1〜8で返ってきたので1〜4に直しました" : ""));
+      }
+      if (DBL && r.splitTeams && r.splitTeams.length){
+        toast("⚠️ " + r.splitTeams.map(pid => C.teamLabel(s, pid)).join("・") +
+              " は、その試合では別々の組で遊んでいたようです。順位を確かめてください");
       }
     } catch(e){
       toast("自動取得に失敗: " + e.message);
