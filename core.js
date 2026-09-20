@@ -1210,6 +1210,7 @@
         { id: "schedule", icon: "🗓", img: "assets/tile-schedule.png", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "leaf", enabled: true, soon: false, roleIds: [] },
         { id: "members",  icon: "👥", img: "assets/tile-members.png",  name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf", enabled: true, soon: true,  roleIds: [] },
         { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] },
+        { id: "vc",       icon: "🔊", img: "none",                     name: "VC稼働",       desc: "VCの稼働時間と、みんなの滞在時間。",         url: "vc.html",       tint: "navy", enabled: true, soon: false, roleIds: [] },
 
         /* ★ ここから下は外部ツールへの導線。
            リンク先は【管理コンソール →「🏠 HOME編集」】で入れてください。
@@ -1293,7 +1294,10 @@
     // 「中のリンク」も、既定にあって保存済み設定に無いものを足す
     const kids = Array.isArray(t.children) ? t.children.map(normChild) : [];
     (TILE_KIDS[tid] || []).forEach(k => {
-      if (!kids.some(x => x.id === k.id)) kids.push(normChild(k, kids.length));
+      const cur = kids.find(x => x.id === k.id);
+      if (!cur) kids.push(normChild(k, kids.length));
+      // 既にあるけどURLが空のときは、既定のリンク先を補う
+      else if (noLink(cur.url) && k.url){ cur.url = k.url; cur.external = k.external !== false; }
     });
     return {
       id: tid,
@@ -1885,8 +1889,12 @@
     const keys = Object.keys(h).filter(k => k <= today).sort();
     if (!keys.length) return { latest: null, prev: null, base: null, dayDelta: null, baseDelta: null, prevDate: "", baseDate: "" };
     const latestKey = keys[keys.length - 1];
+    /* 「前日の伸び」は、きょうを入れずに、終わった2日ぶんを比べる。
+       きょうの値は23:45の集計が済むまで途中経過なので、入れると数字が動いてしまう。
+       例: 9/20 に見ているときは 9/19 −  9/18 を出す。 */
     const beforeToday = keys.filter(k => k < today);
-    const prevKey = beforeToday.length ? beforeToday[beforeToday.length - 1] : null;
+    const prevKey  = beforeToday.length     ? beforeToday[beforeToday.length - 1] : null;  // 9/19
+    const prev2Key = beforeToday.length > 1 ? beforeToday[beforeToday.length - 2] : null;  // 9/18
 
     let baseKey = null;
     if (lp.baseline) {
@@ -1895,12 +1903,15 @@
     }
     const latest = h[latestKey];
     const prev = prevKey != null ? h[prevKey] : null;
+    const prev2 = prev2Key != null ? h[prev2Key] : null;
     const base = baseKey != null ? h[baseKey] : null;
     return {
-      latest, prev, base,
-      dayDelta: (prev != null) ? (latest - prev) : null,
+      latest, prev, prev2, base,
+      // 前日の伸び = 前日 − 前々日（きょうは含めない）
+      dayDelta: (prev != null && prev2 != null) ? (prev - prev2) : null,
       baseDelta: (base != null) ? (latest - base) : null,
-      latestDate: latestKey, prevDate: prevKey || "", baseDate: baseKey || ""
+      latestDate: latestKey, prevDate: prevKey || "", prev2Date: prev2Key || "",
+      baseDate: baseKey || ""
     };
   }
 
@@ -2705,6 +2716,129 @@
   }
 
   /* =============================================================
+     VC稼働時間（vc.html で使う）
+
+     記録しているのは Discord Bot（vc-tracker.js）。
+     Bot が Firestore の lboard_index/vc_YYYY-MM に
+       days: { "2026-09-20": { <VCのID>: { n:VC名, up:稼働秒, sec:延べ秒, u:{ <ユーザーID>:秒 } } } }
+       names: { <ユーザーID>: 表示名 }
+     の形で日ごとに書き込み、ここではそれを読んで期間ぶん足すだけ。
+
+     ・up（稼働時間）= そのVCに誰か1人でもいた実時間（重なりは1回と数える）
+     ・sec（延べ滞在）= 全員の滞在時間の合計
+     ・日をまたぐ滞在は Bot 側で 0:00(JST) で切ってあるので、単純に足せる
+     ============================================================= */
+  const VC_META_DOC = "vc";
+
+  function vcMonthsBetween(fromKey, toKey) {
+    const out = [];
+    let y = Number(fromKey.slice(0, 4)), m = Number(fromKey.slice(5, 7));
+    const ey = Number(toKey.slice(0, 4)), em = Number(toKey.slice(5, 7));
+    while (y < ey || (y === ey && m <= em)) {
+      out.push(y + "-" + String(m).padStart(2, "0"));
+      m++; if (m > 12) { m = 1; y++; }
+      if (out.length > 120) break;   // 念のための上限（10年）
+    }
+    return out;
+  }
+
+  // 記録開始日など
+  async function loadVcMeta() {
+    const db = openDb();
+    if (!db) return { startedAt: 0 };
+    try {
+      const snap = await db.collection("lboard_index").doc(VC_META_DOC).get();
+      return snap.exists ? (snap.data() || {}) : { startedAt: 0 };
+    } catch (e) { console.warn("VCの控えを読めませんでした", e); return { startedAt: 0 }; }
+  }
+
+  /* 期間（YYYY-MM-DD 〜 YYYY-MM-DD、両端を含む）の集計を返す */
+  async function loadVcRange(fromKey, toKey) {
+    const db = openDb();
+    const empty = { from: fromKey, to: toKey, channels: [], users: [], daily: [],
+                    totals: { uptime: 0, seconds: 0, users: 0, channels: 0, days: 0 } };
+    if (!db) return empty;
+
+    const months = vcMonthsBetween(fromKey, toKey);
+    const docs = await Promise.all(months.map(m =>
+      db.collection("lboard_index").doc("vc_" + m).get()
+        .then(s => (s.exists ? s.data() : null))
+        .catch(() => null)));
+
+    const chan = new Map();   // VCごと
+    const user = new Map();   // ユーザーごと
+    const daily = [];
+    let names = {};
+
+    docs.forEach(d => {
+      if (!d) return;
+      names = Object.assign(names, d.names || {});
+      Object.entries(d.days || {}).forEach(([day, chs]) => {
+        if (day < fromKey || day > toKey) return;
+        let dayUp = 0, daySec = 0;
+        Object.entries(chs || {}).forEach(([cid, c]) => {
+          const up = Number(c.up) || 0, sec = Number(c.sec) || 0;
+          dayUp += up; daySec += sec;
+          if (!chan.has(cid)) chan.set(cid, { id: cid, name: c.n || cid, uptime: 0, seconds: 0, perUser: {} });
+          const ch = chan.get(cid);
+          if (c.n) ch.name = c.n;          // 名前が変わっていたら新しいほうを使う
+          ch.uptime += up;
+          ch.seconds += sec;
+          Object.entries(c.u || {}).forEach(([uid, s]) => {
+            const v = Number(s) || 0;
+            ch.perUser[uid] = (ch.perUser[uid] || 0) + v;
+            if (!user.has(uid)) user.set(uid, { id: uid, name: uid, seconds: 0, byChannel: {} });
+            const us = user.get(uid);
+            us.seconds += v;
+            us.byChannel[cid] = (us.byChannel[cid] || 0) + v;
+          });
+        });
+        daily.push({ day: day, uptime: dayUp, seconds: daySec });
+      });
+    });
+
+    const chName = id => (chan.get(id) ? chan.get(id).name : id);
+    const channels = [...chan.values()].map(c => {
+      let top = null;
+      Object.entries(c.perUser).forEach(([uid, s]) => {
+        if (!top || s > top.seconds) top = { id: uid, name: names[uid] || uid, seconds: s };
+      });
+      return { id: c.id, name: c.name, uptime: c.uptime, seconds: c.seconds,
+               users: Object.keys(c.perUser).length, top: top };
+    }).sort((a, b) => b.uptime - a.uptime);
+
+    const users = [...user.values()].map(u => ({
+      id: u.id,
+      name: names[u.id] || u.id,
+      seconds: u.seconds,
+      byChannel: Object.entries(u.byChannel)
+        .map(([cid, s]) => ({ id: cid, name: chName(cid), seconds: s }))
+        .sort((a, b) => b.seconds - a.seconds)
+    })).sort((a, b) => b.seconds - a.seconds);
+
+    daily.sort((a, b) => a.day < b.day ? -1 : 1);
+
+    return {
+      from: fromKey, to: toKey, channels, users, daily,
+      totals: {
+        uptime: channels.reduce((n, c) => n + c.uptime, 0),
+        seconds: users.reduce((n, u) => n + u.seconds, 0),
+        users: users.length,
+        channels: channels.length,
+        days: daily.length
+      }
+    };
+  }
+  // 「◯時間◯分」の表示に使う
+  function vcHm(sec) {
+    sec = Math.max(0, Math.round(sec || 0));
+    const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+    if (h) return h + "時間" + (m ? String(m).padStart(2, "0") + "分" : "");
+    if (m) return m + "分";
+    return sec + "秒";
+  }
+
+  /* =============================================================
      Discord へ投げるメッセージの文面
 
      保存先: lboard_index/messages
@@ -3499,6 +3633,7 @@
     safeUrl, safeImg,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
+    loadVcMeta, loadVcRange, vcMonthsBetween, vcHm,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,

@@ -525,7 +525,10 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     const e1 = document.createElement("div");
     e1.className = "dv " + d1.cls;
     e1.innerHTML = '<span class="cap">前日</span>' + d1.txt;
-    e1.title = st.prevDate ? ("前回計測 " + st.prevDate + " と比較") : "比較できる記録がまだありません";
+    /* きょうは途中経過なので入れず、終わった2日ぶん（例 9/18 → 9/19）を比べています */
+    e1.title = (st.prevDate && st.prev2Date)
+      ? (md(st.prev2Date) + " → " + md(st.prevDate) + " の伸び")
+      : "比べられる2日ぶんの記録がまだありません";
     dl.appendChild(e1);
     if (lp.baseline){
       const d2 = fmtDelta(st.baseDelta);
