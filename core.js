@@ -1205,27 +1205,30 @@
     return {
       title: "クラウドハッシュテイル校 TOOLS",
       subtitle: "Discordログイン式ホーム",
+      /* HOMEに並ぶタイル（この順番で出ます）。
+         「ツール」「遊び場」は children を持つので、押すとHOMEの中でその場に開きます。
+         VC稼働は管理コンソール（🔊 VC稼働タブ）にだけ置いてあり、ここには出しません。 */
       tiles: [
-        { id: "boards",   icon: "🏆", img: "assets/tile-boards.png",   name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。", url: "boards.html",   tint: "leaf", enabled: true, soon: false, roleIds: [] },
         { id: "schedule", icon: "🗓", img: "assets/tile-schedule.png", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "leaf", enabled: true, soon: false, roleIds: [] },
-        { id: "members",  icon: "👥", img: "assets/tile-members.png",  name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf", enabled: true, soon: true,  roleIds: [] },
-        { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] },
+        { id: "members",  icon: "👥", img: "assets/tile-members.png",  name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",           url: "members.html",  tint: "leaf", enabled: true, soon: true,  roleIds: [] },
+        { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",             url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] },
+        { id: "boards",   icon: "🏆", img: "assets/tile-boards.png",   name: "大会",         desc: "リーダーボード。組卓・順位入力・全体順位。",     url: "boards.html",   tint: "leaf", enabled: true, soon: false, roleIds: [] },
 
-        /* ★ ここから下は外部ツールへの導線。
-           リンク先は【管理コンソール →「🏠 HOME編集」】で入れてください。
-           URLが空のあいだは「リンク先が未設定です」と出て、押しても飛びません。 */
-        { id: "sim1st",  icon: "🥇", img: "none", name: "1st simulator", desc: "1位を取る練習をするシミュレーター。",
-          url: "https://mo10c.github.io/TFT-Simulator/", external: true, tint: "sky",   enabled: true, soon: false, roleIds: [] },
-        { id: "coating", icon: "📘", img: "none", name: "コーチングノート",  desc: "コーチングのメモ。",
-          url: "https://mo10c.github.io/TFT-CoachingNote/", external: true, tint: "mint",  enabled: true, soon: false, roleIds: [] },
-        { id: "augnote", icon: "📖", img: "none", name: "オーグメントノート", desc: "オーグメントの評価とメモ。",
-          url: "", external: true, tint: "gold",  enabled: true, soon: false, roleIds: [] },
+        { id: "toolbox", icon: "🧰", img: "none", name: "ツール", desc: "練習やメモに使う道具をまとめてあります。",
+          url: "", external: false, tint: "sky", enabled: true, soon: false, roleIds: [],
+          children: [
+            { id: "sim1st",  icon: "🥇", name: "1st simulator",     desc: "1位を取る練習をするシミュレーター。", url: "https://mo10c.github.io/TFT-Simulator/",    external: true, roleIds: [] },
+            { id: "coating", icon: "📘", name: "コーチングノート",   desc: "コーチングのメモ。",                 url: "https://mo10c.github.io/TFT-CoachingNote/", external: true, roleIds: [] },
+            { id: "augnote", icon: "📖", name: "オーグメントノート", desc: "オーグメントの評価とメモ。",         url: "",                                          external: true, roleIds: [] }
+          ] },
+
         { id: "playground", icon: "🎮", img: "none", name: "遊び場", desc: "みんなで遊べるものを置いてあります。",
           url: "", external: false, tint: "coral", enabled: true, soon: false, roleIds: [],
           children: [
-            { id: "midterm",  icon: "📝", name: "中間試験",            desc: "みんなで一斉に答えるクイズ。", url: "exam.html", external: false, roleIds: [] },
+            { id: "midterm",  icon: "📝", name: "中間試験",            desc: "みんなで一斉に答えるクイズ。",      url: "exam.html", external: false, roleIds: [] },
             { id: "ito",      icon: "🎲", name: "ITO",                 desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true, roleIds: [] },
-            { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。", url: "", external: true, roleIds: [] }
+            { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。",        url: "", external: true, roleIds: [] },
+            { id: "bloom",    icon: "🌸", name: "Bloom Spire",         desc: "",                                  url: "", external: true, roleIds: [] }
           ] }
       ].map(normTile),
       tools: ((((CFG.home || {}).tools) || []).slice()).map(normTool),
