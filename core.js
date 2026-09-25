@@ -1305,14 +1305,25 @@
       roleIds: Array.isArray(t.roleIds) ? t.roleIds.map(String).filter(Boolean) : []
     };
   }
+  /* タイル構成の版。
+     保存済みの設定がこれより古いときだけ、タイルを既定（defaultHomeConfig）で
+     まるごと入れ替える。＝ HOMEの構成を作り直したときの「1回だけの乗り換え」。
+     管理コンソールで一度保存すれば layoutVersion が書き込まれ、
+     以降は保存した内容がそのまま使われる（勝手に戻されない）。
+     ★ 次にHOMEの構成を総入れ替えしたくなったら、この数字を1つ上げること。 */
+  const HOME_LAYOUT = 2;
+
   function normHomeConfig(h) {
     const d = defaultHomeConfig();
     h = h || {};
+    const hasTiles = Array.isArray(h.tiles) && h.tiles.length;
+    const oldLayout = (Number(h.layoutVersion) || 0) < HOME_LAYOUT;
     return {
       title: typeof h.title === "string" && h.title.trim() ? h.title.trim() : d.title,
       subtitle: typeof h.subtitle === "string" ? h.subtitle : d.subtitle,
-      tiles: Array.isArray(h.tiles) && h.tiles.length ? h.tiles.map(normTile) : d.tiles,
+      tiles: (hasTiles && !oldLayout) ? h.tiles.map(normTile) : d.tiles,
       tools: Array.isArray(h.tools) ? h.tools.map(normTool) : d.tools.map(normTool),
+      layoutVersion: HOME_LAYOUT,
       updatedAt: h.updatedAt || 0
     };
   }
@@ -3465,9 +3476,14 @@
       const a = src[t] || {};
       const img = typeof a.img === "string" ? a.img.trim() : "";
       const emoji = typeof a.emoji === "string" ? a.emoji.trim().slice(0, 60) : "";
-      // javascript: などを弾く。使えるのは画像のデータURLと http(s) だけ。
+      /* javascript: などを弾く。使えるのは次の3つだけ。
+           ・画像のデータURL（管理コンソールで「画像を選ぶ」をしたとき）
+           ・https:// または http:// の画像URL
+           ・同じサイト内の相対パス（例 rank/TFT_Regalia_Master.png）
+         相対パスは「:」を含まない＝スキームが付けられないので安全。 */
       const okImg = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(img) ||
-                    /^https?:\/\//i.test(img);
+                    /^https?:\/\//i.test(img) ||
+                    /^[\w./-]+\.(png|jpe?g|gif|webp|svg)$/i.test(img);
       if (okImg || emoji) out.tiers[t] = { img: okImg ? img : "", emoji: emoji };
     });
     return out;

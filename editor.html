@@ -119,6 +119,7 @@ tr:last-child td{border-bottom:none}
 .rkrow .tn{width:132px;flex:none;font-size:12.5px;font-weight:900}
 .rkrow .tn small{display:block;font-size:10.5px;font-weight:400;color:var(--muted)}
 .rkrow .em{width:230px;height:34px;font-size:12.5px;font-family:ui-monospace,monospace}
+.rkrow .url{flex:1;min-width:210px;height:34px;font-size:12px}
 .rkrow .act{display:flex;gap:6px;flex-wrap:wrap}
 .rkrow .file{display:none}
 @media (max-width:760px){
@@ -703,7 +704,9 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       <h2>ランクアイコン</h2>
       <div class="lead">
         ランクの横に出る紋章を、ティアごとに自分の画像へ差し替えられます。<br>
-        <b>サイト用</b>は画像（PNG/JPG）を選ぶだけ。自動で小さく（96px・約12KBまで）します。<br>
+        <b>サイト用</b>は2通り。<b>画像のURL</b>（https://…）を貼るか、
+        「画像を選ぶ」でファイルを入れる（自動で96px・約12KBまで小さくします）。
+        両方入れたときは、あとから入れたほうが使われます。<br>
         <b>Discord用</b>は画像を貼れないので、絵文字コードを入れます。
         入れると投稿が <code>&lt;:master:123…&gt; MASTER 135LP</code> のようになります。
       </div>
@@ -2604,29 +2607,13 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       sub.innerHTML = "いつ: " + esc(meta.when);
       card.appendChild(sub);
 
-      /* ★ 投稿先をここで選べる（既定＝連絡事項）。
-         Worker は lboard_index/messages の channels を読んで投げ先を決める。 */
+      /* ★ 投稿先は「連絡事項」の1つだけ（談話室への投稿は廃止）。
+         選ぶものが無いので、どこへ行くかを表示するだけにしてある。 */
       const chRow = document.createElement("div");
       chRow.className = "mfield";
-      const chLbl = document.createElement("div");
-      chLbl.className = "mlbl";
-      chLbl.innerHTML = '投稿先のチャンネル<span class="tip">既定は「連絡事項」。変えると次回の投稿から反映されます</span>';
-      chRow.appendChild(chLbl);
-      const chSel = document.createElement("select");
-      chSel.style.height = "34px";
-      C.MSG_CHANNELS.forEach(c => {
-        const o = document.createElement("option");
-        o.value = c.id;
-        o.textContent = c.name + "（" + c.note + "）";
-        if (((msgEdit.channels || {})[key] || "notice") === c.id) o.selected = true;
-        chSel.appendChild(o);
-      });
-      chSel.onchange = () => {
-        if (!msgEdit.channels) msgEdit.channels = {};
-        msgEdit.channels[key] = chSel.value;
-        markMsgDirty();
-      };
-      chRow.appendChild(chSel);
+      chRow.innerHTML = '<div class="mlbl">投稿先のチャンネル' +
+        '<span class="tip">自動投稿はすべて連絡事項へ。Worker の DISCORD_SCHEDULE_CHANNEL_ID で決まります</span></div>' +
+        '<div style="font-size:12.5px;font-weight:900">📣 連絡事項</div>';
       card.appendChild(chRow);
 
       [["head", "見出し", "いちばん上の行。空にすると出ません"],
@@ -2843,6 +2830,29 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       tn.className = "tn";
       tn.innerHTML = esc(t) + "<small>" + esc(jp) + (ov.img ? " ・画像あり" : "") + "</small>";
       row.appendChild(tn);
+
+      /* 画像URLを直接入れる欄。http(s) の画像URLをそのまま使う。
+         「画像を選ぶ」で入れた画像（データURL）とは、あとから入れたほうが有効。 */
+      const ur = document.createElement("input");
+      ur.type = "text";
+      ur.className = "url";
+      ur.placeholder = "画像のURL（https://…）";
+      ur.value = /^https?:\/\//i.test(ov.img || "") ? ov.img : "";
+      ur.oninput = () => {
+        if (!rkEdit.tiers) rkEdit.tiers = {};
+        const cur = rkEdit.tiers[t] || { img: "", emoji: "" };
+        const v = ur.value.trim();
+        // 空にしたとき、アップロードした画像まで消さないように
+        const keepImg = /^data:image\//i.test(cur.img || "") ? cur.img : "";
+        rkEdit.tiers[t] = { img: v || keepImg, emoji: cur.emoji || "" };
+        pv.innerHTML = rkEdit.tiers[t].img
+          ? '<img class="rkico custom" src="' + esc(rkEdit.tiers[t].img) + '" alt="" ' +
+            'onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),' +
+            '{textContent:\'⚠️\',title:\'画像を読み込めません\'}))">'
+          : C.rankIcon(rkPreviewRank(t), { noOverride: true });
+        markRkDirty(); renderRkPreview();
+      };
+      row.appendChild(ur);
 
       const em = document.createElement("input");
       em.type = "text";
