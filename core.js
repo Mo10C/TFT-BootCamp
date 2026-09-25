@@ -3530,23 +3530,24 @@
      ============================================================= */
   (function injectRankIconCss() {
     if (typeof document === "undefined" || document.getElementById("rkico-v54")) return;
+    /* ★ ムラを無くすため、すべてのアイコンを「同じ大きさの横長の箱」に入れる。
+         箱の高さ = --rk-*、幅 = 高さ × --rk-ratio。
+         紋章は形がティアごとに違う（ダイヤは横長、ゴールドは正方形寄り）ので、
+         箱の中に収まる最大の大きさで真ん中に置く（object-fit: contain）。
+         こうすると、どのティアでも文字の始まる位置がそろう。
+         既定の盾（SVG）も同じ箱に入るので、画像あり／なしが混ざってもそろう。 */
     const css =
-      ":root{--rk-base:1.75em;--rk-lg:2.3em;--rk-sm:1.4em;--rk-profile:2.6em}" +
-      /* 大きさ（既定の盾SVGも同じ高さに揃える） */
-      ".rkico{width:var(--rk-base);height:var(--rk-base);vertical-align:-.52em;margin-right:.35em}" +
-      ".rkico.lg{width:var(--rk-lg);height:var(--rk-lg);vertical-align:-.72em}" +
-      ".rkico.sm{width:var(--rk-sm);height:var(--rk-sm);vertical-align:-.38em;margin-right:.25em}" +
-      /* 登録画像：枠・背景・丸・余白をすべて外し、幅は画像なり */
-      "img.rkico.custom{width:auto!important;max-width:calc(var(--rk-base)*2);object-fit:contain;" +
-        "background:none!important;border:0!important;border-radius:0!important;" +
+      ":root{--rk-ratio:1.45;--rk-base:1.7em;--rk-lg:2.2em;--rk-sm:1.5em;--rk-profile:2.6em}" +
+      ".rkico{height:var(--rk-base);width:calc(var(--rk-base)*var(--rk-ratio));" +
+        "vertical-align:-.5em;margin-right:.3em;flex:none;display:inline-block;object-fit:contain;object-position:center}" +
+      ".rkico.lg{height:var(--rk-lg);width:calc(var(--rk-lg)*var(--rk-ratio));vertical-align:-.7em}" +
+      ".rkico.sm{height:var(--rk-sm);width:calc(var(--rk-sm)*var(--rk-ratio));vertical-align:-.42em;margin-right:.22em}" +
+      /* 登録画像：枠・背景・丸・余白をすべて外す */
+      "img.rkico.custom{background:none!important;border:0!important;border-radius:0!important;" +
         "box-shadow:none!important;padding:0!important;outline:0!important}" +
-      "img.rkico.custom.lg{max-width:calc(var(--rk-lg)*2)}" +
-      "img.rkico.custom.sm{max-width:calc(var(--rk-sm)*2)}" +
       /* HOMEのプロフィール帯（#meRank）はいちばん大きく */
-      "#meRank .rkico,.mecard .rank .rkico{height:var(--rk-profile);width:var(--rk-profile);" +
-        "vertical-align:-.9em;margin-right:.45em}" +
-      "#meRank img.rkico.custom,.mecard .rank img.rkico.custom{width:auto!important;" +
-        "max-width:calc(var(--rk-profile)*2)}" +
+      "#meRank .rkico,.mecard .rank .rkico{height:var(--rk-profile);" +
+        "width:calc(var(--rk-profile)*var(--rk-ratio));vertical-align:-.9em;margin-right:.4em}" +
       "#meRank,.mecard .rank{line-height:1.2}";
     const st = document.createElement("style");
     st.id = "rkico-v54";

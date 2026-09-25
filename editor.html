@@ -704,7 +704,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       <h2>ランクアイコン</h2>
       <div class="lead">
         ランクの横に出る紋章を、ティアごとに自分の画像へ差し替えられます。<br>
-        <b>サイト用</b>は2通り。<b>画像のURL</b>（https://…）を貼るか、
+        <b>サイト用</b>は2通り。<b>画像のパス</b>（同じサイト内なら <code>rank/TFT_Regalia_Master.png</code>、
+        外部なら <code>https://…</code>）を入れるか、
         「画像を選ぶ」でファイルを入れる（自動で96px・約12KBまで小さくします）。
         両方入れたときは、あとから入れたほうが使われます。<br>
         <b>Discord用</b>は画像を貼れないので、絵文字コードを入れます。
@@ -2758,14 +2759,36 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       i.onerror = () => rej(new Error("画像として開けませんでした"));
       i.src = src;
     });
-    const draw = side => {
+    /* まわりの透明な余白を切り落とす（余白が多い画像は小さく見えるため）。
+       ほぼ透明（アルファ10以下）の点は余白とみなす。 */
+    const box = (() => {
+      const W = im.naturalWidth, H = im.naturalHeight;
       const cv = document.createElement("canvas");
-      cv.width = cv.height = side;
+      cv.width = W; cv.height = H;
       const g = cv.getContext("2d");
-      // 正方形に収める（はみ出さないように内側へ）
-      const k = Math.min(side / im.naturalWidth, side / im.naturalHeight);
-      const w = im.naturalWidth * k, h = im.naturalHeight * k;
-      g.drawImage(im, (side - w) / 2, (side - h) / 2, w, h);
+      g.drawImage(im, 0, 0);
+      let d;
+      try { d = g.getImageData(0, 0, W, H).data; } catch(e){ return { x:0, y:0, w:W, h:H }; }
+      let x0 = W, y0 = H, x1 = -1, y1 = -1;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+        if (d[(y * W + x) * 4 + 3] > 10){
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < 0) return { x:0, y:0, w:W, h:H };           // 全部透明なら何もしない
+      const pad = Math.max(1, Math.round(Math.max(x1 - x0, y1 - y0) * 0.03));
+      x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+      x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+      return { x:x0, y:y0, w:x1 - x0 + 1, h:y1 - y0 + 1 };
+    })();
+    // 切り落とした形のまま、長い辺が side になるように縮める（正方形に押し込まない）
+    const draw = side => {
+      const k = Math.min(1, side / Math.max(box.w, box.h));
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(box.w * k));
+      cv.height = Math.max(1, Math.round(box.h * k));
+      cv.getContext("2d").drawImage(im, box.x, box.y, box.w, box.h, 0, 0, cv.width, cv.height);
       return cv.toDataURL("image/png");
     };
     let out = "";
@@ -2836,7 +2859,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       const ur = document.createElement("input");
       ur.type = "text";
       ur.className = "url";
-      ur.placeholder = "画像のURL（https://…）";
+      ur.placeholder = "rank/TFT_Regalia_Master.png または https://…";
       ur.value = /^https?:\/\//i.test(ov.img || "") ? ov.img : "";
       ur.oninput = () => {
         if (!rkEdit.tiers) rkEdit.tiers = {};
