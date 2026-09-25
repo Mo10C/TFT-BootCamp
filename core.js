@@ -2903,8 +2903,9 @@
   function normMessages(raw) {
     raw = raw || {};
     const d = defaultMessages();
+    /* ★ 投稿先は「連絡事項」の1つだけ。談話室への投稿は廃止しました。
+       古い設定に channels.○○ = "chat" が残っていても、すべて連絡事項に揃えます。 */
     const out = { updatedAt: raw.updatedAt || 0, channels: {} };
-    const rc = raw.channels || {};
     MSG_KEYS.forEach(k => {
       const a = raw[k] || {};
       out[k] = {
@@ -2912,17 +2913,15 @@
         line: (typeof a.line === "string" && a.line.trim()) ? a.line : d[k].line,
         foot: typeof a.foot === "string" ? a.foot : d[k].foot
       };
-      // ★ 投稿先。既定は "notice"（連絡事項）。"chat" にすると談話室へ。
-      out.channels[k] = (rc[k] === "chat") ? "chat" : "notice";
+      out.channels[k] = "notice";
     });
     return out;
   }
-  /* 投稿先の日本語名（管理画面の表示用） */
+  /* 投稿先は連絡事項のみ（管理画面の表示用） */
   const MSG_CHANNELS = [
-    { id: "notice", name: "連絡事項", note: "DISCORD_SCHEDULE_CHANNEL_ID" },
-    { id: "chat",   name: "談話室",   note: "DISCORD_ANNOUNCE_CHANNEL_ID" }
+    { id: "notice", name: "連絡事項", note: "DISCORD_SCHEDULE_CHANNEL_ID" }
   ];
-  function channelName(id) { const c = MSG_CHANNELS.find(x => x.id === id); return c ? c.name : "連絡事項"; }
+  function channelName() { return "連絡事項"; }
 
   async function loadMessages() {
     try {
