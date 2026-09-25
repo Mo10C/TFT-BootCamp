@@ -3517,6 +3517,43 @@
   }
   if (typeof window !== "undefined") setTimeout(autoLoadRankIcons, 0);
 
+  /* =============================================================
+     ランクアイコンの見た目（v5.4）— 枠なし・大きめ
+
+     ・登録画像のまわりに付いていた丸い背景／枠を外す（画像そのものだけを出す）
+     ・紋章は横長なので、高さで大きさを決めて幅は画像なりにする
+     ・HOMEのプロフィール帯をいちばん大きく
+
+     ui.css より後に読み込まれるよう、ここから <style> を差し込んでいる。
+     全ページが core.js を読むので、この1か所でサイト全体に効く。
+     大きさを変えたいときは、下の --rk-* の数字だけ変えればよい。
+     ============================================================= */
+  (function injectRankIconCss() {
+    if (typeof document === "undefined" || document.getElementById("rkico-v54")) return;
+    const css =
+      ":root{--rk-base:1.75em;--rk-lg:2.3em;--rk-sm:1.4em;--rk-profile:2.6em}" +
+      /* 大きさ（既定の盾SVGも同じ高さに揃える） */
+      ".rkico{width:var(--rk-base);height:var(--rk-base);vertical-align:-.52em;margin-right:.35em}" +
+      ".rkico.lg{width:var(--rk-lg);height:var(--rk-lg);vertical-align:-.72em}" +
+      ".rkico.sm{width:var(--rk-sm);height:var(--rk-sm);vertical-align:-.38em;margin-right:.25em}" +
+      /* 登録画像：枠・背景・丸・余白をすべて外し、幅は画像なり */
+      "img.rkico.custom{width:auto!important;max-width:calc(var(--rk-base)*2);object-fit:contain;" +
+        "background:none!important;border:0!important;border-radius:0!important;" +
+        "box-shadow:none!important;padding:0!important;outline:0!important}" +
+      "img.rkico.custom.lg{max-width:calc(var(--rk-lg)*2)}" +
+      "img.rkico.custom.sm{max-width:calc(var(--rk-sm)*2)}" +
+      /* HOMEのプロフィール帯（#meRank）はいちばん大きく */
+      "#meRank .rkico,.mecard .rank .rkico{height:var(--rk-profile);width:var(--rk-profile);" +
+        "vertical-align:-.9em;margin-right:.45em}" +
+      "#meRank img.rkico.custom,.mecard .rank img.rkico.custom{width:auto!important;" +
+        "max-width:calc(var(--rk-profile)*2)}" +
+      "#meRank,.mecard .rank{line-height:1.2}";
+    const st = document.createElement("style");
+    st.id = "rkico-v54";
+    st.textContent = css;
+    (document.head || document.documentElement).appendChild(st);
+  })();
+
   async function saveRankIcons(set) {
     if (!isAdmin()) throw new Error("ランクアイコンの編集は管理者のみです");
     const m = normRankIcons(set);
