@@ -190,6 +190,37 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 .lockscreen p{font-size:12.5px;color:var(--muted);margin-bottom:6px}
 .lockscreen .who{display:inline-block;font-size:12px;font-weight:900;margin:10px 0 20px;
   padding:5px 14px;border-radius:999px;border:1.5px solid var(--border-strong)}
+
+/* ---- VC稼働 ---- */
+.vcchip{border:1.5px solid var(--border);background:var(--surface);color:var(--muted);
+  border-radius:999px;padding:5px 13px;font-size:11.5px;font-weight:900;cursor:pointer;font-family:inherit}
+.vcchip:hover{border-color:var(--accent)}
+.vcchip.on{border-color:var(--accent);color:var(--accent-deep);
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.vckpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.vckpi{border:1.5px solid var(--border);border-radius:14px;padding:11px 14px;background:var(--surface)}
+.vckpi .lb{font-size:10px;font-weight:900;color:var(--muted);letter-spacing:.06em}
+.vckpi .v{font-family:"Space Grotesk",sans-serif;font-size:23px;font-weight:700;
+  font-variant-numeric:tabular-nums;line-height:1.25;margin-top:2px}
+.vckpi .v small{font-size:12px;font-weight:500;color:var(--muted);margin-left:2px}
+.vckpi .n{font-size:10px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vcrows{display:flex;flex-direction:column;gap:9px}
+.vcrow{display:grid;grid-template-columns:20px 1fr;gap:9px;align-items:center}
+.vcrow .no{font-family:"Space Grotesk",sans-serif;font-size:11.5px;font-weight:700;
+  color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.vclab{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.vclab .nm{font-size:12.5px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vclab .meta{font-size:10px;color:var(--muted);white-space:nowrap}
+.vclab .val{margin-left:auto;font-family:"Space Grotesk",sans-serif;font-size:12.5px;font-weight:700;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.vctrack{height:9px;border-radius:5px;overflow:hidden;
+  background:color-mix(in srgb,var(--accent) 16%,var(--surface-2))}
+.vcfill{height:100%;border-radius:5px;background:var(--accent)}
+.vcsub{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap}
+.vctag{font-size:9.5px;color:var(--muted);background:var(--surface-2);
+  border:1px solid var(--border);border-radius:999px;padding:1px 7px}
+.vcempty{padding:24px 6px;text-align:center;font-size:12px;color:var(--muted);line-height:1.9}
 </style>
 </head>
 <body>
@@ -232,6 +263,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     <button class="tab" data-panel="p-boards">🗂 大会の管理</button>
     <button class="tab" data-panel="p-members">👥 メンバー</button>
     <button class="tab" data-panel="p-sched">🗓 予定表</button>
+    <button class="tab" data-panel="p-vc">🔊 VC稼働</button>
     <button class="tab" data-panel="p-lp">📈 LP</button>
     <button class="tab" data-panel="p-snap">🏅 先生スナップショット</button>
     <button class="tab" data-panel="p-msg">💬 メッセージ</button>
@@ -731,6 +763,42 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       </div>
       <div class="hint" id="cfgHint"></div>
       <textarea id="diagOut" style="margin-top:11px;display:none;min-height:120px" readonly></textarea>
+    </div>
+  </div>
+
+  <!-- ================= VC稼働 ================= -->
+  <div class="panel" id="p-vc">
+    <div class="card">
+      <h2>🔊 VC稼働時間</h2>
+      <div class="lead" id="vcSince">
+        DiscordのVCに誰が何分いたかの記録です。記録しているのは常駐Bot（chc-vc-bot）で、
+        <b>Botを動かし始めたあとの分だけ</b>集計できます。
+      </div>
+      <div class="row">
+        <label style="min-width:44px">期間</label>
+        <button class="vcchip" data-vcdays="1">きょう</button>
+        <button class="vcchip on" data-vcdays="7">7日</button>
+        <button class="vcchip" data-vcdays="30">30日</button>
+        <button class="vcchip" data-vcdays="0">全期間</button>
+        <span style="flex:1"></span>
+        <input type="date" id="vcFrom"><span class="lead" style="margin:0">〜</span><input type="date" id="vcTo">
+        <button class="vcchip" id="vcApply">この期間で見る</button>
+        <button class="mini" id="vcReload">↻ 更新</button>
+      </div>
+      <div class="vckpis" id="vcKpis"></div>
+    </div>
+
+    <div class="card">
+      <h2>VCごとの稼働時間</h2>
+      <div class="lead"><b>稼働時間</b>＝そのVCに誰かがいた実時間（何人いても1回分）。
+        <b>延べ</b>＝全員の滞在時間の合計です。</div>
+      <div class="vcrows" id="vcChRows"><div class="vcempty">読み込み中…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>ユーザーごとの滞在時間</h2>
+      <div class="lead">長い順。タグはVC別の内訳です。</div>
+      <div class="vcrows" id="vcUsRows"></div>
     </div>
   </div>
 
@@ -2899,6 +2967,112 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
         "\n\n/diag は worker.js v2.3 以降で使えます。Worker のコードが古い可能性があります。";
     }
   };
+
+  /* =============================================================
+     VC稼働（記録は常駐Bot chc-vc-bot。ここは読むだけ）
+
+     Bot が Firestore の lboard_index/vc_YYYY-MM に日ごとの集計を書き、
+     C.loadVcRange(開始日, 終了日) がそれを期間ぶん足して返す。
+     ============================================================= */
+  (function(){
+    if (typeof C.loadVcRange !== "function") return;   // core.js が古いときは何も出さない
+    let vcMode = { days: 7 };
+    let vcStarted = "";
+    let vcLoaded = false;
+
+    const hm = C.vcHm;
+    const hours = s => { const h = (s || 0) / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
+
+    function vcRange(){
+      const today = C.dayKey();
+      if (vcMode.from) return { from: vcMode.from, to: vcMode.to };
+      if (!vcMode.days) return { from: vcStarted || "2020-01-01", to: today };
+      return { from: C.shiftDay(today, -(vcMode.days - 1)), to: today };
+    }
+    function vcBars(list, box, pick){
+      const max = Math.max.apply(null, list.map(pick.value).concat([1]));
+      box.innerHTML = list.length ? list.map((x, i) =>
+        '<div class="vcrow" title="' + esc(pick.tip(x)) + '">' +
+        '<div class="no">' + (i + 1) + '</div><div>' +
+        '<div class="vclab"><span class="nm">' + esc(pick.name(x)) + '</span>' +
+        '<span class="meta">' + esc(pick.meta(x)) + '</span>' +
+        '<span class="val">' + hm(pick.value(x)) + '</span></div>' +
+        '<div class="vctrack"><div class="vcfill" style="width:' +
+          Math.max(1.5, pick.value(x) / max * 100) + '%"></div></div>' +
+        (pick.sub ? pick.sub(x) : "") + '</div></div>').join("")
+        : '<div class="vcempty">この期間の記録はありません。</div>';
+    }
+    function vcKpi(lb, v, unit, note){
+      return '<div class="vckpi"><div class="lb">' + esc(lb) + '</div>' +
+        '<div class="v">' + esc(v) + '<small>' + esc(unit) + '</small></div>' +
+        '<div class="n">' + esc(note) + '</div></div>';
+    }
+    function vcRender(d){
+      const t = d.totals;
+      $("vcKpis").innerHTML =
+        vcKpi("VC稼働時間", hours(t.uptime), "時間", "誰かがVCにいた実時間") +
+        vcKpi("延べ滞在時間", hours(t.seconds), "時間", "全員の滞在の合計") +
+        vcKpi("使われたVC", t.channels, "個", d.channels[0] ? "最多 " + d.channels[0].name : "—") +
+        vcKpi("参加した人", t.users, "人", d.users[0] ? "最長 " + d.users[0].name : "—");
+
+      vcBars(d.channels, $("vcChRows"), {
+        value: x => x.uptime,
+        name:  x => x.name,
+        meta:  x => x.users + "人 ・ 延べ" + hm(x.seconds),
+        tip:   x => x.name + "：稼働 " + hm(x.uptime) + " / 延べ " + hm(x.seconds),
+        sub:   x => x.top ? '<div class="vcsub"><span class="vctag">最長 ' + esc(x.top.name) +
+                 " " + hm(x.top.seconds) + '</span></div>' : ""
+      });
+      vcBars(d.users, $("vcUsRows"), {
+        value: x => x.seconds,
+        name:  x => x.name,
+        meta:  x => x.byChannel.length + "つのVC",
+        tip:   x => x.name + "：" + hm(x.seconds),
+        sub:   x => '<div class="vcsub">' + x.byChannel.slice(0, 5).map(c =>
+                 '<span class="vctag">' + esc(c.name) + " " + hm(c.seconds) + '</span>').join("") + '</div>'
+      });
+    }
+    function vcLoad(){
+      const r = vcRange();
+      $("vcSince").innerHTML = "期間 <b>" + r.from + " 〜 " + r.to + "</b>" +
+        (vcStarted ? "　（記録開始 " + vcStarted + "）" : "　（まだ記録がありません）") +
+        "<br>記録しているのは常駐Bot（chc-vc-bot）で、Botを動かし始めたあとの分だけ集計できます。";
+      $("vcChRows").innerHTML = '<div class="vcempty">読み込み中…</div>';
+      C.loadVcRange(r.from, r.to).then(vcRender).catch(e => {
+        $("vcChRows").innerHTML = '<div class="vcempty">読み込めませんでした：' + esc(e.message) + '</div>';
+      });
+    }
+    function vcBoot(){
+      if (vcLoaded) return;
+      vcLoaded = true;
+      C.loadVcMeta().then(m => {
+        vcStarted = (m && m.startedAt) ? C.dayKey(m.startedAt) : "";
+        if (vcStarted) $("vcFrom").min = $("vcTo").min = vcStarted;
+        vcLoad();
+      }).catch(vcLoad);
+    }
+
+    document.querySelectorAll("[data-vcdays]").forEach(b => b.onclick = () => {
+      document.querySelectorAll("[data-vcdays]").forEach(x => x.classList.remove("on"));
+      b.classList.add("on");
+      $("vcFrom").value = ""; $("vcTo").value = "";
+      vcMode = { days: Number(b.dataset.vcdays) };
+      vcLoad();
+    });
+    $("vcApply").onclick = () => {
+      const f = $("vcFrom").value, t = $("vcTo").value;
+      if (!f && !t) return;
+      document.querySelectorAll("[data-vcdays]").forEach(x => x.classList.remove("on"));
+      vcMode = { from: f || vcStarted || "2020-01-01", to: t || C.dayKey() };
+      vcLoad();
+    };
+    $("vcReload").onclick = vcLoad;
+
+    // タブを開いたときに初めて読み込む（開かないうちは通信しない）
+    const vcTab = document.querySelector('[data-panel="p-vc"]');
+    if (vcTab) vcTab.addEventListener("click", vcBoot);
+    if ($("p-vc").classList.contains("on")) vcBoot();   // 前回このタブだったとき
+  })();
 
   /* =============================================================
      データ

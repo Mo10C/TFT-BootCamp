@@ -1210,7 +1210,6 @@
         { id: "schedule", icon: "🗓", img: "assets/tile-schedule.png", name: "予定表",       desc: "校内イベント・対抗戦の日程をカレンダーで確認。", url: "schedule.html", tint: "leaf", enabled: true, soon: false, roleIds: [] },
         { id: "members",  icon: "👥", img: "assets/tile-members.png",  name: "メンバー紹介", desc: "校のメンバーのプロフィールとロール。",       url: "members.html",  tint: "leaf", enabled: true, soon: true,  roleIds: [] },
         { id: "lp",       icon: "📈", img: "assets/tile-lp.png",       name: "LPランキング", desc: "メンバーのランクとLPを一覧で比較。",         url: "lp.html",       tint: "leaf", enabled: true, soon: false, roleIds: [] },
-        { id: "vc",       icon: "🔊", img: "none",                     name: "VC稼働",       desc: "VCの稼働時間と、みんなの滞在時間。",         url: "vc.html",       tint: "navy", enabled: true, soon: false, roleIds: [] },
 
         /* ★ ここから下は外部ツールへの導線。
            リンク先は【管理コンソール →「🏠 HOME編集」】で入れてください。
@@ -1244,26 +1243,11 @@
     lp: "assets/tile-lp.png"
   };
 
-  /* 既定のリンク先（idごと）。
-     すでにHOME設定を保存してある場合、そこにはURLが入っていないので、
-     ここを見て自動で補う。※編集画面でURLを入れれば、そちらが優先される。
-     「未設定」に戻したいときは、この表から消す。 */
-  const TILE_URL = {
-    sim1st: "https://mo10c.github.io/TFT-Simulator/",
-    coating: "https://mo10c.github.io/TFT-CoachingNote/"
-  };
-  // 旧名のまま保存されているタイルの名前を読み替える
-  const TILE_NAME_LEGACY = { "Coating Note": "コーチングノート" };
-  /* タイルの中に必ず入れておきたいリンク（idごと）。
-     保存済みの設定に無いものだけを足す。※編集画面で消すとまた出てくるので、
-     不要になったらこの表から消す。 */
-  const TILE_KIDS = {
-    playground: [
-      { id: "midterm",  icon: "📝", name: "中間試験",             desc: "みんなで一斉に答えるクイズ。",      url: "exam.html", external: false },
-      { id: "ito",      icon: "🎲", name: "ITO",                  desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true },
-      { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。",        url: "", external: true }
-    ]
-  };
+  /* ★ ここで既定値を上書きしないこと。
+     以前、保存済みの設定にURLや「中のリンク」を自動で補う仕組みを入れていたが、
+     管理コンソールで消したり空にしたりしても復活してしまい、
+     「保存しても元に戻る」状態になったので外した。
+     既定値は defaultHomeConfig（＝まだ一度も保存していないとき）だけで使う。 */
 
   /* タイルの中に入るリンクカード（「遊び場」の中の Codename generator / ITO など）。
      children が1つ以上あるタイルは、押すとHOMEの中でその場に開く。 */
@@ -1288,28 +1272,17 @@
   function normTile(t, i) {
     t = t || {};
     const tid = String(t.id || ("tile" + i));
-    // URLが空（未設定）のときは既定のリンク先を補う
-    let turl = String(t.url || "#").slice(0, 300);
-    if (noLink(turl) && TILE_URL[tid]) turl = TILE_URL[tid];
-    // 「中のリンク」も、既定にあって保存済み設定に無いものを足す
-    const kids = Array.isArray(t.children) ? t.children.map(normChild) : [];
-    (TILE_KIDS[tid] || []).forEach(k => {
-      const cur = kids.find(x => x.id === k.id);
-      if (!cur) kids.push(normChild(k, kids.length));
-      // 既にあるけどURLが空のときは、既定のリンク先を補う
-      else if (noLink(cur.url) && k.url){ cur.url = k.url; cur.external = k.external !== false; }
-    });
     return {
       id: tid,
       icon: String(t.icon || "🔗").slice(0, 4),
       // ★ 画像アイコン。空なら icon（絵文字）を使う。
       //   読み込みに失敗したときも絵文字に戻るので、消えたままにはならない。
       img: String(t.img || TILE_IMG[tid] || "").slice(0, 300),
-      name: (TILE_NAME_LEGACY[String(t.name || "").trim()] || String(t.name || "無題")).slice(0, 40),
+      name: String(t.name || "無題").slice(0, 40),
       desc: String(t.desc || "").slice(0, 120),
-      url: turl,
+      url: String(t.url || "#").slice(0, 300),
       external: !!t.external,
-      children: kids,
+      children: Array.isArray(t.children) ? t.children.map(normChild) : [],
       tint: TINTS.includes(t.tint) ? t.tint : (TINT_LEGACY[t.tint] || "gold"),
       enabled: t.enabled !== false,
       soon: !!t.soon,
@@ -1329,23 +1302,13 @@
       roleIds: Array.isArray(t.roleIds) ? t.roleIds.map(String).filter(Boolean) : []
     };
   }
-  /* 保存済みのHOME設定に、既定タイルのうち「まだ無いもの」だけを足す。
-     （既存タイルの内容は一切変えない。要らないタイルは編集画面で
-       消すのではなく「表示しない」にすれば、ここで復活しない。） */
-  function mergeTiles(saved, defs) {
-    const out = saved.slice();
-    defs.forEach(dt => {
-      if (!out.some(t => t.id === dt.id)) out.push(dt);
-    });
-    return out;
-  }
   function normHomeConfig(h) {
     const d = defaultHomeConfig();
     h = h || {};
     return {
       title: typeof h.title === "string" && h.title.trim() ? h.title.trim() : d.title,
       subtitle: typeof h.subtitle === "string" ? h.subtitle : d.subtitle,
-      tiles: mergeTiles(Array.isArray(h.tiles) && h.tiles.length ? h.tiles.map(normTile) : d.tiles, d.tiles),
+      tiles: Array.isArray(h.tiles) && h.tiles.length ? h.tiles.map(normTile) : d.tiles,
       tools: Array.isArray(h.tools) ? h.tools.map(normTool) : d.tools.map(normTool),
       updatedAt: h.updatedAt || 0
     };
