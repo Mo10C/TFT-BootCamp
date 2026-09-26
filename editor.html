@@ -122,6 +122,31 @@ tr:last-child td{border-bottom:none}
 .rkrow .url{flex:1;min-width:210px;height:34px;font-size:12px}
 .rkrow .act{display:flex;gap:6px;flex-wrap:wrap}
 .rkrow .file{display:none}
+/* ---- ランクアイコンのトリミング ---- */
+.rkcrop{position:fixed;inset:0;z-index:1000;background:rgba(10,14,8,.55);display:none;
+  align-items:center;justify-content:center;padding:16px}
+.rkcrop.on{display:flex}
+.rkcrop-box{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-soft);
+  width:100%;max-width:560px;max-height:94vh;overflow:auto;padding:18px 20px}
+.rkcrop-box h3{font-size:15px;font-weight:900;margin-bottom:6px}
+.rkc-note{font-size:11.5px;color:var(--muted);line-height:1.7}
+.rkc-stage{position:relative;margin:14px auto 10px;overflow:hidden;touch-action:none;user-select:none;
+  border-radius:8px;cursor:crosshair;
+  background:conic-gradient(#e6e9e2 25%,#fff 0 50%,#e6e9e2 0 75%,#fff 0) 0 0/16px 16px}
+.rkc-stage img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.rkc-rect{position:absolute;border:2px solid #fff;outline:1px solid rgba(0,0,0,.55);
+  box-shadow:0 0 0 9999px rgba(0,0,0,.45);cursor:move}
+.rkc-rect i{position:absolute;width:14px;height:14px;background:#fff;border:1.5px solid #333;border-radius:3px}
+.rkc-rect i[data-h=nw]{left:-1px;top:-1px;cursor:nwse-resize}
+.rkc-rect i[data-h=ne]{right:-1px;top:-1px;cursor:nesw-resize}
+.rkc-rect i[data-h=sw]{left:-1px;bottom:-1px;cursor:nesw-resize}
+.rkc-rect i[data-h=se]{right:-1px;bottom:-1px;cursor:nwse-resize}
+.rkc-prev{display:flex;gap:22px;align-items:flex-end;justify-content:center;flex-wrap:wrap;margin:4px 0 6px}
+.rkc-prev .p{text-align:center;font-size:10.5px;color:var(--muted)}
+.rkc-prev canvas{display:block;margin:0 auto 5px;background:var(--surface-2);border-radius:6px}
+.rkc-warn{font-size:11.5px;color:var(--danger);font-weight:900;line-height:1.7;margin-top:6px}
+.rkc-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.rkc-size{font-size:10.5px;color:var(--muted);font-family:ui-monospace,monospace}
 @media (max-width:760px){
   .rkprev{grid-template-columns:1fr}
   .rkrow .tn{width:auto}
@@ -222,6 +247,136 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 .vctag{font-size:9.5px;color:var(--muted);background:var(--surface-2);
   border:1px solid var(--border);border-radius:999px;padding:1px 7px}
 .vcempty{padding:24px 6px;text-align:center;font-size:12px;color:var(--muted);line-height:1.9}
+
+/* =====================================================================
+   v6 レイアウト — RyuSe1 STUDIO の管理ページに倣った構成
+   上：ヘッダー ／ 左：縦メニュー ／ 中央：編集欄 ／ 右：プレビュー
+   色は TOOLS のブランド（ui.css の --sky / --gold など）をそのまま使う。
+   ===================================================================== */
+:root{
+  --ad-accent:var(--accent-2);
+  --ad-soft:color-mix(in srgb,var(--accent-2) 12%,transparent);
+  --ad-holo:linear-gradient(118deg,color-mix(in srgb,var(--sky) 24%,transparent),
+             color-mix(in srgb,var(--leaf) 16%,transparent) 55%,color-mix(in srgb,var(--gold) 20%,transparent));
+  --ad-card-shadow:0 1px 2px rgba(35,70,105,.04),0 10px 28px -12px rgba(35,70,105,.20);
+}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.grow1{flex:1}
+
+body.ad-on{overflow:hidden}
+.ad{height:100vh;display:flex;flex-direction:column;position:relative;z-index:1}
+
+/* ---- ヘッダー ---- */
+.ad-hdr{flex:none;min-height:60px;display:flex;align-items:center;gap:8px;padding:0 16px;
+  border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface) 70%,transparent);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);position:relative;z-index:30}
+.ad-logo{display:flex;align-items:center;gap:10px;white-space:nowrap;margin-right:6px}
+.ad-logo .logo-mark{width:34px;height:34px;border-radius:11px;overflow:hidden;flex:none;display:grid;place-items:center;
+  background:var(--grad);color:#fff;font-size:17px;box-shadow:0 6px 16px -6px rgba(35,70,105,.45)}
+.ad-logo .logo-mark img{width:100%;height:100%;object-fit:cover}
+.ad-logo b{font-size:15.5px;font-weight:900;letter-spacing:.02em}
+.ad-logo small{font-size:11px;color:var(--muted);font-weight:700;margin-left:9px}
+.ad-src{font-size:11.5px!important;font-weight:700;color:var(--muted);padding:4px 11px!important;border-radius:99px!important;
+  background:var(--surface)!important;border:1px solid var(--border)!important;white-space:nowrap}
+.ad-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:10px;
+  border:1px solid var(--border-strong);background:transparent;color:var(--ink);
+  font-size:12.5px;font-weight:700;white-space:nowrap;text-decoration:none;cursor:pointer}
+.ad-btn:hover{background:var(--ad-soft)}
+.ad-btn .ic{width:16px;height:16px}
+
+/* ---- 3列 ---- */
+.ad-body{flex:1;min-height:0;display:grid;grid-template-columns:204px minmax(0,1fr) minmax(0,42%)}
+.ad.nopv .ad-body{grid-template-columns:204px minmax(0,1fr)}
+.ad.nopv .ad-preview,.ad.nopv .ad-pv-toggle{display:none!important}
+
+/* ---- 左：メニュー ---- */
+.ad-side{border-right:1px solid var(--border);overflow:auto;padding:10px 10px 14px;display:flex;flex-direction:column;gap:2px;
+  background:color-mix(in srgb,var(--surface) 38%,transparent)}
+.ad-grp{font-size:10.5px;font-weight:900;letter-spacing:.12em;color:var(--muted);padding:14px 12px 4px}
+.ad-grp:first-child{padding-top:4px}
+.ad-side .tab{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-radius:12px;
+  border:0;background:transparent;font-size:13.5px;font-weight:500;color:var(--muted);text-align:left;
+  white-space:nowrap;cursor:pointer;transition:background .15s,color .15s}
+.ad-side .tab:hover{background:var(--ad-soft);color:var(--ink)}
+.ad-side .tab.on{background:var(--ad-holo);color:var(--ink);font-weight:900;box-shadow:inset 0 0 0 1px var(--border-strong)}
+.ad-side .tab .ic{color:var(--muted)}
+.ad-side .tab.on .ic{color:var(--ad-accent)}
+.ad-side-foot{margin-top:auto;padding:14px 10px 0;font-size:10.5px;color:var(--muted);line-height:1.7}
+
+/* ---- 中央：編集欄 ---- */
+.ad-main{overflow:auto;padding:18px 24px 80px;min-width:0}
+.ad-h{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin:2px 0 16px}
+.ad-h h2{font-size:21px;font-weight:900;letter-spacing:.02em}
+.ad-h small{color:var(--muted);font-size:12px}
+.ad-main .card{border-radius:18px;border:1px solid var(--border);
+  background:color-mix(in srgb,var(--surface) 84%,transparent);
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);
+  box-shadow:var(--ad-card-shadow);padding:18px 20px;margin-bottom:16px}
+.ad-main .card > h2{font-size:14.5px;margin-bottom:6px}
+.ad-main .card > .lead{font-size:12px;line-height:1.75}
+.ad-main input[type=text],.ad-main input[type=date],.ad-main input[type=number],
+.ad-main select,.ad-main textarea{border-radius:10px}
+.ad-main input[type=text]:focus,.ad-main input[type=date]:focus,.ad-main input[type=number]:focus,
+.ad-main select:focus,.ad-main textarea:focus{outline:2px solid var(--ad-accent);outline-offset:-1px;border-color:transparent}
+/* ボタン（参考: ed-btn）— 通常は淡色、主ボタンは濃色、危険は赤枠 */
+.ad .mini{border-radius:10px!important;padding:7px 12px!important;font-size:12.5px!important;font-weight:700!important;
+  border:1px solid var(--border-strong)!important;background:var(--surface)!important;color:var(--ink)!important;
+  box-shadow:none!important;transition:background .15s,filter .15s}
+.ad .mini:hover:not(:disabled){background:var(--ad-soft)!important}
+.ad .mini.grad{background:var(--ink)!important;color:var(--surface)!important;border-color:transparent!important}
+.ad .mini.grad:hover:not(:disabled){filter:brightness(1.12);background:var(--ink)!important}
+.ad .mini.danger{background:transparent!important;color:var(--danger)!important;
+  border-color:color-mix(in srgb,var(--danger) 45%,var(--border-strong))!important}
+.ad .mini.danger:hover:not(:disabled){background:color-mix(in srgb,var(--danger) 10%,transparent)!important}
+.ad .mini:disabled{opacity:.45}
+/* 保存バー（参考: ed-foot）— 未保存のときは金色の枠 */
+.ad-main .sticky-save{bottom:12px;border-radius:14px;border:1px solid var(--border-strong);
+  background:color-mix(in srgb,var(--surface) 90%,transparent);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:0 12px 30px -12px rgba(35,70,105,.35)}
+.ad-main .sticky-save.dirty{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 22%,transparent),0 12px 30px -12px rgba(35,70,105,.35)}
+/* 一覧の行（タイル・予定・並び順など）を参考の ed-item 風に */
+.ad-main .tile-row,.ad-main .srow,.ad-main .grow,.ad-main .brow{border-radius:14px}
+
+/* ---- 右：プレビュー ---- */
+.ad-preview{border-left:1px solid var(--border);display:flex;flex-direction:column;min-width:0;
+  background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+.pv-bar{flex:none;height:48px;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;border-bottom:1px solid var(--border)}
+.pv-bar b{font-size:12.5px}
+.seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:2px}
+.seg button{border:0;background:transparent;padding:5px 11px;border-radius:8px;font-size:12px;font-weight:700;
+  color:var(--muted);cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--ink);color:var(--surface)}
+.pv-page{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pv-mini{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;border:0;background:transparent;
+  color:var(--muted);cursor:pointer;flex:none}
+.pv-mini:hover{background:var(--ad-soft);color:var(--ink)}
+.pv-mini .ic{width:16px;height:16px}
+.pv-wrap{position:relative;flex:1;min-height:0;overflow:hidden}
+.pv-wrap iframe{position:absolute;top:0;left:0;border:0;transform-origin:0 0;background:var(--bg)}
+.pv-wrap.sp iframe{top:14px;border-radius:28px;box-shadow:0 0 0 8px #1d2b3a,0 20px 50px rgba(20,40,60,.3)}
+.pv-close{display:none}
+.ad-pv-toggle{display:none!important}
+
+@media (max-width:1180px){
+  .ad-body{grid-template-columns:184px minmax(0,1fr)}
+  .ad-preview{display:none;position:fixed;inset:0;z-index:60;border:0;background:var(--bg)}
+  .ad-preview.show{display:flex}
+  .ad-pv-toggle{display:inline-flex!important}
+  .pv-close{display:grid}
+}
+@media (max-width:760px){
+  body.ad-on{overflow:auto}
+  .ad{height:auto;min-height:100vh}
+  .ad-hdr{flex-wrap:wrap;padding:10px 12px;gap:6px}
+  .ad-logo small,.ad-src,.hide-sp{display:none}
+  .ad-body,.ad.nopv .ad-body{grid-template-columns:minmax(0,1fr)}
+  .ad-side{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:8px;
+    position:sticky;top:0;z-index:20;background:var(--bg)}
+  .ad-grp,.ad-side-foot{display:none}
+  .ad-side .tab{width:auto;padding:8px 11px}
+  .ad-main{overflow:visible;padding:14px 14px 60px}
+}
 </style>
 </head>
 <body>
@@ -239,39 +394,50 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   </div>
 </div>
 
-<div class="wrap" id="adminWrap" style="display:none">
+<div class="ad" id="adminWrap" style="display:none">
 
-  <div class="top">
-    <div class="brand">
-      <div class="hex">⚙️</div>
-      <div>
-        <h1>管理コンソール</h1>
-        <div class="sub">クラウドハッシュテイル校 TOOLS</div>
-      </div>
+  <!-- ===== ヘッダー ===== -->
+  <header class="ad-hdr">
+    <div class="ad-logo">
+      <span class="logo-mark"><img src="assets/emblem.png" alt="" onerror="this.replaceWith(document.createTextNode('⚙'))"></span>
+      <span><b>管理コンソール</b><small>クラウドハッシュテイル校 TOOLS</small></span>
     </div>
-    <span class="badge" id="syncBadge">— 接続中…</span>
-    <span class="badge" id="roleBadge">—</span>
-    <div class="spacer"></div>
-    <a class="iconbtn" href="home.html">🏠 HOME</a>
-    <a class="iconbtn" href="boards.html">🏆 大会一覧</a>
-    <button class="iconbtn" id="themeBtn">🌙</button>
-  </div>
+    <span class="badge ad-src" id="syncBadge">— 接続中…</span>
+    <span class="badge ad-src" id="roleBadge">—</span>
+    <span class="grow1"></span>
+    <a class="ad-btn" href="home.html" title="HOMEを開く"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span class="hide-sp">HOME</span></a>
+    <a class="ad-btn" href="boards.html" title="大会一覧を開く"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M17 6h3v1.5a3.5 3.5 0 0 1-3.5 3.5M12 14v3M9.5 17h5v4h-5z"/></svg><span class="hide-sp">大会一覧</span></a>
+    <button class="ad-btn ad-pv-toggle" id="adPvOpen" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>プレビュー</button>
+    <button class="ad-btn" id="themeBtn" type="button" title="ライト／ダーク切り替え">🌙</button>
+  </header>
 
-  <nav class="tabs" id="tabs">
-    <button class="tab on" data-panel="p-home">🏠 HOME編集</button>
-    <button class="tab" data-panel="p-board">🏆 このボード</button>
-    <button class="tab" data-panel="p-teams">👫 チーム</button>
-    <button class="tab" data-panel="p-boards">🗂 大会の管理</button>
-    <button class="tab" data-panel="p-members">👥 メンバー</button>
-    <button class="tab" data-panel="p-sched">🗓 予定表</button>
-    <button class="tab" data-panel="p-vc">🔊 VC稼働</button>
-    <button class="tab" data-panel="p-lp">📈 LP</button>
-    <button class="tab" data-panel="p-snap">🏅 先生スナップショット</button>
-    <button class="tab" data-panel="p-msg">💬 メッセージ</button>
-    <button class="tab" data-panel="p-rkicon">🛡 ランクアイコン</button>
-    <button class="tab" data-panel="p-conn">🔌 接続設定</button>
-    <button class="tab" data-panel="p-data">💾 データ</button>
-  </nav>
+  <div class="ad-body" id="adBody">
+    <!-- ===== 左：メニュー ===== -->
+    <nav class="ad-side" id="tabs" aria-label="設定メニュー">
+      <div class="ad-grp">サイト</div>
+      <button class="tab on" data-panel="p-home"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg><span>HOME編集</span></button>
+      <button class="tab" data-panel="p-sched"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg><span>予定表</span></button>
+      <button class="tab" data-panel="p-rkicon"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.2 7.5 9.5 4.3-1.3 7.5-4.9 7.5-9.5V6z"/></svg><span>ランクアイコン</span></button>
+      <div class="ad-grp">大会</div>
+      <button class="tab" data-panel="p-board"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M17 6h3v1.5a3.5 3.5 0 0 1-3.5 3.5M12 14v3M9.5 17h5v4h-5z"/></svg><span>このボード</span></button>
+      <button class="tab" data-panel="p-teams"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9.5" r="2.6"/><path d="M3.5 19.5c.6-3.2 2.9-5 5.5-5s4.9 1.8 5.5 5M14.5 14.8c.8-.4 1.6-.6 2.5-.6 2.2 0 4 1.5 4.5 4.3"/></svg><span>チーム</span></button>
+      <button class="tab" data-panel="p-boards"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 8.7V18a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/></svg><span>大会の管理</span></button>
+      <div class="ad-grp">メンバー</div>
+      <button class="tab" data-panel="p-members"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c.8-4 3.8-6.3 7.5-6.3s6.7 2.3 7.5 6.3"/></svg><span>メンバー</span></button>
+      <button class="tab" data-panel="p-lp"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17M5.5 16l4.5-5 3.5 3.5L19 8M19 8h-4M19 8v4"/></svg><span>LP</span></button>
+      <button class="tab" data-panel="p-snap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="15" r="5"/><path d="M9 2.5 12 10l3-7.5M12 13v4"/></svg><span>先生スナップショット</span></button>
+      <div class="ad-grp">Discord</div>
+      <button class="tab" data-panel="p-msg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span>メッセージ</span></button>
+      <button class="tab" data-panel="p-vc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span>VC稼働</span></button>
+      <div class="ad-grp">設定</div>
+      <button class="tab" data-panel="p-conn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6.5 8h11v3a5.5 5.5 0 0 1-11 0zM12 16.5V21"/></svg><span>接続設定</span></button>
+      <button class="tab" data-panel="p-data"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>データ</span></button>
+      <div class="ad-side-foot">変更は各画面の<br>「保存」で確定します</div>
+    </nav>
+
+    <!-- ===== 中央：編集欄 ===== -->
+    <main class="ad-main" id="adMain">
+      <div class="ad-h"><h2 id="adTitle">HOME編集</h2><small id="adDesc"></small></div>
 
   <!-- ================= HOME編集 ================= -->
   <div class="panel on" id="p-home">
@@ -742,6 +908,34 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       <button class="mini" id="rkReset">もとに戻す</button>
       <button class="mini grad" id="rkApply">💾 保存</button>
     </div>
+
+    <!-- トリミング画面（ティアごとの「✂ トリミング」で開く） -->
+    <div class="rkcrop" id="rkCrop" role="dialog" aria-modal="true" aria-labelledby="rkcTitle">
+      <div class="rkcrop-box">
+        <h3 id="rkcTitle">✂ トリミング</h3>
+        <div class="rkc-note">
+          白い枠をドラッグで動かし、四隅で大きさを変えます。枠の外をドラッグすると新しく囲めます。<br>
+          元の画像は残るので、あとで何度でもやり直せます。
+        </div>
+        <div class="rkc-stage" id="rkcStage">
+          <img id="rkcImg" alt="">
+          <div class="rkc-rect" id="rkcRect"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>
+        </div>
+        <div class="rkc-prev">
+          <div class="p"><canvas id="rkcP1"></canvas>HOMEのプロフィール</div>
+          <div class="p"><canvas id="rkcP2"></canvas>一覧・順位表</div>
+        </div>
+        <div class="rkc-warn" id="rkcWarn" hidden></div>
+        <div class="rkc-btns">
+          <button class="mini" id="rkcAuto">余白を自動カット</button>
+          <button class="mini" id="rkcAll">全体</button>
+          <span class="rkc-size" id="rkcSize"></span>
+          <span style="flex:1"></span>
+          <button class="mini" id="rkcCancel">キャンセル</button>
+          <button class="mini grad" id="rkcOk">決定</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ================= 接続設定 ================= -->
@@ -832,6 +1026,25 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     </div>
   </div>
 
+    </main>
+
+    <!-- ===== 右：プレビュー ===== -->
+    <section class="ad-preview" id="adPreview" aria-label="プレビュー">
+      <div class="pv-bar">
+        <b>プレビュー</b>
+        <div class="seg" id="pvSeg">
+          <button type="button" class="on" data-mode="pc">PC</button>
+          <button type="button" data-mode="sp">スマホ</button>
+        </div>
+        <span class="pv-page" id="pvPage">—</span>
+        <span class="grow1"></span>
+        <a class="pv-mini" id="pvOpen" href="#" target="_blank" rel="noopener" title="別タブで開く"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+        <button class="pv-mini" id="pvReload" type="button" title="プレビューを再読み込み"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4.5V11h-6.5"/></svg></button>
+        <button class="pv-mini pv-close" id="pvClose" type="button" title="閉じる"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="pv-wrap" id="pvWrap"><iframe id="pvFrame" title="プレビュー"></iframe></div>
+    </section>
+  </div>
 </div>
 <div id="toast"></div>
 
@@ -870,6 +1083,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     document.querySelectorAll(".panel").forEach(p => p.classList.toggle("on", p.id === id));
     document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.panel === id));
     try { localStorage.setItem(TAB_KEY, id); } catch(e){}
+    if (window.adOnPanel) window.adOnPanel(id);   // 見出し・プレビューの切り替え（下の「レイアウト」）
   }
   document.querySelectorAll(".tab").forEach(t => { t.onclick = () => showPanel(t.dataset.panel); });
   try { const saved = localStorage.getItem(TAB_KEY); if (saved && $(saved)) showPanel(saved); } catch(e){}
@@ -2108,8 +2322,11 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
         if (d.over) d.over.classList.add("dropline");
       }
       const M = 70;
-      if (d.y < M) window.scrollBy(0, -12);
-      else if (d.y > window.innerHeight - M) window.scrollBy(0, 12);
+      // PCでは中央の欄だけがスクロールするので、そちらを動かす
+      const scr = (function(){ const m = document.getElementById("adMain");
+        return (m && m.scrollHeight > m.clientHeight + 2) ? m : window; })();
+      if (d.y < M) scr.scrollBy(0, -12);
+      else if (d.y > window.innerHeight - M) scr.scrollBy(0, 12);
     }
     function begin(){
       if (!d || d.active) return;
@@ -2728,8 +2945,8 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     ["DIAMOND", "ダイヤ"], ["MASTER", "マスター"], ["GRANDMASTER", "グランドマスター"],
     ["CHALLENGER", "チャレンジャー"]
   ];
-  const RK_MAX = 96;            // 画像の最大の辺（px）
-  const RK_BUDGET = 12 * 1024;  // 1枚あたりの目安（バイト）
+  const RK_MAX = 160;           // 画像の最大の辺（px）。トリミングの元にもなるので少し大きめ
+  const RK_BUDGET = 28 * 1024;  // 1枚あたりの目安（バイト）
   let rkData = null, rkEdit = null, rkDirty = false;
 
   function markRkDirty(){ rkDirty = true; $("rkSave").classList.add("dirty"); }
@@ -2792,7 +3009,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       return cv.toDataURL("image/png");
     };
     let out = "";
-    for (const side of [RK_MAX, 80, 64, 56, 48, 40]){
+    for (const side of [RK_MAX, 128, 112, 96, 80, 64, 48]){
       out = draw(side);
       if (out.length * 0.75 <= RK_BUDGET) return out;
     }
@@ -2851,7 +3068,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 
       const tn = document.createElement("div");
       tn.className = "tn";
-      tn.innerHTML = esc(t) + "<small>" + esc(jp) + (ov.img ? " ・画像あり" : "") + "</small>";
+      tn.innerHTML = esc(t) + "<small>" + esc(jp) + (ov.img ? (ov.crop ? " ・画像あり（トリミング済）" : " ・画像あり") : "") + "</small>";
       row.appendChild(tn);
 
       /* 画像URLを直接入れる欄。http(s) の画像URLをそのまま使う。
@@ -2860,14 +3077,22 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       ur.type = "text";
       ur.className = "url";
       ur.placeholder = "rank/TFT_Regalia_Master.png または https://…";
-      ur.value = /^https?:\/\//i.test(ov.img || "") ? ov.img : "";
+      // データURL（アップロード／トリミング結果）は長いので欄には出さない。元画像のURLを出す
+      const notData = v => v && !/^data:/i.test(v);
+      ur.value = notData(ov.src) ? ov.src : (notData(ov.img) ? ov.img : "");
       ur.oninput = () => {
         if (!rkEdit.tiers) rkEdit.tiers = {};
         const cur = rkEdit.tiers[t] || { img: "", emoji: "" };
         const v = ur.value.trim();
-        // 空にしたとき、アップロードした画像まで消さないように
-        const keepImg = /^data:image\//i.test(cur.img || "") ? cur.img : "";
-        rkEdit.tiers[t] = { img: v || keepImg, emoji: cur.emoji || "" };
+        if (v){
+          // URLを入れ直したら、トリミングはいったん解除（新しい画像の全体を使う）
+          rkEdit.tiers[t] = { img: v, src: v, emoji: cur.emoji || "" };
+        } else {
+          // 空にしたとき、アップロードした画像まで消さないように
+          const up = /^data:image\//i.test(cur.src || "") ? cur.src
+                   : (/^data:image\//i.test(cur.img || "") ? cur.img : "");
+          rkEdit.tiers[t] = up ? { img: up, src: up, emoji: cur.emoji || "" } : { img: "", emoji: cur.emoji || "" };
+        }
         pv.innerHTML = rkEdit.tiers[t].img
           ? '<img class="rkico custom" src="' + esc(rkEdit.tiers[t].img) + '" alt="" ' +
             'onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),' +
@@ -2885,7 +3110,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       em.oninput = () => {
         if (!rkEdit.tiers) rkEdit.tiers = {};
         const cur = rkEdit.tiers[t] || { img: "", emoji: "" };
-        rkEdit.tiers[t] = { img: cur.img || "", emoji: em.value.trim() };
+        rkEdit.tiers[t] = Object.assign({}, cur, { img: cur.img || "", emoji: em.value.trim() });
         markRkDirty(); renderRkPreview();
       };
       row.appendChild(em);
@@ -2907,7 +3132,7 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
           const img = await rkShrink(f);
           if (!rkEdit.tiers) rkEdit.tiers = {};
           const cur = rkEdit.tiers[t] || { img: "", emoji: "" };
-          rkEdit.tiers[t] = { img: img, emoji: cur.emoji || "" };
+          rkEdit.tiers[t] = { img: img, src: img, emoji: cur.emoji || "" };
           markRkDirty(); renderRk();
           toast(t + " の画像を入れました（" + Math.round(img.length * 0.75 / 1024) + "KB）");
         } catch(e){ toast(e.message); }
@@ -2916,6 +3141,22 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
       act.appendChild(file); act.appendChild(pick);
 
       if (ov.img){
+        const cropBtn = document.createElement("button");
+        cropBtn.className = "mini";
+        cropBtn.textContent = ov.crop ? "✂ トリミング（調整）" : "✂ トリミング";
+        cropBtn.onclick = () => rkOpenCrop(t, jp);
+        act.appendChild(cropBtn);
+        if (ov.crop && ov.src){
+          const un = document.createElement("button");
+          un.className = "mini";
+          un.textContent = "トリミング解除";
+          un.onclick = () => {
+            const cur = rkEdit.tiers[t];
+            rkEdit.tiers[t] = { img: cur.src, src: cur.src, emoji: cur.emoji || "" };
+            markRkDirty(); renderRk();
+          };
+          act.appendChild(un);
+        }
         const del = document.createElement("button");
         del.className = "mini danger";
         del.textContent = "既定にもどす";
@@ -2931,6 +3172,210 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
     });
     renderRkPreview();
   }
+
+  /* =============================================================
+     ランクアイコンのトリミング
+
+     元画像（src）のうち、どこを使うか（crop = {x,y,w,h} を 0〜1 の割合）を
+     ドラッグで決める。決定すると、その範囲を切り抜いた小さなPNG（データURL）を
+     img に入れる。元画像と範囲は残すので、あとから何度でも調整し直せる。
+     ============================================================= */
+  const RKC_OUT_MAX = 192;           // 切り抜き結果の長い辺（px）。表示は最大でも40px前後
+  const RKC_BUDGET = 24 * 1024;      // 切り抜き結果の目安（バイト）
+  const RKC_MIN = 0.04;              // 枠の最小サイズ（割合）
+  const rkc = { tier: "", im: null, rect: null, tainted: false, W: 0, H: 0, drag: null };
+
+  // 同じサイトの画像か（違うサイトの画像は、CORSが無いと切り抜けない）
+  function rkSameOrigin(u){
+    if (/^data:/i.test(u)) return true;
+    try { return new URL(u, location.href).origin === location.origin; } catch(e){ return false; }
+  }
+  function rkLoadImage(u, cors){
+    return new Promise((res, rej) => {
+      const i = new Image();
+      if (cors) i.crossOrigin = "anonymous";
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("画像を読み込めませんでした"));
+      i.src = u;
+    });
+  }
+  // 透明でない部分を囲む範囲（割合）。読めない画像なら null
+  function rkAlphaRect(im){
+    const W = im.naturalWidth, H = im.naturalHeight;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    g.drawImage(im, 0, 0);
+    let d;
+    try { d = g.getImageData(0, 0, W, H).data; } catch(e){ return null; }
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++){
+      if (d[(y * W + x) * 4 + 3] > 10){
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < 0) return { x: 0, y: 0, w: 1, h: 1 };
+    const pad = Math.max(1, Math.round(Math.max(x1 - x0, y1 - y0) * 0.03));
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad);
+    x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+    return { x: x0 / W, y: y0 / H, w: (x1 - x0 + 1) / W, h: (y1 - y0 + 1) / H };
+  }
+
+  async function rkOpenCrop(t, jp){
+    const cur = (rkEdit.tiers || {})[t] || {};
+    const src = cur.src || cur.img;
+    if (!src){ toast("先に画像を入れてください"); return; }
+    rkc.tier = t;
+    rkc.tainted = false;
+    $("rkcTitle").textContent = "✂ " + t + (jp ? "（" + jp + "）" : "") + " のトリミング";
+    $("rkcWarn").hidden = true;
+    $("rkcOk").disabled = false;
+    try {
+      if (rkSameOrigin(src)) rkc.im = await rkLoadImage(src, false);
+      else {
+        try { rkc.im = await rkLoadImage(src, true); }
+        catch(e){ rkc.im = await rkLoadImage(src, false); rkc.tainted = true; }
+      }
+    } catch(e){ toast(e.message + "（URLを確認してください）"); return; }
+    rkc.W = rkc.im.naturalWidth; rkc.H = rkc.im.naturalHeight;
+    if (!rkc.tainted && !rkAlphaRect(rkc.im)) rkc.tainted = true;   // 読み出せない＝切り抜けない
+    if (rkc.tainted){
+      $("rkcWarn").hidden = false;
+      $("rkcWarn").textContent = "この画像は外部サイトのため、切り抜いて保存できません。" +
+        "サイトの rank/ フォルダに置くか、「画像を選ぶ」で入れ直してください。";
+      $("rkcOk").disabled = true;
+    }
+
+    // 画面に収まる大きさで表示（小さい画像は最大3倍まで拡大）
+    const maxW = Math.min(500, window.innerWidth - 80), maxH = Math.min(320, window.innerHeight * 0.42);
+    const k = Math.min(maxW / rkc.W, maxH / rkc.H, 3);
+    const stage = $("rkcStage");
+    stage.style.width = Math.round(rkc.W * k) + "px";
+    stage.style.height = Math.round(rkc.H * k) + "px";
+    $("rkcImg").src = src;
+
+    rkc.rect = cur.crop ? Object.assign({}, cur.crop)
+             : (rkc.tainted ? { x: 0, y: 0, w: 1, h: 1 } : rkAlphaRect(rkc.im));
+    rkPaintCrop();
+    $("rkCrop").classList.add("on");
+  }
+  function rkCloseCrop(){ $("rkCrop").classList.remove("on"); rkc.drag = null; }
+
+  function rkPaintCrop(){
+    const r = rkc.rect, el = $("rkcRect");
+    el.style.left = (r.x * 100) + "%";
+    el.style.top = (r.y * 100) + "%";
+    el.style.width = (r.w * 100) + "%";
+    el.style.height = (r.h * 100) + "%";
+    $("rkcSize").textContent = Math.round(r.w * rkc.W) + " × " + Math.round(r.h * rkc.H) + " px";
+    // 実際の表示枠（横:縦 = 1.45:1）に、どう収まるかのプレビュー
+    [["rkcP1", 40], ["rkcP2", 25]].forEach(([id, bh]) => {
+      const cv = $(id), dpr = window.devicePixelRatio || 1;
+      const bw = Math.round(bh * 1.45);
+      cv.width = bw * dpr; cv.height = bh * dpr;
+      cv.style.width = bw + "px"; cv.style.height = bh + "px";
+      const g = cv.getContext("2d");
+      g.clearRect(0, 0, cv.width, cv.height);
+      const sw = r.w * rkc.W, sh = r.h * rkc.H;
+      const k = Math.min(cv.width / sw, cv.height / sh);
+      const dw = sw * k, dh = sh * k;
+      g.drawImage(rkc.im, r.x * rkc.W, r.y * rkc.H, sw, sh,
+                  (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
+    });
+  }
+
+  /* ---- ドラッグ（移動／四隅で拡大縮小／枠の外で新しく囲む）---- */
+  function rkStagePoint(e){
+    const b = $("rkcStage").getBoundingClientRect();
+    return { x: Math.min(1, Math.max(0, (e.clientX - b.left) / b.width)),
+             y: Math.min(1, Math.max(0, (e.clientY - b.top) / b.height)) };
+  }
+  $("rkcStage").addEventListener("pointerdown", e => {
+    if (!rkc.rect) return;
+    e.preventDefault();
+    const p = rkStagePoint(e);
+    const h = e.target.dataset ? e.target.dataset.h : "";
+    const mode = h ? h : (e.target.id === "rkcRect" ? "move" : "new");
+    rkc.drag = { mode, p0: p, r0: Object.assign({}, rkc.rect) };
+    if (mode === "new") rkc.rect = { x: p.x, y: p.y, w: 0, h: 0 };
+    $("rkcStage").setPointerCapture(e.pointerId);
+  });
+  $("rkcStage").addEventListener("pointermove", e => {
+    const d = rkc.drag;
+    if (!d) return;
+    const p = rkStagePoint(e);
+    const dx = p.x - d.p0.x, dy = p.y - d.p0.y;
+    let { x, y, w, h } = d.r0;
+    if (d.mode === "move"){
+      x = Math.min(1 - w, Math.max(0, x + dx));
+      y = Math.min(1 - h, Math.max(0, y + dy));
+    } else if (d.mode === "new"){
+      x = Math.min(d.p0.x, p.x); y = Math.min(d.p0.y, p.y);
+      w = Math.abs(dx); h = Math.abs(dy);
+    } else {
+      // 四隅：動かす辺だけ変える
+      let L = x, T = y, R = x + w, B = y + h;
+      if (d.mode.includes("w")) L = Math.min(R - RKC_MIN, Math.max(0, L + dx));
+      if (d.mode.includes("e")) R = Math.max(L + RKC_MIN, Math.min(1, R + dx));
+      if (d.mode.includes("n")) T = Math.min(B - RKC_MIN, Math.max(0, T + dy));
+      if (d.mode.includes("s")) B = Math.max(T + RKC_MIN, Math.min(1, B + dy));
+      x = L; y = T; w = R - L; h = B - T;
+    }
+    rkc.rect = { x, y, w, h };
+    rkPaintCrop();
+  });
+  const rkEndDrag = () => {
+    if (!rkc.drag) return;
+    // 小さすぎる枠（クリックしただけ等）は、ドラッグ前に戻す
+    if (rkc.rect.w < RKC_MIN || rkc.rect.h < RKC_MIN) rkc.rect = rkc.drag.r0;
+    rkc.drag = null;
+    rkPaintCrop();
+  };
+  $("rkcStage").addEventListener("pointerup", rkEndDrag);
+  $("rkcStage").addEventListener("pointercancel", rkEndDrag);
+
+  $("rkcAuto").onclick = () => {
+    const r = rkc.tainted ? null : rkAlphaRect(rkc.im);
+    if (!r){ toast("この画像は余白を調べられません"); return; }
+    rkc.rect = r; rkPaintCrop();
+  };
+  $("rkcAll").onclick = () => { rkc.rect = { x: 0, y: 0, w: 1, h: 1 }; rkPaintCrop(); };
+  $("rkcCancel").onclick = rkCloseCrop;
+  $("rkCrop").addEventListener("click", e => { if (e.target.id === "rkCrop") rkCloseCrop(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("rkCrop").classList.contains("on")) rkCloseCrop();
+  });
+
+  // 決定：範囲を切り抜いて、表示用の画像（img）にする
+  $("rkcOk").onclick = () => {
+    if (rkc.tainted) return;
+    const r = rkc.rect;
+    const sx = r.x * rkc.W, sy = r.y * rkc.H, sw = r.w * rkc.W, sh = r.h * rkc.H;
+    let out = "";
+    for (const side of [RKC_OUT_MAX, 160, 128, 112, 96, 80]){
+      const k = Math.min(1, side / Math.max(sw, sh));
+      const cv = document.createElement("canvas");
+      cv.width = Math.max(1, Math.round(sw * k));
+      cv.height = Math.max(1, Math.round(sh * k));
+      const g = cv.getContext("2d");
+      g.imageSmoothingQuality = "high";
+      g.drawImage(rkc.im, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+      try { out = cv.toDataURL("image/png"); }
+      catch(e){ toast("この画像は切り抜けませんでした"); return; }
+      if (out.length * 0.75 <= RKC_BUDGET) break;
+    }
+    const t = rkc.tier;
+    const cur = rkEdit.tiers[t] || {};
+    const full = r.x <= 0.001 && r.y <= 0.001 && r.w >= 0.999 && r.h >= 0.999;
+    rkEdit.tiers[t] = full
+      ? { img: cur.src || cur.img, src: cur.src || cur.img, emoji: cur.emoji || "" }   // 全体なら切り抜かない
+      : { img: out, src: cur.src || cur.img, crop: { x: r.x, y: r.y, w: r.w, h: r.h }, emoji: cur.emoji || "" };
+    rkCloseCrop();
+    markRkDirty(); renderRk();
+    toast(full ? (t + "：トリミングなし（画像全体）にしました")
+               : (t + " をトリミングしました（" + Math.round(out.length * 0.75 / 1024) + "KB）。💾 保存で確定します"));
+  };
 
   $("rkApply").onclick = async () => {
     const btn = $("rkApply");
@@ -3136,6 +3581,101 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
   };
   $("clearResultsBtn").onclick = () => { if (confirm("全試合の順位をクリアしますか？（配置は残ります）")){ store.clearAllResults(); toast("結果をクリアしました"); } };
   $("resetBtn").onclick = () => { if (confirm("組卓・結果・設定を初期化しますか？（メンバーは残ります）")){ store.resetBoard(); toast("初期化しました"); } };
+})();
+</script>
+<script>
+/* =====================================================================
+   レイアウト（見出し・プレビュー）
+   各タブの処理は上のスクリプトのまま。ここは見た目の切り替えだけ。
+   ===================================================================== */
+(function(){
+  const $ = id => document.getElementById(id);
+  if (!$("adminWrap") || $("adminWrap").style.display === "none") return;   // 管理者でないとき
+  document.body.classList.add("ad-on");
+
+  const board = new URLSearchParams(location.search).get("board");
+  const bq = board ? "?board=" + encodeURIComponent(board) : "";
+  /* タブごとの説明と、右に出すページ（null ＝ プレビューなし） */
+  const INFO = {
+    "p-home":    ["HOMEの見出し・タイル・ツールを編集します", "home.html", "HOME"],
+    "p-sched":   ["予定の追加・編集と、当日9:00のDiscord通知", "schedule.html", "予定表"],
+    "p-rkicon":  ["ランクの紋章（サイト用の画像と、Discord用の絵文字）", "lp.html", "LPランキング"],
+    "p-board":   ["いま編集中の大会の名前・形式・公開範囲", "index.html" + bq, "大会ページ"],
+    "p-teams":   ["ダブルアップのペア分け", "index.html" + bq, "大会ページ"],
+    "p-boards":  ["大会（ボード）の一覧・切り替え・削除", "boards.html", "大会一覧"],
+    "p-members": ["メンバーの登録・ロール・表示名", "members.html", "メンバー紹介"],
+    "p-lp":      ["LPランキングの基準日・記録・並び順", "lp.html", "LPランキング"],
+    "p-snap":    ["先生スナップショットの実施日・ポイント・結果", "lp.html", "LPランキング"],
+    "p-msg":     ["Discordへ自動投稿する文面（投稿先はすべて連絡事項）", null],
+    "p-vc":      ["VCごとの稼働時間と、ユーザーごとの滞在時間", null],
+    "p-conn":    ["Worker（Riot API / Discord 連携）の接続", null],
+    "p-data":    ["バックアップ・復元・危険な操作", null]
+  };
+  const PV = { url: "", mode: "pc" };
+  const frame = $("pvFrame"), wrap = $("pvWrap");
+
+  function fit(){
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    if (!W || !H) return;
+    wrap.classList.toggle("sp", PV.mode === "sp");
+    if (PV.mode === "sp"){
+      const fw = 390, fh = 844;
+      const k = Math.min(1, (W - 28) / fw, (H - 28) / fh);
+      frame.style.width = fw + "px"; frame.style.height = fh + "px";
+      frame.style.transform = "scale(" + k + ")";
+      frame.style.left = Math.max(0, (W - fw * k) / 2) + "px";
+    } else {
+      const fw = 1280, k = W / fw;
+      frame.style.width = fw + "px"; frame.style.height = (H / k) + "px";
+      frame.style.transform = "scale(" + k + ")";
+      frame.style.left = "0px";
+    }
+  }
+  function load(url, force){
+    if (!url) return;
+    if (!force && PV.url === url) return;
+    PV.url = url;
+    frame.src = url + (url.includes("?") ? "&" : "?") + "pv=" + Date.now();   // キャッシュを避ける
+    $("pvOpen").href = url;
+    fit();
+  }
+
+  window.adOnPanel = function(id){
+    const tab = document.querySelector('.ad-side .tab[data-panel="' + id + '"]');
+    const info = INFO[id] || ["", null];
+    $("adTitle").textContent = tab ? tab.textContent.trim() : "";
+    $("adDesc").textContent = info[0] || "";
+    const has = !!info[1];
+    $("adminWrap").classList.toggle("nopv", !has);
+    if (has){ $("pvPage").textContent = info[2] || info[1]; load(info[1]); }
+    else $("adPreview").classList.remove("show");
+    $("adMain").scrollTop = 0;
+  };
+
+  document.querySelectorAll("#pvSeg button").forEach(b => b.onclick = () => {
+    PV.mode = b.dataset.mode;
+    document.querySelectorAll("#pvSeg button").forEach(x => x.classList.toggle("on", x === b));
+    fit();
+  });
+  $("pvReload").onclick = () => load(PV.url, true);
+  $("adPvOpen").onclick = () => { $("adPreview").classList.add("show"); fit(); };
+  $("pvClose").onclick = () => $("adPreview").classList.remove("show");
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(wrap);
+  window.addEventListener("resize", fit);
+
+  /* 「保存しました」が出たら、プレビューを読み直して結果をすぐ見られるようにする */
+  const toastEl = $("toast");
+  if (toastEl && window.MutationObserver){
+    let t = null;
+    new MutationObserver(() => {
+      if (/保存しました|反映しました|作成しました|削除しました/.test(toastEl.textContent || "")){
+        clearTimeout(t); t = setTimeout(() => load(PV.url, true), 700);
+      }
+    }).observe(toastEl, { childList: true, characterData: true, subtree: true });
+  }
+
+  const cur = document.querySelector(".panel.on");
+  window.adOnPanel(cur ? cur.id : "p-home");
 })();
 </script>
 </body>
