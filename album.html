@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>卒業証書 ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="クラウドハッシュテイル校 卒業証書 — 合宿の歩みを1人1ページに">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- 「卒業証書」の達筆な文字（毛筆体 Yuji Boku）。使う4文字だけを読み込むので軽い -->
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E5%8D%92%E6%A5%AD%E8%A8%BC%E6%9B%B8&display=swap" rel="stylesheet" id="brushFont">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--al:var(--leaf)}
+/* ---- 達筆（毛筆体）。書体を変えたいときは --brush だけ差し替える ---- */
+:root{--brush:"Yuji Boku","Zen Kaku Gothic New",serif}
+.brush{font-family:var(--brush);font-weight:400;letter-spacing:.14em}
+
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;
+  box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:16px}
+.pbody{padding:18px 20px}
+.spacer{flex:1}
+.empty{padding:34px 18px;text-align:center;font-size:13px;color:var(--muted);line-height:1.9}
+.note{font-size:11.5px;color:var(--muted);line-height:1.8}
+.num{font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.xbtn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border-strong);background:var(--surface);
+  color:var(--ink);border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:900;cursor:pointer;
+  font-family:inherit;text-decoration:none;transition:transform .1s,border-color .1s,box-shadow .1s}
+.xbtn:hover:not(:disabled){transform:translateY(-1px);border-color:var(--al);box-shadow:var(--shadow-soft)}
+.xbtn:disabled{opacity:.45;cursor:default}
+.xbtn.main{background:var(--al);border-color:transparent;color:#fff}
+.xrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---- 表紙 ---- */
+.cover{position:relative;padding:30px 24px 26px;text-align:center;
+  background:
+    radial-gradient(420px 180px at 12% 0%,color-mix(in srgb,var(--leaf) 26%,transparent),transparent 70%),
+    radial-gradient(420px 200px at 92% 10%,color-mix(in srgb,var(--sky) 22%,transparent),transparent 70%),
+    var(--surface)}
+.cover .kicker{font-size:11px;font-weight:900;letter-spacing:.24em;color:var(--leaf)}
+.cover h1{font-size:46px;font-weight:400;margin:8px 0 6px;line-height:1.2}
+.cover .period{font-family:"Space Grotesk",sans-serif;font-size:13px;color:var(--muted);letter-spacing:.08em}
+.cover .msg{max-width:620px;margin:16px auto 0;font-size:13px;line-height:1.95;white-space:pre-wrap;text-align:left;
+  background:color-mix(in srgb,var(--leaf) 8%,var(--surface));border:1px dashed color-mix(in srgb,var(--leaf) 45%,var(--border));
+  border-radius:14px;padding:14px 18px}
+.cover .msg .sig{display:block;text-align:right;font-weight:900;margin-top:6px;color:var(--leaf)}
+.banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px;border-radius:14px;margin-bottom:14px;
+  font-size:12.5px;line-height:1.7;background:color-mix(in srgb,var(--gold) 14%,var(--surface));
+  border:1.5px solid color-mix(in srgb,var(--gold) 45%,var(--border))}
+
+/* ---- 一覧 ---- */
+.tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.chip{border:1.5px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;
+  padding:6px 14px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.chip.on{border-color:var(--leaf);color:var(--ink);background:color-mix(in srgb,var(--leaf) 14%,var(--surface))}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.st{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:18px 12px 14px;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:18px;cursor:pointer;text-decoration:none;color:inherit;
+  transition:transform .12s,border-color .12s,box-shadow .12s;position:relative}
+.st:hover{transform:translateY(-2px);border-color:var(--c,var(--leaf));box-shadow:var(--shadow-soft)}
+.st.me{border-color:var(--c,var(--leaf));box-shadow:inset 0 0 0 1.5px var(--c,var(--leaf))}
+.st .you{position:absolute;top:10px;right:10px;font-size:10px;font-weight:900;padding:1px 8px;border-radius:99px;
+  background:var(--gold);color:#fff}
+.av{border-radius:999px;object-fit:cover;background:var(--surface-2);border:3px solid var(--c,var(--leaf));flex:none}
+.avf{display:grid;place-items:center;font-weight:900;color:#fff;background:var(--c,var(--leaf))}
+.st .av{width:76px;height:76px}
+.st .nm{font-size:14.5px;font-weight:900;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st .ro{font-size:10.5px;color:var(--muted)}
+.st .jr{display:flex;align-items:center;gap:4px;font-size:15px;color:var(--muted);min-height:34px}
+.st .gain{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:15px}
+.up{color:var(--ok)} .down{color:var(--danger)} .flat{color:var(--muted)}
+
+/* ---- 1人のページ ---- */
+.page{position:relative;background:var(--surface);border:1.5px solid var(--border);border-radius:24px;
+  box-shadow:var(--shadow);overflow:hidden;margin-bottom:14px}
+/* 入学許可書と同じ：紙の地・金の二重枠・四すみの飾り・朱印（ダークモードでも読めるよう色は混ぜて作る） */
+.page{background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 7%,var(--surface)),
+  color-mix(in srgb,var(--leaf) 6%,var(--surface)) 60%,color-mix(in srgb,var(--sky) 9%,var(--surface)));
+  border:4px solid #C9A24A;border-radius:20px}
+.page::before{content:"";position:absolute;inset:9px;border:1.5px solid #E8CD82;border-radius:13px;pointer-events:none;z-index:0}
+.page::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(circle at 9px 9px,#C9A24A 5px,transparent 5.5px),
+    radial-gradient(circle at calc(100% - 9px) 9px,#C9A24A 5px,transparent 5.5px),
+    radial-gradient(circle at 9px calc(100% - 9px),#C9A24A 5px,transparent 5.5px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px),#C9A24A 5px,transparent 5.5px)}
+.page > *{position:relative;z-index:1}
+.pg-hero .av{border-color:#D9B75E}
+.seal{position:absolute;top:24px;right:28px;z-index:2;width:68px;height:68px;border:4px solid #C8372D;border-radius:8px;
+  display:grid;place-items:center;transform:rotate(-5deg);color:#C8372D;font-family:var(--brush);font-size:20px;line-height:1.05;
+  text-align:center;box-shadow:inset 0 0 0 3px transparent,inset 0 0 0 4.5px #C8372D;opacity:.92}
+.hl .b,.bubble{background:color-mix(in srgb,var(--leaf) 10%,var(--surface))}
+.pg-hero{padding-right:120px}
+.tbody{font-size:16px;line-height:2.05;white-space:pre-wrap;font-weight:700;padding:4px 2px}
+.pg-hero{position:relative;display:flex;gap:20px;align-items:center;padding:28px 26px 10px;flex-wrap:wrap}
+.pg-hero .av{width:118px;height:118px;border-width:5px;box-shadow:0 10px 24px -12px rgba(0,0,0,.35)}
+.pg-hero .avf{font-size:40px}
+.pg-hero .kicker{font-size:28px;line-height:1.2;color:var(--ink)}
+.pg-hero h2{font-size:30px;font-weight:900;line-height:1.25;margin:2px 0}
+.pg-hero .sub{font-size:12px;color:var(--muted)}
+.pg-hero .role{display:inline-block;margin-top:6px;font-size:11px;font-weight:900;padding:2px 10px;border-radius:99px;
+  background:color-mix(in srgb,var(--c) 16%,var(--surface));color:var(--ink);border:1px solid color-mix(in srgb,var(--c) 40%,var(--border))}
+.pg-sec{position:relative;padding:14px 26px}
+.pg-sec h3{font-size:11.5px;font-weight:900;letter-spacing:.14em;color:var(--c);margin-bottom:10px}
+.journey{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.jr-pt{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:118px}
+.jr-pt small{font-size:10.5px;color:var(--muted);font-weight:700}
+.jr-pt .rk{font-size:13px;font-weight:900;white-space:nowrap}
+.jr-pt .rkico{--rk-lg:2.8em}
+.jr-arrow{font-size:22px;color:var(--muted)}
+.jr-gain{margin-left:auto;text-align:right}
+a.role.mentor-chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:rgba(201,162,74,.18);border-color:rgba(201,162,74,.45);color:#9A7426;padding:3px 12px 3px 4px;vertical-align:middle}
+a.role.mentor-chip .av{width:24px;height:24px;border-width:2px;border-color:#D9B75E;margin:0}
+a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
+.jr-who{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:var(--ink);margin-right:6px}
+.jr-who .av{width:96px;height:96px;border-width:4px;border-color:#D9B75E;box-shadow:0 8px 20px -10px rgba(0,0,0,.4)}
+.jr-who .avf{font-size:32px}
+.jr-who b{font-size:14px;font-weight:900;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jr-who:hover .av{transform:scale(1.04)}
+.jr-gain .v{font-family:"Space Grotesk",sans-serif;font-size:40px;font-weight:700;line-height:1}
+.jr-gain small{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-top:4px}
+.spark{margin-top:12px;width:100%;height:84px;display:block}
+.hl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.hl .b{border:1.5px solid var(--border);border-radius:14px;padding:11px 13px;background:var(--surface)}
+.hl .b small{display:block;font-size:10.5px;font-weight:900;color:var(--muted);letter-spacing:.04em}
+.hl .b b{display:block;font-size:17px;font-weight:900;margin-top:2px;line-height:1.35}
+.hl .b span{display:block;font-size:10.5px;color:var(--muted)}
+.mates{display:flex;gap:14px;flex-wrap:wrap}
+.mate{display:flex;align-items:center;gap:9px;padding:6px 14px 6px 6px;border-radius:999px;border:1.5px solid var(--border);
+  background:var(--surface);text-decoration:none;color:inherit}
+.mate:hover{border-color:var(--c)}
+.mate .av{width:38px;height:38px;border-width:2px}
+.mate .avf{font-size:14px}
+.mate b{font-size:13px;display:block}
+.mate small{font-size:10.5px;color:var(--muted)}
+.bubble{position:relative;border-radius:18px;padding:16px 20px;font-size:14px;line-height:1.95;white-space:pre-wrap;
+  background:color-mix(in srgb,var(--c) 9%,var(--surface));border:1.5px solid color-mix(in srgb,var(--c) 38%,var(--border))}
+.bubble .sig{display:block;text-align:right;font-size:12px;font-weight:900;color:var(--c);margin-top:4px}
+.pg-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:16px 26px 22px;border-top:1px dashed var(--border-strong);margin-top:8px}
+.pg-nav{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap}
+.shot{margin-top:14px}
+.shot img{width:100%;border-radius:14px;border:1px solid var(--border);display:block}
+
+
+/* ---- 特別賞 ---- */
+.awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:16px}
+.aw{position:relative;border-radius:18px;padding:16px 18px;overflow:hidden;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 20%,var(--surface)),var(--surface) 70%);
+  border:1.5px solid color-mix(in srgb,var(--gold) 55%,var(--border))}
+.aw .ic{font-size:30px;line-height:1}
+.aw b{display:block;font-size:17px;font-weight:900;margin-top:6px}
+.aw p{font-size:11.5px;color:var(--muted);line-height:1.7;margin-top:2px}
+.aw .who{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.aw .who a{display:flex;align-items:center;gap:6px;padding:3px 10px 3px 3px;border-radius:999px;background:var(--surface);
+  border:1px solid var(--border);font-size:12px;font-weight:900;color:inherit;text-decoration:none}
+.aw .who .av{width:24px;height:24px;border-width:2px}
+.aw .who .avf{font-size:11px}
+.sec-t{font-size:12px;font-weight:900;letter-spacing:.16em;color:var(--gold);margin:4px 2px 10px;display:flex;align-items:center;gap:8px}
+.sec-t small{letter-spacing:0;color:var(--muted);font-weight:700}
+.st .awb{position:absolute;top:10px;left:10px;font-size:18px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.2))}
+.pg-awards{display:flex;flex-wrap:wrap;gap:10px}
+.pg-aw{display:flex;align-items:center;gap:12px;padding:12px 18px 12px 12px;border-radius:16px;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 26%,var(--surface)),var(--surface));
+  border:1.5px solid color-mix(in srgb,var(--gold) 60%,var(--border))}
+.pg-aw .ic{font-size:30px;line-height:1}
+.pg-aw b{display:block;font-size:17px;font-weight:900}
+.pg-aw small{display:block;font-size:11px;color:var(--muted)}
+.pending{font-size:10.5px;font-weight:900;color:var(--gold);margin-left:4px}
+.editlink{margin-left:auto;font-size:11.5px;font-weight:900;text-decoration:none;color:var(--muted);
+  border:1px dashed var(--border-strong);border-radius:999px;padding:3px 10px}
+.editlink:hover{color:var(--ink);border-color:var(--c)}
+
+@media (max-width:620px){
+  .seal{width:50px;height:50px;font-size:15px;top:16px;right:18px}
+  .pg-hero{padding:22px 76px 6px 18px}
+  .pg-hero .av{width:92px;height:92px}
+  .pg-hero h2{font-size:24px}
+  .pg-sec{padding:12px 18px}
+  .jr-gain{margin-left:0;text-align:left;width:100%}
+  .jr-gain .v{font-size:32px}
+  .pg-foot{padding:14px 18px 18px}
+  .cover h1{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/emblem.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div>
+        <h1>卒業証書</h1>
+        <div class="sub">クラウドハッシュテイル校 TOOLS</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div id="view"><div class="panel"><div class="empty">卒業証書をひらいています…</div></div></div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  if (!C || typeof C.albumEntry !== "function"){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;font-family:sans-serif;line-height:1.9">' +
+      '<b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      '卒業証書に対応した core.js に差し替えて、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome ? window.MCCHome.boot(session) : null;
+  const toast = m => (ctx && ctx.toast ? ctx.toast(m) : alert(m));
+  const IS_ADMIN = C.isAdmin(session);
+  const ME = "u_" + session.discord.id;
+  if (IS_ADMIN) $("editorLink").style.display = "";
+
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const md = k => k ? (Number(k.slice(5, 7)) + "/" + Number(k.slice(8))) : "";
+  const ymd = k => k ? k.replace(/-/g, ".") : "";
+  const hours = s => { const h = (s || 0) / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
+  const signed = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v | 0);
+
+  /* ---- テーマ色（プロフィールで選んだ色。無ければ校のイメージカラー＝薄い緑） ---- */
+  const THEMES = {};
+  (C.PROFILE_THEMES || []).forEach(t => { THEMES[t.id] = t.css; });
+  // canvas では CSS 変数が使えないので、実際の色に直す
+  function cssColor(v){
+    const el = document.createElement("span");
+    el.style.color = v; el.style.display = "none";
+    document.body.appendChild(el);
+    const c = getComputedStyle(el).color;
+    el.remove();
+    return c || "#85A856";
+  }
+
+  let D = null;   // 読み込んだデータ一式
+  // 特別賞を見せるか（発表前は管理者だけ）
+  const showAwards = () => D.album.awardsOpen || IS_ADMIN;
+  const pendingTag = () => D.album.awardsOpen ? "" : '<span class="pending">（未発表・管理者にだけ見えています）</span>';
+
+  function ensureBrush(text){
+    const t = Array.from(new Set(String(text || "") + "卒業証書感謝状之印殿師弟之証")).join("");
+    const l = $("brushFont");
+    if (l) l.href = "https://fonts.googleapis.com/css2?family=Yuji+Boku&text=" + encodeURIComponent(t) + "&display=swap";
+  }
+  async function loadAll(){
+    const album = await C.loadAlbum();
+    ensureBrush(album.title + album.tTitle + (album.pTitle || ""));
+    const S = album.start, E = album.end;
+    const safe = p => p.catch(e => { console.warn(e); return null; });
+    const [lp, snap, exam, vcr, vcc, cards, members] = await Promise.all([
+      C.loadLpData(), safe(C.loadSnapshot()), safe(C.loadExamScores()),
+      safe(C.loadVcRange(S, E)), safe(C.loadVcCompanions(S, E)), safe(C.loadProfileCards()), safe(C.loadMembers())
+    ]);
+    const mem = members || {};
+    // 講師＝先生スナップショットで選んだ「先生ロール」を持っている人
+    const teacherRoles = (snap && snap.roleIds) || [];
+    const isT = id => C.isTeacherOf((lp.members || {})[id], teacherRoles) || C.isTeacherOf(mem[id], teacherRoles);
+    const order = C.lpGroupOrder(lp);
+    const extra = { snap, exam, vcUsers: vcr ? vcr.users : [], vcComp: vcc };
+    const list = Object.keys(lp.members || {}).map(id => {
+      const e = C.albumEntry(lp, id, album, extra);
+      const gi = C.lpGroupIndex((lp.members || {})[id], order);
+      e.roleLabel = C.lpSectionLabel(gi, order);
+      const card = cards && cards[id];
+      e.color = card && THEMES[card.theme.color] ? THEMES[card.theme.color] : "var(--leaf)";
+      return e;
+    }).filter(e => !isT(e.id) && (e.start || e.vc || e.exam || e.snap));   // 生徒で、期間中に何かしら記録がある人だけ
+
+    /* ---- 講師（感謝状） ---- */
+    const mentors = album.mentors || {};
+    const TIERS = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"];
+    const ti = r => r ? TIERS.indexOf(r.tier) : -1;
+    const tIds = Array.from(new Set(Object.keys(lp.members || {}).concat(Object.keys(mem)))).filter(isT);
+    const teachers = tIds.map(id => {
+      const e = C.albumEntry(lp, id, album, extra);
+      const lm = (lp.members || {})[id] || {}, mm = mem[id] || {};
+      e.name = lm.name || mm.name || "—";
+      e.avatar = lm.avatar || (mm.discord && mm.discord.avatar) || "";
+      e.teacher = true;
+      e.roleLabel = "講師";
+      const card = cards && cards[id];
+      e.color = card && THEMES[card.theme.color] ? THEMES[card.theme.color] : "var(--gold)";
+      const comp = (vcc && vcc.byUser && vcc.byUser[id]) || {};
+      // 担当の生徒（先生1人につき生徒1人）
+      const s = list.find(x => mentors[x.id] === id) || null;
+      e.t = { s, vcSec: s ? (comp[s.id] || 0) : 0 };
+      return e;
+    }).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+
+    // 生徒の担当の先生（講師に入っている人だけ）
+    list.forEach(x => {
+      const t = teachers.find(t => t.id === mentors[x.id]);
+      x.mentor = t ? { id: t.id, name: t.name, avatar: t.avatar } : null;
+    });
+    const byId = {};
+    list.forEach(e => { byId[e.id] = e; });
+    teachers.forEach(e => { byId[e.id] = e; });
+    // いっしょに過ごした仲間の名前・アイコン（卒業証書に載っていない人でも名前は出す）
+    const nameOf = id => (byId[id] && byId[id].name) || ((lp.members || {})[id] || {}).name || (mem[id] || {}).name || (vcc && vcc.names[id]) || "—";
+    const avatarOf = id => (byId[id] && byId[id].avatar) || ((lp.members || {})[id] || {}).avatar ||
+      ((mem[id] || {}).discord || {}).avatar || "";
+    D = { album, lp, list, teachers, byId, nameOf, avatarOf };
+  }
+
+  /* ---- 部品 ---- */
+  function avatar(url, name, cls){
+    const ini = esc(String(name || "?").trim().slice(0, 1));
+    if (!url) return '<span class="av avf ' + (cls || "") + '">' + ini + "</span>";
+    return '<img class="av ' + (cls || "") + '" src="' + esc(url) + '" alt="" loading="lazy" ' +
+      'onerror="this.outerHTML=\'<span class=&quot;av avf ' + (cls || "") + '&quot;>' + ini + '</span>\'">';
+  }
+  function gainHtml(g){
+    if (g == null) return '<span class="flat">—</span>';
+    return '<span class="gain ' + (g > 0 ? "up" : g < 0 ? "down" : "flat") + '">' + signed(g) + "LP</span>";
+  }
+  function coverHtml(){
+    const a = D.album;
+    return '<div class="panel cover">' +
+      '<div class="kicker">CLOUD HASHTAIL SCHOOL</div>' +
+      '<h1 class="brush">' + esc(a.title) + "</h1>" +
+      '<div class="period">' + ymd(a.start) + " – " + ymd(a.end) + "</div>" +
+      (a.message ? '<div class="msg">' + esc(a.message) + '<span class="sig">— ' + esc(a.signer) + "</span></div>" : "") +
+      "</div>";
+  }
+  function unpublishedBanner(){
+    if (D.album.published) return "";
+    return '<div class="banner">🔒 <b>まだ非公開です。</b>管理者にだけ見えています。' +
+      '管理コンソール →「卒業証書」で「公開する」にすると、全員が見られるようになります。</div>';
+  }
+
+  /* ================= 一覧 ================= */
+  let sortBy = "gain";
+  function viewList(){
+    const list = D.list.slice().sort(sortBy === "gain"
+      ? (a, b) => ((b.gain == null ? -1e9 : b.gain) - (a.gain == null ? -1e9 : a.gain)) || a.name.localeCompare(b.name, "ja")
+      : (a, b) => a.name.localeCompare(b.name, "ja"));
+    const mine = D.byId[ME];
+    const teachersHtml = D.teachers.length
+      ? '<div class="sec-t">🎓 講師 <small>感謝状</small></div><div class="grid" style="margin-bottom:18px">' + D.teachers.map(e =>
+          '<a class="st' + (e.id === ME ? " me" : "") + '" href="?id=' + encodeURIComponent(e.id) + '" style="--c:#C9A24A">' +
+            (e.id === ME ? '<span class="you">あなた</span>' : "") +
+            avatar(e.avatar, e.name) +
+            '<div class="nm">' + esc(e.name) + "</div>" +
+            '<div class="ro">講師</div>' +
+            '<div class="jr" style="font-size:12px">' + (e.t.s ? "担当 " + esc(e.t.s.name) : "担当 未設定") + "</div>" +
+            gainHtml(e.t.s ? e.t.s.gain : null) +
+          "</a>").join("") + "</div>" +
+        '<div class="sec-t" style="color:var(--leaf)">📜 生徒 <small>卒業証書</small></div>'
+      : "";
+    const aws = showAwards() ? D.album.awards.filter(a => a.winners.some(w => D.byId[w] || D.nameOf(w) !== "—")) : [];
+    const awardsHtml = aws.length
+      ? '<div class="sec-t">🎖 特別賞 ' + pendingTag() + '</div><div class="awards">' + aws.map(a =>
+          '<div class="aw"><div class="ic">' + esc(a.icon) + "</div><b>" + esc(a.name) + "</b>" +
+          (a.desc ? "<p>" + esc(a.desc) + "</p>" : "") +
+          '<div class="who">' + a.winners.map(w =>
+            '<a href="?id=' + encodeURIComponent(w) + '">' + avatar(D.avatarOf(w), D.nameOf(w)) + esc(D.nameOf(w)) + "</a>").join("") +
+          "</div></div>").join("") + "</div>"
+      : "";
+    $("view").innerHTML = unpublishedBanner() + coverHtml() + awardsHtml + teachersHtml +
+      '<div class="tools">' +
+        '<button class="chip' + (sortBy === "gain" ? " on" : "") + '" data-sort="gain">伸びた順</button>' +
+        '<button class="chip' + (sortBy === "name" ? " on" : "") + '" data-sort="name">名前順</button>' +
+        '<span class="spacer"></span>' +
+        (mine ? '<a class="xbtn main" href="?id=' + encodeURIComponent(ME) + '">📜 自分の' + (mine.teacher ? esc(D.album.tTitle) : "卒業証書") + "を見る</a>" : "") +
+      "</div>" +
+      (list.length ? '<div class="grid">' + list.map(e =>
+        '<a class="st' + (e.id === ME ? " me" : "") + '" href="?id=' + encodeURIComponent(e.id) + '" style="--c:' + e.color + '">' +
+          (e.id === ME ? '<span class="you">あなた</span>' : "") +
+          (showAwards() && e.awards.length ? '<span class="awb" title="' + esc(e.awards.map(a => a.name).join("・")) + '">' +
+            esc(e.awards[0].icon) + "</span>" : "") +
+          avatar(e.avatar, e.name) +
+          '<div class="nm">' + esc(e.name) + "</div>" +
+          (e.mentor ? '<div class="ro">担当 ' + esc(e.mentor.name) + "先生</div>"
+                    : e.roleLabel ? '<div class="ro">' + esc(e.roleLabel) + "</div>" : "") +
+          '<div class="jr">' +
+            (e.start ? C.rankIcon(e.start.rank, { cls: "sm" }) : "") +
+            (e.start && e.end ? "→" : "") +
+            (e.end ? C.rankIcon(e.end.rank, { cls: "sm" }) : "") +
+          "</div>" +
+          gainHtml(e.gain) +
+        "</a>").join("") + "</div>"
+      : '<div class="panel"><div class="empty">この期間の記録がまだありません。<br>' +
+        "LPの記録が始まると、ここに1人ずつページができます。</div></div>");
+    document.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => { sortBy = b.dataset.sort; viewList(); });
+    document.title = D.album.title + " ｜ クラウドハッシュテイル校";
+  }
+
+  /* ================= 1人のページ ================= */
+  function sparkSvg(e){
+    const pts = e.series;
+    if (!pts || pts.length < 2) return "";
+    const W = 600, H = 84, P = 8;
+    const vs = pts.map(p => p.v), mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+    const span = Math.max(40, mx - mn);
+    const x = i => P + i * (W - P * 2) / (pts.length - 1);
+    const y = v => H - P - (v - mn) / span * (H - P * 2);
+    const d = pts.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ");
+    const area = d + " L" + x(pts.length - 1).toFixed(1) + " " + (H - P) + " L" + x(0).toFixed(1) + " " + (H - P) + " Z";
+    const pi = vs.indexOf(mx);
+    return '<svg class="spark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" role="img" aria-label="期間中のLPの推移">' +
+      '<path d="' + area + '" fill="var(--c)" opacity=".12"/>' +
+      '<path d="' + d + '" fill="none" stroke="var(--c)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' +
+      '<circle cx="' + x(pi).toFixed(1) + '" cy="' + y(mx).toFixed(1) + '" r="4" fill="var(--gold)"/>' +
+      "</svg>";
+  }
+  // "DIAMOND II" のように、ティアと段位だけ（LPは別の行に出す）
+  function tierDiv(r){ return r ? (r.tier + (r.division ? " " + r.division : "")) : "—"; }
+  function highlights(e){
+    const b = [];
+    if (e.peak) b.push(["最高ランク", tierDiv(e.peak.rank), e.peak.rank.lp + "LP ・ " + md(e.peak.day)]);
+    if (e.bestDay) b.push(["いちばん伸びた日", "+" + e.bestDay.delta + "LP", md(e.bestDay.day)]);
+    if (e.days) b.push(["LPを記録した日", e.days + "日", "合宿期間中"]);
+    if (e.vc && e.vc.seconds) b.push(["VCにいた時間", hours(e.vc.seconds) + "時間",
+      e.vc.topChannel ? "よくいたVC：" + e.vc.topChannel.name : ""]);
+    if (e.snap) b.push([e.snap.label, e.snap.total + "pt", e.snap.n + "回参加・最高" + e.snap.best + "位"]);
+    if (e.exam) b.push(["中間試験", e.exam.score + "点", e.exam.of + "人中 " + e.exam.rank + "位"]);
+    return b;
+  }
+  function viewPage(id){
+    const e = D.byId[id];
+    if (!e){
+      $("view").innerHTML = '<div class="panel"><div class="empty">この人のページは見つかりませんでした。<br>' +
+        '<a class="xbtn" href="album.html" style="margin-top:12px">← みんなの卒業証書へ</a></div></div>';
+      return;
+    }
+    if (e.teacher) return viewTeacher(e);
+    const list = D.list.slice().sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    const i = list.findIndex(x => x.id === id);
+    const prev = list[(i - 1 + list.length) % list.length], next = list[(i + 1) % list.length];
+    const hl = highlights(e);
+    const mates = (e.vc && e.vc.mates) || [];
+
+    $("view").innerHTML = unpublishedBanner() +
+      '<div class="pg-nav">' +
+        '<a class="xbtn" href="album.html">← みんなの卒業証書</a>' +
+        '<div class="xrow">' +
+          (list.length > 1 ? '<a class="xbtn" href="?id=' + encodeURIComponent(prev.id) + '">‹ ' + esc(prev.name) + "</a>" +
+                             '<a class="xbtn" href="?id=' + encodeURIComponent(next.id) + '">' + esc(next.name) + " ›</a>" : "") +
+        "</div>" +
+      "</div>" +
+      '<article class="page" style="--c:' + e.color + '">' +
+        '<div class="seal" aria-hidden="true">卒業<br>証書</div>' +
+        '<div class="pg-hero">' +
+          avatar(e.avatar, e.name) +
+          "<div>" +
+            '<div class="kicker brush">' + esc(D.album.title) + "</div>" +
+            "<h2>" + esc(e.name) + "</h2>" +
+            '<div class="sub">' + (D.album.term ? '<b style="color:var(--ink)">' + esc(D.album.term) + "</b> ・ " : "") +
+              ymd(D.album.start) + " – " + ymd(D.album.end) + "</div>" +
+            (e.roleLabel ? '<span class="role">' + esc(e.roleLabel) + "</span>" : "") +
+            (e.mentor ? ' <a class="role mentor-chip" href="?id=' + encodeURIComponent(e.mentor.id) + '">' +
+              avatar(e.mentor.avatar, e.mentor.name) + "担当：" + esc(e.mentor.name) + "先生</a>" : "") +
+          "</div>" +
+        "</div>" +
+
+        (showAwards() && e.awards.length ?
+          '<div class="pg-sec"><h3>特別賞' + pendingTag() + '</h3><div class="pg-awards">' +
+            e.awards.map(a => '<div class="pg-aw"><span class="ic">' + esc(a.icon) + "</span><span><b>" + esc(a.name) + "</b>" +
+              (a.desc ? "<small>" + esc(a.desc) + "</small>" : "") + "</span></div>").join("") +
+          "</div></div>" : "") +
+
+        (e.start && e.end ?
+          '<div class="pg-sec"><h3>ランクの歩み</h3>' +
+            '<div class="journey">' +
+              '<div class="jr-pt"><small>開校のころ（' + md(e.start.day) + '）</small>' + C.rankIcon(e.start.rank, { cls: "lg" }) +
+                '<span class="rk">' + esc(C.rankLabel(e.start.rank)) + "</span></div>" +
+              '<span class="jr-arrow">→</span>' +
+              '<div class="jr-pt"><small>卒業のころ（' + md(e.end.day) + '）</small>' + C.rankIcon(e.end.rank, { cls: "lg" }) +
+                '<span class="rk">' + esc(C.rankLabel(e.end.rank)) + "</span></div>" +
+              '<div class="jr-gain"><div class="v ' + (e.gain > 0 ? "up" : e.gain < 0 ? "down" : "flat") + '">' + signed(e.gain) + "</div>" +
+                "<small>合宿でのびたLP</small></div>" +
+            "</div>" + sparkSvg(e) +
+          "</div>" : "") +
+
+        (hl.length ? '<div class="pg-sec"><h3>ハイライト</h3><div class="hl">' +
+          hl.map(x => '<div class="b"><small>' + esc(x[0]) + "</small><b>" + esc(x[1]) + "</b>" +
+            (x[2] ? "<span>" + esc(x[2]) + "</span>" : "") + "</div>").join("") + "</div></div>" : "") +
+
+        (mates.length ? '<div class="pg-sec"><h3>いっしょに過ごした仲間（VC）</h3><div class="mates">' +
+          mates.map(m => '<a class="mate" href="?id=' + encodeURIComponent(m.id) + '">' +
+            avatar(D.avatarOf(m.id), D.nameOf(m.id)) +
+            "<span><b>" + esc(D.nameOf(m.id)) + "</b><small>" + hours(m.seconds) + "時間</small></span></a>").join("") +
+          "</div></div>" : "") +
+
+        (e.comment || IS_ADMIN ? '<div class="pg-sec"><h3 style="display:flex;align-items:center">先生からのひとこと' +
+          (IS_ADMIN ? '<a class="editlink" href="editor.html?tab=p-album&focus=' + encodeURIComponent(e.id) + '">✏️ ひとことを編集</a>' : "") + "</h3>" +
+          (e.comment
+            ? '<div class="bubble">' + esc(e.comment) + '<span class="sig">— ' + esc(D.album.signer) + "</span></div>"
+            : '<div class="note">まだ書かれていません（管理者にだけこの欄が見えています）</div>') +
+          "</div>" : "") +
+
+        '<div class="pg-foot">' +
+          '<button class="xbtn main" id="saveImg">🖼 画像で保存</button>' + pairBtn(e) +
+          (navigator.share ? '<button class="xbtn" id="shareImg">📤 シェア</button>' : "") +
+          '<span class="note">画像はXやDiscordにそのまま貼れるサイズ（1200×675）です。</span>' +
+        "</div>" +
+      "</article>" +
+      '<div class="shot" id="shot"></div>';
+
+    bindImageButtons(e);
+    document.title = e.name + " ｜ " + D.album.title;
+  }
+  /* 「画像で保存」「シェア」（卒業証書・感謝状で共通） */
+  // 先生と担当の生徒の組（どちらのページからでも）
+  function pairOf(e){
+    if (e.teacher) return e.t.s ? { t: e, s: e.t.s } : null;
+    const t = e.mentor && D.byId[e.mentor.id];
+    return t ? { t, s: e } : null;
+  }
+  const pairBtn = e => pairOf(e) ? '<button class="xbtn" id="pairImg" style="border-color:#D9B75E;color:#9A7426">🤝 ' + esc(D.album.pTitle) + "の画像</button>" : "";
+  function bindImageButtons(e){
+    const title = e.teacher ? D.album.tTitle : D.album.title;
+    const pr = pairOf(e);
+    if (pr && $("pairImg")) $("pairImg").onclick = () => makePairImage(pr.t, pr.s).then(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = D.album.pTitle + "_" + (pr.t.name + "_" + pr.s.name).replace(/[\\/:*?"<>|]/g, "") + ".png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      showShot(blob);
+    }).catch(err => toast("画像を作れませんでした：" + err.message));
+    $("saveImg").onclick = () => makeImage(e).then(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = title + "_" + e.name.replace(/[\\/:*?"<>|]/g, "") + ".png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      showShot(blob);
+    }).catch(err => toast("画像を作れませんでした：" + err.message));
+    if ($("shareImg")) $("shareImg").onclick = () => makeImage(e).then(async blob => {
+      const file = new File([blob], "album.png", { type: "image/png" });
+      const data = { text: title + "｜" + e.name + " #TFT合宿", files: [file] };
+      if (navigator.canShare && navigator.canShare(data)) await navigator.share(data);
+      else { await navigator.share({ text: data.text, url: location.href }); }
+    }).catch(err => { if (err && err.name !== "AbortError") toast("シェアできませんでした：" + err.message); });
+  }
+
+  /* ================= 講師のページ（感謝状） ================= */
+  function teacherStats(e){
+    const s = e.t.s, b = [];
+    if (s && s.peak) b.push(["生徒の最高ランク", tierDiv(s.peak.rank), s.peak.rank.lp + "LP ・ " + md(s.peak.day)]);
+    if (s && s.bestDay) b.push(["生徒がいちばん伸びた日", "+" + s.bestDay.delta + "LP", md(s.bestDay.day)]);
+    if (e.t.vcSec) b.push(["いっしょにVCにいた時間", hours(e.t.vcSec) + "時間", "同じVCにいた時間の合計"]);
+    if (e.snap) b.push([e.snap.label, e.snap.total + "pt", e.snap.n + "回・最高" + e.snap.best + "位"]);
+    if (e.peak) b.push(["自分の最高ランク", tierDiv(e.peak.rank), e.peak.rank.lp + "LP ・ " + md(e.peak.day)]);
+    return b;
+  }
+  function teacherJourney(e){
+    const s = e.t.s;
+    if (!s) return '<div class="note">担当の生徒がまだ決まっていません' +
+      (IS_ADMIN ? '（管理コンソール →「卒業証書」で選べます）' : "") + "</div>";
+    const who = '<a class="jr-who" href="?id=' + encodeURIComponent(s.id) + '" title="卒業証書を見る">' +
+      avatar(s.avatar, s.name) + "<b>" + esc(s.name) + "</b></a>";
+    if (!(s.start && s.end)) return '<div class="journey">' + who + '<div class="note">この期間のLPの記録はありません</div></div>';
+    return '<div class="journey">' + who +
+        '<div class="jr-pt"><small>開校のころ（' + md(s.start.day) + '）</small>' + C.rankIcon(s.start.rank, { cls: "lg" }) +
+          '<span class="rk">' + esc(C.rankLabel(s.start.rank)) + "</span></div>" +
+        '<span class="jr-arrow">→</span>' +
+        '<div class="jr-pt"><small>卒業のころ（' + md(s.end.day) + '）</small>' + C.rankIcon(s.end.rank, { cls: "lg" }) +
+          '<span class="rk">' + esc(C.rankLabel(s.end.rank)) + "</span></div>" +
+        '<div class="jr-gain"><div class="v ' + (s.gain > 0 ? "up" : s.gain < 0 ? "down" : "flat") + '">' + signed(s.gain) + "</div>" +
+          "<small>合宿でのびたLP</small></div>" +
+      "</div>" + sparkSvg(s);
+  }
+  function viewTeacher(e){
+    const T = D.album.tTitle;
+    const st = teacherStats(e);
+    const tl = D.teachers, i = tl.findIndex(x => x.id === e.id);
+    const box = x => '<div class="b"><small>' + esc(x[0]) + "</small><b>" + esc(x[1]) + "</b>" + (x[2] ? "<span>" + esc(x[2]) + "</span>" : "") + "</div>";
+    $("view").innerHTML = unpublishedBanner() +
+      '<div class="pg-nav"><a class="xbtn" href="album.html">← みんなの卒業証書</a>' +
+        '<div class="xrow">' + (tl.length > 1 ? '<a class="xbtn" href="?id=' + encodeURIComponent(tl[(i + 1) % tl.length].id) + '">' +
+          esc(tl[(i + 1) % tl.length].name) + " ›</a>" : "") + "</div></div>" +
+      '<article class="page" style="--c:#C9A24A">' +
+        '<div class="seal" aria-hidden="true">感謝<br>之印</div>' +
+        '<div class="pg-hero">' + avatar(e.avatar, e.name) +
+          '<div><div class="kicker brush">' + esc(T) + "</div>" +
+            "<h2>" + esc(e.name) + ' <span class="brush" style="font-size:.7em;letter-spacing:0">殿</span></h2>' +
+            '<div class="sub">' + (D.album.term ? '<b style="color:var(--ink)">' + esc(D.album.term) + "</b> ・ " : "") +
+              ymd(D.album.start) + " – " + ymd(D.album.end) + "</div>" +
+            '<span class="role">講師</span></div></div>' +
+        (D.album.tBody ? '<div class="pg-sec"><div class="tbody">' + esc(D.album.tBody) + "</div></div>" : "") +
+        '<div class="pg-sec"><h3>担当した生徒の歩み</h3>' + teacherJourney(e) + "</div>" +
+        (st.length ? '<div class="pg-sec"><h3>ハイライト</h3><div class="hl">' + st.map(box).join("") + "</div></div>" : "") +
+        (e.comment || IS_ADMIN ? '<div class="pg-sec"><h3 style="display:flex;align-items:center">感謝のことば' +
+          (IS_ADMIN ? '<a class="editlink" href="editor.html?tab=p-album&focus=' + encodeURIComponent(e.id) + '">✏️ ことばを編集</a>' : "") + "</h3>" +
+          (e.comment ? '<div class="bubble">' + esc(e.comment) + '<span class="sig">— ' + esc(D.album.tSigner) + "</span></div>"
+                     : '<div class="note">まだ書かれていません（管理者にだけこの欄が見えています）</div>') + "</div>" : "") +
+        '<div class="pg-foot"><button class="xbtn main" id="saveImg">🖼 画像で保存</button>' + pairBtn(e) +
+          (navigator.share ? '<button class="xbtn" id="shareImg">📤 シェア</button>' : "") +
+          '<span class="note">画像はXやDiscordにそのまま貼れるサイズ（1200×675）です。</span></div>' +
+      "</article>" + '<div class="shot" id="shot"></div>';
+    bindImageButtons(e);
+    document.title = e.name + " ｜ " + T;
+  }
+  function showShot(blob){
+    $("shot").innerHTML = '<div class="note" style="margin-bottom:6px">保存した画像：</div><img alt="保存した画像">';
+    $("shot").querySelector("img").src = URL.createObjectURL(blob);
+  }
+
+  /* ================= 画像（1200×675） =================
+     html2canvas などは使わず、canvas に直接描く。
+     他サイトの画像（Discordのアイコン）は、読めなければ頭文字の丸にする
+     （読めない画像を描くと、画像として保存できなくなるため）。 */
+  function loadImg(src){
+    return new Promise(res => {
+      if (!src) return res(null);
+      const im = new Image();
+      if (!/^data:/.test(src)) {
+        try { if (new URL(src, location.href).origin !== location.origin) im.crossOrigin = "anonymous"; } catch(e){}
+      }
+      im.onload = () => res(im);
+      im.onerror = () => res(null);
+      im.src = src;
+    });
+  }
+  function rr(g, x, y, w, h, r){
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  function fitText(g, t, maxW){
+    t = String(t || "");
+    if (g.measureText(t).width <= maxW) return t;
+    while (t.length > 1 && g.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+    return t + "…";
+  }
+  function wrapText(g, t, maxW, maxLines){
+    const out = []; let line = "";
+    for (const ch of String(t || "").replace(/\s*\n\s*/g, " ")){
+      if (g.measureText(line + ch).width > maxW){ out.push(line); line = ch; if (out.length === maxLines) break; }
+      else line += ch;
+    }
+    if (out.length < maxLines && line) out.push(line);
+    if (out.length === maxLines && (out.join("").length < String(t).replace(/\s/g, "").length))
+      out[maxLines - 1] = fitText(g, out[maxLines - 1] + "…", maxW);
+    return out;
+  }
+  async function drawAvatar(g, url, name, cx, cy, r, ring){
+    const im = await loadImg(url);
+    g.save();
+    g.beginPath(); g.arc(cx, cy, r + (ring ? 6 : 3), 0, Math.PI * 2); g.fillStyle = ring || "#fff"; g.fill();
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.closePath(); g.clip();
+    if (im){ g.drawImage(im, cx - r, cy - r, r * 2, r * 2); }
+    else {
+      g.fillStyle = ring || "#85A856"; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+      g.fillStyle = "#fff"; g.font = "900 " + Math.round(r * .9) + 'px "Zen Kaku Gothic New",sans-serif';
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(String(name || "?").slice(0, 1), cx, cy + 2);
+    }
+    g.restore();
+  }
+  async function drawRank(g, rank, x, y, h){
+    if (!rank) return 0;
+    const ov = C.rankIconOf(rank.tier);
+    const im = ov && ov.img ? await loadImg(ov.img) : null;
+    if (im){
+      const k = h / im.naturalHeight, w = Math.min(h * 1.6, im.naturalWidth * k);
+      const kk = w / im.naturalWidth;
+      g.drawImage(im, x, y + (h - im.naturalHeight * kk) / 2, w, im.naturalHeight * kk);
+      return w;
+    }
+    // 画像が無いティアは色つきの丸にする
+    const col = cssColor(C.rankColor(rank));
+    g.beginPath(); g.arc(x + h / 2, y + h / 2, h / 2 - 2, 0, Math.PI * 2); g.fillStyle = col; g.fill();
+    g.fillStyle = "#fff"; g.font = "900 " + Math.round(h * .42) + 'px "Space Grotesk",sans-serif';
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(String(rank.tier).slice(0, 1), x + h / 2, y + h / 2 + 1);
+    return h;
+  }
+
+  async function makeImage(e){
+    if (e.teacher) return makeTeacherImage(e);
+    try { await Promise.all([
+      document.fonts.load('900 40px "Zen Kaku Gothic New"'), document.fonts.load('700 40px "Space Grotesk"'),
+      document.fonts.load('500 20px "Zen Kaku Gothic New"'),
+      document.fonts.load('400 54px "Yuji Boku"', D.album.title + "卒業証書")]); } catch(x){}
+    const W = 1200, H = 675;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    const col = cssColor(e.color), leaf = cssColor("var(--leaf)"), gold = cssColor("var(--gold)");
+    const ink = "#23384D", muted = "#6D8699";
+    const JP = '"Zen Kaku Gothic New",sans-serif', EN = '"Space Grotesk",sans-serif';
+
+    /* ---- 入学許可書と同じ作り：紙の地・うすい校章・金の二重枠・四すみの飾り ---- */
+    const goldA = "#C9A24A", goldB = "#E8CD82", red = "#C8372D";
+    const BR = '"Yuji Boku",' + JP;
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#FBF8EE"); bg.addColorStop(.6, "#F4F8EC"); bg.addColorStop(1, "#E8F2F8");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const emb = await loadImg("assets/emblem.png");
+    if (emb){ g.save(); g.globalAlpha = .06; const es = 420; g.drawImage(emb, W / 2 - es / 2 + 140, H / 2 - es / 2 + 20, es, es); g.restore(); }
+    g.strokeStyle = goldA; g.lineWidth = 6; rr(g, 26, 26, W - 52, H - 52, 20); g.stroke();
+    g.strokeStyle = goldB; g.lineWidth = 2; rr(g, 40, 40, W - 80, H - 80, 14); g.stroke();
+    [[40, 40], [W - 40, 40], [40, H - 40], [W - 40, H - 40]].forEach(([x, y]) => {
+      g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fillStyle = "#FBF8EE"; g.fill();
+    });
+
+    g.textBaseline = "alphabetic"; g.textAlign = "left";
+    g.fillStyle = leaf; g.font = "900 15px " + JP;
+    g.fillText("クラウドハッシュテイル校", 80, 88);
+    // 中央に達筆の「卒業証書」＋金の飾り線
+    g.fillStyle = ink; g.font = "400 54px " + BR;
+    const tt = D.album.title;
+    const sp = 14;   // 字間
+    const tw = Array.from(tt).reduce((n, ch) => n + g.measureText(ch).width, 0) + sp * (Array.from(tt).length - 1);
+    let tx = W / 2 - tw / 2;
+    g.textAlign = "left";
+    Array.from(tt).forEach(ch => { g.fillText(ch, tx, 104); tx += g.measureText(ch).width + sp; });
+    g.strokeStyle = goldA; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(W / 2 - 120, 124); g.lineTo(W / 2 - 14, 124); g.moveTo(W / 2 + 14, 124); g.lineTo(W / 2 + 120, 124); g.stroke();
+    g.beginPath(); g.moveTo(W / 2, 119); g.lineTo(W / 2 + 5, 124); g.lineTo(W / 2, 129); g.lineTo(W / 2 - 5, 124); g.closePath();
+    g.fillStyle = goldA; g.fill();
+    g.textAlign = "right"; g.fillStyle = muted; g.font = "700 16px " + EN;
+    g.fillText(ymd(D.album.start) + " – " + ymd(D.album.end), W - 80, 88);
+
+    // 左：アイコン・名前（輪は入学許可書と同じ金色）
+    const ring = g.createLinearGradient(110, 150, 310, 350); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
+    await drawAvatar(g, e.avatar, e.name, 210, 250, 100, ring);
+    g.textAlign = "center"; g.fillStyle = ink; g.font = "900 34px " + JP;
+    g.fillText(fitText(g, e.name, 300), 210, 402);
+    g.fillStyle = muted; g.font = "500 16px " + JP;
+    // 名前の下：Riot IDの代わりに「TFT合宿　SET18」などを印字
+    if (D.album.term){ g.fillStyle = ink; g.font = "900 19px " + JP; g.fillText(fitText(g, D.album.term, 300), 210, 432); }
+    // 名前の下のチップ：担当が決まっていれば「担当：○○先生」、なければロール名
+    const chip = e.mentor ? "担当：" + e.mentor.name + "先生" : e.roleLabel;
+    if (chip && e.mentor){
+      // 担当の先生：小さいアイコン＋名前のチップ
+      g.font = "900 15px " + JP;
+      const cl = fitText(g, chip, 240);
+      const tw = g.measureText(cl).width + 56;
+      rr(g, 210 - tw / 2, 444, tw, 34, 17); g.fillStyle = "rgba(201,162,74,.18)"; g.fill();
+      await drawAvatar(g, e.mentor.avatar, e.mentor.name, 210 - tw / 2 + 17, 461, 13, "#D9B75E");
+      g.textAlign = "left"; g.fillStyle = "#9A7426"; g.font = "900 15px " + JP;
+      g.fillText(cl, 210 - tw / 2 + 38, 467); g.textAlign = "center";
+    } else if (chip){
+      g.font = "900 14px " + JP;
+      const cl = fitText(g, chip, 274);
+      const tw = g.measureText(cl).width + 26;
+      rr(g, 210 - tw / 2, 446, tw, 28, 14);
+      g.fillStyle = "rgba(133,168,86,.14)"; g.fill();
+      g.fillStyle = ink; g.fillText(cl, 210, 466);
+    }
+
+    // 特別賞（発表後だけ。左の列のロールの下に金色のリボン）
+    if (D.album.awardsOpen && e.awards.length){
+      const a = e.awards[0];
+      const label = a.icon + " " + a.name + (e.awards.length > 1 ? " ほか" + (e.awards.length - 1) : "");
+      g.font = "900 17px " + JP; g.textAlign = "center";
+      const tw = Math.min(300, g.measureText(label).width + 40);
+      const ry = chip ? 490 : 450;
+      const gr = g.createLinearGradient(210 - tw / 2, 0, 210 + tw / 2, 0);
+      gr.addColorStop(0, "#E9B949"); gr.addColorStop(.5, "#F7D774"); gr.addColorStop(1, "#E0A93A");
+      rr(g, 210 - tw / 2, ry, tw, 38, 19); g.fillStyle = gr; g.fill();
+      g.fillStyle = "#5A3B06"; g.fillText(fitText(g, label, tw - 24), 210, ry + 25);
+      // アイコンの右下にもメダル
+      g.beginPath(); g.arc(286, 326, 26, 0, Math.PI * 2); g.fillStyle = "#F4C542"; g.fill();
+      g.lineWidth = 4; g.strokeStyle = "#fff"; g.stroke();
+      g.font = "26px sans-serif"; g.textBaseline = "middle"; g.fillStyle = "#5A3B06";
+      g.fillText(a.icon, 286, 328); g.textBaseline = "alphabetic";
+    }
+
+    // 右：ランクの歩み
+    const X = 390;
+    g.textAlign = "left"; g.fillStyle = col; g.font = "900 14px " + JP;
+    g.fillText("ランクの歩み", X, 140);
+    if (e.start && e.end){
+      const w1 = await drawRank(g, e.start.rank, X, 156, 62);
+      g.fillStyle = ink; g.font = "900 17px " + JP; g.fillText(C.rankLabel(e.start.rank), X, 244);
+      g.fillStyle = muted; g.font = "500 13px " + JP; g.fillText("開校のころ", X, 264);
+      g.fillStyle = muted; g.font = "700 30px " + EN; g.fillText("→", X + Math.max(w1, 150) + 18, 200);
+      const X2 = X + Math.max(w1, 150) + 66;
+      await drawRank(g, e.end.rank, X2, 156, 62);
+      g.fillStyle = ink; g.font = "900 17px " + JP; g.fillText(C.rankLabel(e.end.rank), X2, 244);
+      g.fillStyle = muted; g.font = "500 13px " + JP; g.fillText("卒業のころ", X2, 264);
+      g.textAlign = "right";
+      g.fillStyle = e.gain > 0 ? "#5F9E3C" : e.gain < 0 ? "#DF5B4C" : muted;
+      g.font = "700 64px " + EN; g.fillText(signed(e.gain), W - 84, 214);
+      g.fillStyle = muted; g.font = "700 14px " + JP; g.fillText("合宿でのびたLP", W - 86, 244);
+      // 推移
+      const pts = e.series;
+      if (pts.length >= 2){
+        const x0 = X, x1 = W - 84, y0 = 286, y1 = 350;
+        const vs = pts.map(p => p.v), mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+        const span = Math.max(40, mx - mn);
+        const px = i => x0 + i * (x1 - x0) / (pts.length - 1);
+        const py = v => y1 - (v - mn) / span * (y1 - y0);
+        g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(px(i), py(p.v)) : g.moveTo(px(i), py(p.v)));
+        g.lineTo(x1, y1 + 6); g.lineTo(x0, y1 + 6); g.closePath();
+        g.globalAlpha = .12; g.fillStyle = col; g.fill(); g.globalAlpha = 1;
+        g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(px(i), py(p.v)) : g.moveTo(px(i), py(p.v)));
+        g.strokeStyle = col; g.lineWidth = 3.5; g.lineJoin = "round"; g.lineCap = "round"; g.stroke();
+        const pi = vs.indexOf(mx);
+        g.beginPath(); g.arc(px(pi), py(mx), 6, 0, Math.PI * 2); g.fillStyle = gold; g.fill();
+      }
+    } else {
+      g.fillStyle = muted; g.font = "500 16px " + JP; g.fillText("この期間のLPの記録はありません", X, 190);
+    }
+
+    // ハイライト（最大4つ）
+    const hl = highlights(e).slice(0, 4);
+    const bw = (W - 84 - X - 12 * 3) / 4;
+    hl.forEach((b, i) => {
+      const bx = X + i * (bw + 12), by = 374;
+      rr(g, bx, by, bw, 78, 14); g.fillStyle = "rgba(133,168,86,.12)"; g.fill();
+      g.textAlign = "left";
+      g.fillStyle = muted; g.font = "900 12px " + JP; g.fillText(fitText(g, b[0], bw - 24), bx + 12, by + 22);
+      g.fillStyle = ink; g.font = "900 21px " + JP; g.fillText(fitText(g, b[1], bw - 24), bx + 12, by + 50);
+      g.fillStyle = muted; g.font = "500 11px " + JP; g.fillText(fitText(g, b[2] || "", bw - 24), bx + 12, by + 68);
+    });
+
+    // いっしょに過ごした仲間
+    const mates = ((e.vc && e.vc.mates) || []).slice(0, 3);
+    if (mates.length){
+      g.textAlign = "left"; g.fillStyle = col; g.font = "900 14px " + JP;
+      g.fillText("いっしょに過ごした仲間", X, 484);
+      let mx = X;
+      for (const m of mates){
+        await drawAvatar(g, D.avatarOf(m.id), D.nameOf(m.id), mx + 18, 514, 18, col);
+        g.fillStyle = ink; g.font = "900 15px " + JP; g.textAlign = "left";
+        const nm = fitText(g, D.nameOf(m.id), 150);
+        g.fillText(nm, mx + 44, 511);
+        g.fillStyle = muted; g.font = "500 12px " + JP; g.fillText(hours(m.seconds) + "時間", mx + 44, 529);
+        mx += 44 + Math.max(g.measureText(nm).width, 60) + 36;
+      }
+    }
+
+    // 先生からのひとこと（2行まで。はみ出す分は「…」）。右下はハンコの場所なので少し短く
+    if (e.comment){
+      rr(g, 80, 544, W - 250, 82, 18); g.fillStyle = "rgba(133,168,86,.12)"; g.fill();
+      g.textAlign = "left"; g.fillStyle = col; g.font = "900 13px " + JP;
+      g.fillText("先生からのひとこと", 100, 567);
+      g.fillStyle = ink; g.font = "500 17px " + JP;
+      const lines = wrapText(g, e.comment, W - 290 - 150, 2);
+      lines.forEach((ln, i) => g.fillText(ln, 100, 593 + i * 23));
+      g.textAlign = "right"; g.fillStyle = col; g.font = "900 14px " + JP;
+      g.fillText("— " + D.album.signer, W - 190, 616);
+    }
+    // 朱印（入学許可書と同じハンコ。文字は「卒業」「証書」）
+    g.save(); g.translate(W - 98, 580); g.rotate(-0.08);
+    g.strokeStyle = red; g.lineWidth = 4.5; rr(g, -38, -38, 76, 76, 8); g.stroke();
+    g.lineWidth = 1.5; rr(g, -32, -32, 64, 64, 5); g.stroke();
+    g.fillStyle = red; g.font = "400 25px " + BR; g.textAlign = "center";
+    g.fillText("卒業", 0, -3); g.fillText("証書", 0, 25);
+    g.restore();
+
+    return new Promise((res, rej) => {
+      try { cv.toBlob(b => b ? res(b) : rej(new Error("画像を作れませんでした")), "image/png"); }
+      catch(err){ rej(err); }
+    });
+  }
+
+  /* 感謝状（講師用）の画像。枠・ハンコは卒業証書と同じ */
+  async function makeTeacherImage(e){
+    const TT = D.album.tTitle || "感謝状";
+    try { await Promise.all([
+      document.fonts.load('900 40px "Zen Kaku Gothic New"'), document.fonts.load('700 40px "Space Grotesk"'),
+      document.fonts.load('500 20px "Zen Kaku Gothic New"'),
+      document.fonts.load('400 54px "Yuji Boku"', TT + "感謝之印殿")]); } catch(x){}
+    const W = 1200, H = 675;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    const leaf = cssColor("var(--leaf)");
+    const ink = "#23384D", muted = "#6D8699";
+    const JP = '"Zen Kaku Gothic New",sans-serif', EN = '"Space Grotesk",sans-serif';
+    const goldA = "#C9A24A", goldB = "#E8CD82", red = "#C8372D", goldInk = "#9A7426";
+    const BR = '"Yuji Boku",' + JP;
+
+    // 紙・校章・金の二重枠・四すみ
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#FBF8EE"); bg.addColorStop(.6, "#F4F8EC"); bg.addColorStop(1, "#E8F2F8");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const emb = await loadImg("assets/emblem.png");
+    if (emb){ g.save(); g.globalAlpha = .06; const es = 420; g.drawImage(emb, W / 2 - es / 2 + 140, H / 2 - es / 2 + 20, es, es); g.restore(); }
+    g.strokeStyle = goldA; g.lineWidth = 6; rr(g, 26, 26, W - 52, H - 52, 20); g.stroke();
+    g.strokeStyle = goldB; g.lineWidth = 2; rr(g, 40, 40, W - 80, H - 80, 14); g.stroke();
+    [[40, 40], [W - 40, 40], [40, H - 40], [W - 40, H - 40]].forEach(([x, y]) => {
+      g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fillStyle = "#FBF8EE"; g.fill();
+    });
+
+    // 上：校名・達筆のタイトル・期間
+    g.textBaseline = "alphabetic"; g.textAlign = "left";
+    g.fillStyle = leaf; g.font = "900 15px " + JP;
+    g.fillText("クラウドハッシュテイル校", 80, 88);
+    g.fillStyle = ink; g.font = "400 54px " + BR;
+    const chars = Array.from(TT), sp = chars.length > 5 ? 8 : 14;
+    const tw = chars.reduce((n, ch) => n + g.measureText(ch).width, 0) + sp * (chars.length - 1);
+    let tx = W / 2 - tw / 2;
+    chars.forEach(ch => { g.fillText(ch, tx, 104); tx += g.measureText(ch).width + sp; });
+    g.strokeStyle = goldA; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(W / 2 - 120, 124); g.lineTo(W / 2 - 14, 124); g.moveTo(W / 2 + 14, 124); g.lineTo(W / 2 + 120, 124); g.stroke();
+    g.beginPath(); g.moveTo(W / 2, 119); g.lineTo(W / 2 + 5, 124); g.lineTo(W / 2, 129); g.lineTo(W / 2 - 5, 124); g.closePath();
+    g.fillStyle = goldA; g.fill();
+    g.textAlign = "right"; g.fillStyle = muted; g.font = "700 16px " + EN;
+    g.fillText(ymd(D.album.start) + " – " + ymd(D.album.end), W - 80, 88);
+
+    // 左：アイコン・名前＋殿・印字・「講師」
+    const ring = g.createLinearGradient(110, 150, 310, 350); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
+    await drawAvatar(g, e.avatar, e.name, 210, 250, 100, ring);
+    // 名前は長ければ文字を小さくして収める（24pxまで。それでも長ければ「…」）
+    g.fillStyle = ink; g.textAlign = "left";
+    let fs = 34;
+    g.font = "900 " + fs + "px " + JP;
+    while (fs > 24 && g.measureText(e.name).width > 250){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
+    const nm = fitText(g, e.name, 250), nw = g.measureText(nm).width;
+    const ts = Math.round(fs * .88);
+    g.font = "400 " + ts + "px " + BR; const tonoW = g.measureText("殿").width;
+    const nx = 210 - (nw + 8 + tonoW) / 2;
+    g.font = "900 " + fs + "px " + JP; g.fillText(nm, nx, 402);
+    g.font = "400 " + ts + "px " + BR; g.fillText("殿", nx + nw + 8, 402);
+    g.textAlign = "center";
+    if (D.album.term){ g.fillStyle = ink; g.font = "900 19px " + JP; g.fillText(fitText(g, D.album.term, 300), 210, 432); }
+    g.font = "900 14px " + JP;
+    const cw = g.measureText("講師").width + 30;
+    rr(g, 210 - cw / 2, 446, cw, 28, 14); g.fillStyle = "rgba(201,162,74,.18)"; g.fill();
+    g.fillStyle = goldInk; g.fillText("講師", 210, 466);
+
+    // ---- 左：講師チップの下に本文（改行はそのまま・3行まで） ----
+    const tb = String(D.album.tBody || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 3);
+    if (tb.length){
+      g.textAlign = "center"; g.fillStyle = ink;
+      let bf = 14;
+      g.font = "700 " + bf + "px " + JP;
+      while (bf > 11 && Math.max.apply(null, tb.map(t => g.measureText(t).width)) > 280){ bf -= .5; g.font = "700 " + bf + "px " + JP; }
+      tb.forEach((ln, i) => g.fillText(fitText(g, ln, 280), 210, 494 + i * (bf + 5)));
+    }
+    const X = 390, RX = W - 84, gl = cssColor("var(--leaf)");
+
+    // ---- 担当した生徒の歩み（卒業証書の「ランクの歩み」と同じ並び） ----
+    const s = e.t.s;
+    g.textAlign = "left"; g.fillStyle = goldInk; g.font = "900 14px " + JP;
+    g.fillText("担当した生徒の歩み", X, 140);
+    // 担当した生徒のアイコン（ランクアイコンの左に大きく）
+    let XJ = X;
+    if (s){
+      const ring2 = g.createLinearGradient(X, 150, X + 96, 246); ring2.addColorStop(0, goldB); ring2.addColorStop(1, goldA);
+      await drawAvatar(g, s.avatar, s.name, X + 48, 200, 44, ring2);
+      g.textAlign = "center"; g.fillStyle = ink;
+      let ns = 16; g.font = "900 " + ns + "px " + JP;
+      while (ns > 12 && g.measureText(s.name).width > 120){ ns -= 1; g.font = "900 " + ns + "px " + JP; }
+      g.fillText(fitText(g, s.name, 124), X + 48, 272);
+      XJ = X + 128;
+    }
+    if (s && s.start && s.end){
+      const w1 = await drawRank(g, s.start.rank, XJ, 156, 62);
+      g.textAlign = "left";
+      g.fillStyle = ink; g.font = "900 17px " + JP; g.fillText(C.rankLabel(s.start.rank), XJ, 244);
+      g.fillStyle = muted; g.font = "500 13px " + JP; g.fillText("開校のころ", XJ, 264);
+      g.fillStyle = muted; g.font = "700 30px " + EN; g.fillText("→", XJ + Math.max(w1, 150) + 14, 200);
+      const X2 = XJ + Math.max(w1, 150) + 58;
+      await drawRank(g, s.end.rank, X2, 156, 62);
+      g.fillStyle = ink; g.font = "900 17px " + JP; g.fillText(C.rankLabel(s.end.rank), X2, 244);
+      g.fillStyle = muted; g.font = "500 13px " + JP; g.fillText("卒業のころ", X2, 264);
+      g.textAlign = "right";
+      g.fillStyle = s.gain > 0 ? "#5F9E3C" : s.gain < 0 ? "#DF5B4C" : muted;
+      g.font = "700 64px " + EN; g.fillText(signed(s.gain), RX, 214);
+      g.fillStyle = muted; g.font = "700 14px " + JP; g.fillText("合宿でのびたLP", RX - 2, 244);
+      const pts = s.series || [];
+      if (pts.length >= 2){
+        const x0 = X, x1 = RX, y0 = 294, y1 = 356;
+        const vs = pts.map(p => p.v), mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+        const span = Math.max(40, mx - mn);
+        const px = i => x0 + i * (x1 - x0) / (pts.length - 1);
+        const py = v => y1 - (v - mn) / span * (y1 - y0);
+        g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(px(i), py(p.v)) : g.moveTo(px(i), py(p.v)));
+        g.lineTo(x1, y1 + 6); g.lineTo(x0, y1 + 6); g.closePath();
+        g.globalAlpha = .14; g.fillStyle = goldA; g.fill(); g.globalAlpha = 1;
+        g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(px(i), py(p.v)) : g.moveTo(px(i), py(p.v)));
+        g.strokeStyle = goldA; g.lineWidth = 3.5; g.lineJoin = "round"; g.lineCap = "round"; g.stroke();
+        const pi = vs.indexOf(mx);
+        g.beginPath(); g.arc(px(pi), py(mx), 6, 0, Math.PI * 2); g.fillStyle = gl; g.fill();
+      }
+    } else {
+      g.textAlign = "left"; g.fillStyle = muted; g.font = "500 16px " + JP;
+      g.fillText(s ? "この期間のLPの記録はありません" : "担当の生徒はまだ決まっていません", XJ, 205);
+    }
+
+    // ハイライト（最大4つ）
+    const hl = teacherStats(e).slice(0, 4);
+    const bw = (RX - X - 12 * (hl.length - 1)) / Math.max(1, hl.length);
+    hl.forEach((b, i) => {
+      const bx = X + i * (bw + 12), by = 382;
+      rr(g, bx, by, bw, 78, 14); g.fillStyle = "rgba(201,162,74,.13)"; g.fill();
+      g.textAlign = "left";
+      g.fillStyle = muted; g.font = "900 12px " + JP; g.fillText(fitText(g, b[0], bw - 24), bx + 12, by + 22);
+      g.fillStyle = ink; g.font = "900 21px " + JP; g.fillText(fitText(g, b[1], bw - 24), bx + 12, by + 50);
+      g.fillStyle = muted; g.font = "500 11px " + JP; g.fillText(fitText(g, b[2] || "", bw - 24), bx + 12, by + 68);
+    });
+
+    // 感謝のことば
+    if (e.comment){
+      rr(g, 80, 544, W - 250, 82, 18); g.fillStyle = "rgba(201,162,74,.12)"; g.fill();
+      g.textAlign = "left"; g.fillStyle = goldInk; g.font = "900 13px " + JP;
+      g.fillText("感謝のことば", 100, 567);
+      g.fillStyle = ink; g.font = "500 17px " + JP;
+      wrapText(g, e.comment, W - 290 - 150, 2).forEach((ln, i) => g.fillText(ln, 100, 593 + i * 23));
+      g.textAlign = "right"; g.fillStyle = goldInk; g.font = "900 14px " + JP;
+      g.fillText("— " + D.album.tSigner, W - 190, 616);
+    }
+    // 朱印「感謝／之印」
+    g.save(); g.translate(W - 98, 580); g.rotate(-0.08);
+    g.strokeStyle = red; g.lineWidth = 4.5; rr(g, -38, -38, 76, 76, 8); g.stroke();
+    g.lineWidth = 1.5; rr(g, -32, -32, 64, 64, 5); g.stroke();
+    g.fillStyle = red; g.font = "400 25px " + BR; g.textAlign = "center";
+    g.fillText("感謝", 0, -3); g.fillText("之印", 0, 25);
+    g.restore();
+
+    return new Promise((res, rej) => {
+      try { cv.toBlob(b => b ? res(b) : rej(new Error("画像を作れませんでした")), "image/png"); }
+      catch(err){ rej(err); }
+    });
+  }
+
+  /* 先生と担当の生徒のペア画像（1200×675）。枠・ハンコは卒業証書と同じ */
+  async function makePairImage(t, s){
+    const TT = D.album.pTitle || "師弟の記録";
+    try { await Promise.all([
+      document.fonts.load('900 40px "Zen Kaku Gothic New"'), document.fonts.load('700 40px "Space Grotesk"'),
+      document.fonts.load('500 20px "Zen Kaku Gothic New"'),
+      document.fonts.load('400 54px "Yuji Boku"', TT + "師弟之証")]); } catch(x){}
+    const W = 1200, H = 675;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    const leaf = cssColor("var(--leaf)");
+    const ink = "#23384D", muted = "#6D8699";
+    const JP = '"Zen Kaku Gothic New",sans-serif', EN = '"Space Grotesk",sans-serif';
+    const goldA = "#C9A24A", goldB = "#E8CD82", red = "#C8372D", goldInk = "#9A7426";
+    const BR = '"Yuji Boku",' + JP;
+
+    // 紙・校章・金の二重枠・四すみ
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#FBF8EE"); bg.addColorStop(.6, "#F4F8EC"); bg.addColorStop(1, "#E8F2F8");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const emb = await loadImg("assets/emblem.png");
+    if (emb){ g.save(); g.globalAlpha = .06; const es = 420; g.drawImage(emb, W / 2 - es / 2, H / 2 - es / 2 + 20, es, es); g.restore(); }
+    g.strokeStyle = goldA; g.lineWidth = 6; rr(g, 26, 26, W - 52, H - 52, 20); g.stroke();
+    g.strokeStyle = goldB; g.lineWidth = 2; rr(g, 40, 40, W - 80, H - 80, 14); g.stroke();
+    [[40, 40], [W - 40, 40], [40, H - 40], [W - 40, H - 40]].forEach(([x, y]) => {
+      g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fillStyle = "#FBF8EE"; g.fill();
+    });
+
+    // 上：校名・達筆のタイトル・期間
+    g.textBaseline = "alphabetic"; g.textAlign = "left";
+    g.fillStyle = leaf; g.font = "900 15px " + JP;
+    g.fillText("クラウドハッシュテイル校", 80, 88);
+    g.fillStyle = ink; g.font = "400 54px " + BR;
+    const chars = Array.from(TT), sp = chars.length > 5 ? 8 : 14;
+    const tw = chars.reduce((n, ch) => n + g.measureText(ch).width, 0) + sp * (chars.length - 1);
+    let tx = W / 2 - tw / 2;
+    chars.forEach(ch => { g.fillText(ch, tx, 104); tx += g.measureText(ch).width + sp; });
+    g.strokeStyle = goldA; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(W / 2 - 120, 124); g.lineTo(W / 2 - 14, 124); g.moveTo(W / 2 + 14, 124); g.lineTo(W / 2 + 120, 124); g.stroke();
+    g.beginPath(); g.moveTo(W / 2, 119); g.lineTo(W / 2 + 5, 124); g.lineTo(W / 2, 129); g.lineTo(W / 2 - 5, 124); g.closePath();
+    g.fillStyle = goldA; g.fill();
+    g.textAlign = "right"; g.fillStyle = muted; g.font = "700 16px " + EN;
+    g.fillText(ymd(D.album.start) + " – " + ymd(D.album.end), W - 80, 88);
+
+    // 左右：先生と生徒
+    async function person(cx, p, label, suffix){
+      const ring = g.createLinearGradient(cx - 96, 170, cx + 96, 362); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
+      await drawAvatar(g, p.avatar, p.name, cx, 262, 92, ring);
+      g.textAlign = "center"; g.fillStyle = ink;
+      let fs = 30; g.font = "900 " + fs + "px " + JP;
+      const full = p.name + suffix;
+      while (fs > 20 && g.measureText(full).width > 280){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
+      g.fillText(fitText(g, full, 280), cx, 402);
+      g.font = "900 14px " + JP;
+      const cw = g.measureText(label).width + 30;
+      rr(g, cx - cw / 2, 416, cw, 28, 14); g.fillStyle = "rgba(201,162,74,.18)"; g.fill();
+      g.fillStyle = goldInk; g.fillText(label, cx, 436);
+    }
+    await person(230, t, "講師", "先生");
+    await person(W - 230, s, "生徒", "");
+
+    // 中央：ランクの歩み＋伸びたLP
+    const CX = W / 2;
+    if (s.start && s.end){
+      g.textAlign = "center"; g.fillStyle = goldInk; g.font = "900 14px " + JP;
+      g.fillText("ランクの歩み", CX, 164);
+      const h = 66;
+      const ic1 = C.rankIconOf(s.start.rank.tier), ic2 = C.rankIconOf(s.end.rank.tier);
+      const im1 = ic1 && ic1.img ? await loadImg(ic1.img) : null, im2 = ic2 && ic2.img ? await loadImg(ic2.img) : null;
+      const w1 = im1 ? Math.min(h * 1.6, im1.naturalWidth * h / im1.naturalHeight) : h;
+      const w2 = im2 ? Math.min(h * 1.6, im2.naturalWidth * h / im2.naturalHeight) : h;
+      await drawRank(g, s.start.rank, CX - 95 - w1 / 2, 180, h);
+      await drawRank(g, s.end.rank, CX + 95 - w2 / 2, 180, h);
+      g.textAlign = "center"; g.fillStyle = muted; g.font = "700 28px " + EN; g.fillText("→", CX, 222);
+      g.fillStyle = ink; g.font = "900 15px " + JP;
+      g.fillText(fitText(g, C.rankLabel(s.start.rank), 170), CX - 95, 270);
+      g.fillText(fitText(g, C.rankLabel(s.end.rank), 170), CX + 95, 270);
+      g.fillStyle = muted; g.font = "500 12px " + JP;
+      g.fillText("開校のころ", CX - 95, 288); g.fillText("卒業のころ", CX + 95, 288);
+      g.fillStyle = s.gain > 0 ? "#5F9E3C" : s.gain < 0 ? "#DF5B4C" : muted;
+      g.font = "700 72px " + EN; g.fillText(signed(s.gain), CX, 370);
+      g.fillStyle = muted; g.font = "700 14px " + JP; g.fillText("ふたりで伸ばしたLP", CX, 396);
+    } else {
+      g.textAlign = "center"; g.fillStyle = muted; g.font = "500 16px " + JP;
+      g.fillText("この期間のLPの記録はありません", CX, 270);
+    }
+    // 左右をつなぐ金の点線
+    g.save(); g.setLineDash([2, 8]); g.lineCap = "round"; g.strokeStyle = goldA; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(340, 322); g.lineTo(CX - 120, 322); g.moveTo(CX + 120, 322); g.lineTo(W - 340, 322); g.stroke();
+    g.restore();
+
+    // 下：LPの推移
+    const pts = s.series || [];
+    if (pts.length >= 2){
+      const x0 = 120, x1 = W - 200, y0 = 470, y1 = 540;
+      const vs = pts.map(p => p.v), mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs);
+      const span = Math.max(40, mx - mn);
+      const px = i => x0 + i * (x1 - x0) / (pts.length - 1);
+      const py = v => y1 - (v - mn) / span * (y1 - y0);
+      g.textAlign = "left"; g.fillStyle = goldInk; g.font = "900 13px " + JP;
+      g.fillText("合宿中のLPの推移", x0, 462);
+      g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(px(i), py(p.v)) : g.moveTo(px(i), py(p.v)));
+      g.lineTo(x1, y1 + 6); g.lineTo(x0, y1 + 6); g.closePath();
+      g.globalAlpha = .14; g.fillStyle = goldA; g.fill(); g.globalAlpha = 1;
+      g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(px(i), py(p.v)) : g.moveTo(px(i), py(p.v)));
+      g.strokeStyle = goldA; g.lineWidth = 3.5; g.lineJoin = "round"; g.lineCap = "round"; g.stroke();
+      const pi = vs.indexOf(mx);
+      g.beginPath(); g.arc(px(pi), py(mx), 6, 0, Math.PI * 2); g.fillStyle = leaf; g.fill();
+    }
+    // いちばん下：印字・VC・ハッシュタグ
+    g.textAlign = "left"; g.fillStyle = ink; g.font = "900 17px " + JP;
+    const foot = [D.album.term, t.t && t.t.vcSec ? "いっしょにVCにいた時間 " + hours(t.t.vcSec) + "時間" : ""].filter(Boolean).join("　・　");
+    if (foot) g.fillText(fitText(g, foot, W - 360), 120, 596);
+    g.fillStyle = "rgba(109,134,153,.9)"; g.font = "700 14px " + JP; g.fillText("#TFT合宿", 120, 620);
+
+    // 朱印「師弟／之証」
+    g.save(); g.translate(W - 98, 580); g.rotate(-0.08);
+    g.strokeStyle = red; g.lineWidth = 4.5; rr(g, -38, -38, 76, 76, 8); g.stroke();
+    g.lineWidth = 1.5; rr(g, -32, -32, 64, 64, 5); g.stroke();
+    g.fillStyle = red; g.font = "400 25px " + BR; g.textAlign = "center";
+    g.fillText("師弟", 0, -3); g.fillText("之証", 0, 25);
+    g.restore();
+
+    return new Promise((res, rej) => {
+      try { cv.toBlob(b => b ? res(b) : rej(new Error("画像を作れませんでした")), "image/png"); }
+      catch(err){ rej(err); }
+    });
+  }
+
+  /* ================= 起動 ================= */
+  loadAll().then(() => {
+    if (!D.album.published && !IS_ADMIN){
+      $("view").innerHTML = coverHtml().replace('<div class="period">',
+        '<div style="font-size:40px;margin:6px 0">📜</div><div class="period">') +
+        '<div class="panel"><div class="empty">卒業証書は<b>後夜祭</b>で授与します。<br>' +
+        "それまで、あと少しだけ楽しみにしていてください！</div></div>";
+      return;
+    }
+    const id = new URLSearchParams(location.search).get("id");
+    if (id) viewPage(id); else viewList();
+  }).catch(err => {
+    console.error(err);
+    $("view").innerHTML = '<div class="panel"><div class="empty">卒業証書を読み込めませんでした。<br>' + esc(err.message) + "</div></div>";
+  });
+})();
+</script>
+</body>
+</html>

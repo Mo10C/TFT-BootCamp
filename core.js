@@ -2815,6 +2815,384 @@
     return sec + "秒";
   }
 
+  /* VCで「同じVCに同時にいた時間」（卒業証書の「いっしょに過ごした仲間」用）
+     Bot が lboard_index/vc_YYYY-MM の pairs に日ごとに書く。
+       pairs: { "2026-10-25": { "<ユーザーID>_<ユーザーID>": 秒 } }   ※IDは小さい順
+     返り値: { "u_<id>": { "u_<相手>": 秒 } }（両方向）と names */
+  async function loadVcCompanions(fromKey, toKey) {
+    const db = openDb();
+    const out = {}, names = {};
+    if (!db) return { byUser: out, names };
+    const months = vcMonthsBetween(fromKey, toKey);
+    const docs = await Promise.all(months.map(m =>
+      db.collection("lboard_index").doc("vc_" + m).get()
+        .then(s => (s.exists ? s.data() : null)).catch(() => null)));
+    const add = (a, b, sec) => { (out[a] || (out[a] = {}))[b] = ((out[a] || {})[b] || 0) + sec; };
+    docs.forEach(d => {
+      if (!d) return;
+      Object.entries(d.names || {}).forEach(([id, n]) => { names["u_" + id] = n; });
+      Object.entries(d.pairs || {}).forEach(([day, ps]) => {
+        if (day < fromKey || day > toKey) return;
+        Object.entries(ps || {}).forEach(([k, sec]) => {
+          const ab = String(k).split("_");
+          if (ab.length !== 2) return;
+          const v = Number(sec) || 0;
+          add("u_" + ab[0], "u_" + ab[1], v);
+          add("u_" + ab[1], "u_" + ab[0], v);
+        });
+      });
+    });
+    return { byUser: out, names };
+  }
+
+  /* 中間試験（exam.html）の得点。
+     lboard_index/exam の問題（配点）と lboard_index/exam_answers の判定から集計する。
+     返り値: { players: { "u_<id>": {score, hits, answered, rank, of} }, total, n } */
+  async function loadExamScores() {
+    let exam = null, ans = null;
+    try {
+      const db = openDb();
+      if (db) {
+        const [a, b] = await Promise.all([
+          db.collection("lboard_index").doc("exam").get(),
+          db.collection("lboard_index").doc("exam_answers").get()]);
+        exam = a.exists ? a.data() : null;
+        ans = b.exists ? b.data() : null;
+      } else {
+        exam = JSON.parse(localStorage.getItem("mcc-exam") || "null");
+        ans = JSON.parse(localStorage.getItem("mcc-exam-answers") || "null");
+      }
+    } catch (e) { console.warn("中間試験の読み込みに失敗", e); }
+    const pts = {};
+    ((exam && exam.questions) || []).forEach(q => { if (q && q.id) pts[q.id] = Number(q.point) > 0 ? Number(q.point) : 1; });
+    const players = {};
+    Object.entries(ans || {}).forEach(([qid, m]) => {
+      if (qid === "_players" || !(qid in pts)) return;
+      Object.entries(m || {}).forEach(([uid, v]) => {
+        if (!v || v.text == null) return;
+        const o = players["u_" + uid] || (players["u_" + uid] = { score: 0, hits: 0, answered: 0 });
+        o.answered++;
+        if (v.ok === true) { o.score += pts[qid]; o.hits++; }
+      });
+    });
+    const arr = Object.values(players).sort((x, y) => y.score - x.score);
+    let prev = null, rank = 0;
+    arr.forEach((o, i) => { if (o.score !== prev) { rank = i + 1; prev = o.score; } o.rank = rank; o.of = arr.length; });
+    return { players, total: Object.values(pts).reduce((n, v) => n + v, 0), n: Object.keys(pts).length };
+  }
+
+  /* 絶対LP（hist に入っている数値）→ ランク {tier, division, lp}
+     マスター以上は区別できないので MASTER として返す（最新の値は members 側の実ランクを使うこと） */
+  function rankOfAbs(v) {
+    if (v == null || isNaN(v)) return null;
+    if (v >= 2800) return { tier: "MASTER", division: "", lp: Math.round(v - 2800) };
+    const ti = Math.min(TIER_ORDER.length - 2, Math.floor(v / 400));
+    const rest = v - ti * 400;
+    const di = Math.min(3, Math.floor(rest / 100));
+    return { tier: TIER_ORDER[ti], division: ["IV", "III", "II", "I"][di], lp: Math.round(rest - di * 100) };
+  }
+
+  /* =============================================================
+     卒業証書（album.html）
+
+     保存先: lboard_index/album
+       { title, start, end, published, message, signer,
+         comments: { "u_<id>": "先生からのひとこと" }, updatedAt }
+
+     ・published が false のあいだは、管理者にしか中身が見えない
+       （後夜祭で「公開」にしてお披露目する想定）
+     ・卒業証書の中身（ランクの歩み・VC・スナップショット・中間試験）は
+       既存のデータから自動で作る。ここに保存するのは文言と公開設定だけ。
+     ============================================================= */
+  const ALBUM_DOC = "album";
+  const ALBUM_LS_KEY = "mcc-lb2-album";
+
+  function defaultAlbum() {
+    return {
+      title: "卒業証書",
+      start: "2026-10-25",
+      end: "2026-11-15",
+      published: false,
+      message: "",
+      signer: "先生より",
+      term: "TFT合宿　SET18",   // 名前の下に印字する文字（空欄なら出さない）
+      /* 講師用（感謝状） */
+      tTitle: "感謝状",
+      tBody: "あなたは本校の講師として\n生徒の成長に力を尽くされました\nその功績をたたえ 感謝の意を表します",
+      tSigner: "生徒一同より",
+      // 先生と生徒のペア画像のタイトル
+      pTitle: "師弟の記録",
+      comments: {},
+      mentors: {},
+      /* 特別賞（後夜祭で発表）。awardsOpen を true にするまで生徒には見えない */
+      awardsOpen: false,
+      awards: [
+        { id: "mvp",   icon: "🏆", name: "MVP賞",           desc: "", winners: [] },
+        { id: "effort", icon: "🔥", name: "努力賞",          desc: "", winners: [] },
+        { id: "mood",  icon: "🌟", name: "ムードメーカー賞", desc: "", winners: [] }
+      ],
+      updatedAt: 0
+    };
+  }
+  function normAward(a, i) {
+    a = a || {};
+    return {
+      id: String(a.id || ("aw" + Date.now().toString(36) + i)),
+      icon: String(a.icon || "🏆").slice(0, 4),
+      name: String(a.name || "").trim().slice(0, 30) || "特別賞",
+      desc: String(a.desc || "").slice(0, 120),
+      winners: (Array.isArray(a.winners) ? a.winners : []).map(String).filter(Boolean).slice(0, 40)
+    };
+  }
+  function normAlbum(raw) {
+    const d = defaultAlbum();
+    raw = raw || {};
+    const day = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) ? String(v) : "");
+    const comments = {};
+    Object.entries(raw.comments || {}).forEach(([id, t]) => {
+      const v = String(t || "").trim().slice(0, 300);
+      if (id && v) comments[String(id)] = v;
+    });
+    // 担当の先生：{ 生徒ID: 先生ID }
+    const mentors = {};
+    Object.entries(raw.mentors || {}).forEach(([id, t]) => {
+      if (id && t) mentors[String(id)] = String(t);
+    });
+    let start = day(raw.start) || d.start, end = day(raw.end) || d.end;
+    if (end < start) { const t = start; start = end; end = t; }
+    return {
+      // 「卒業アルバム」のまま保存されていたら「卒業証書」に読み替える
+      title: (t => (t === "卒業アルバム" ? "" : t))(String(raw.title || "").trim().slice(0, 40)) || d.title,
+      start, end,
+      published: !!raw.published,
+      message: String(raw.message || "").slice(0, 600),
+      signer: String(raw.signer || "").trim().slice(0, 30) || d.signer,
+      term: String(raw.term == null ? d.term : raw.term).trim().slice(0, 20),
+      tTitle: String(raw.tTitle || "").trim().slice(0, 12) || d.tTitle,
+      tBody: String(raw.tBody == null ? d.tBody : raw.tBody).slice(0, 120),
+      tSigner: String(raw.tSigner || "").trim().slice(0, 30) || d.tSigner,
+      pTitle: String(raw.pTitle || "").trim().slice(0, 10) || d.pTitle,
+      comments,
+      mentors,
+      awardsOpen: !!raw.awardsOpen,
+      awards: (Array.isArray(raw.awards) ? raw.awards : d.awards).slice(0, 20).map(normAward),
+      updatedAt: raw.updatedAt || 0
+    };
+  }
+  async function loadAlbum() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(ALBUM_DOC).get();
+        if (snap.exists) return normAlbum(snap.data());
+      } else {
+        const raw = localStorage.getItem(ALBUM_LS_KEY);
+        if (raw) return normAlbum(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("卒業証書設定の読み込みに失敗", e); }
+    const a = normAlbum(null);
+    a.isDefault = true;
+    return a;
+  }
+  async function saveAlbum(cfg) {
+    if (!isAdmin()) throw new Error("卒業証書の編集は管理者のみです");
+    const a = normAlbum(cfg);
+    a.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(ALBUM_DOC).set(a);
+      else localStorage.setItem(ALBUM_LS_KEY, JSON.stringify(a));
+    } catch (e) {
+      throw new Error("卒業証書を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return a;
+  }
+
+  /* 1人ぶんの卒業証書の中身を、既存データから組み立てる。
+       lp      … loadLpData()
+       id      … "u_<discordId>"
+       album   … normAlbum()
+       extra   … { snap, exam, vcUsers, vcComp } （無いものは省略可）
+     返り値は表示にも画像づくりにもそのまま使える形。 */
+  function albumEntry(lp, id, album, extra) {
+    extra = extra || {};
+    const m = (lp.members || {})[id] || {};
+    const h = (lp.hist || {})[id] || {};
+    const S = album.start, E = album.end;
+    const keys = Object.keys(h).filter(k => k <= E).sort();
+    // 開校時：開始日以前の最後の記録（無ければ期間中の最初の記録）
+    const before = keys.filter(k => k <= S);
+    const startKey = before.length ? before[before.length - 1] : (keys.find(k => k >= S) || null);
+    const endKey = keys.length ? keys[keys.length - 1] : null;
+    const series = startKey ? keys.filter(k => k >= startKey).map(k => ({ day: k, v: h[k] })) : [];
+    const startAbs = startKey ? h[startKey] : null;
+    const endAbs = endKey ? h[endKey] : null;
+    // 最新の記録なら、members の実ランク（GM/チャレも区別できる）を使う
+    const allKeys = Object.keys(h).sort();
+    const isLatest = endKey && endKey === allKeys[allKeys.length - 1] && m.tier;
+    const endRank = isLatest ? { tier: m.tier, division: m.division || "", lp: m.lp | 0 } : rankOfAbs(endAbs);
+    let peak = null, bestDay = null;
+    series.forEach((p, i) => {
+      if (!peak || p.v > peak.v) peak = p;
+      if (i > 0) {
+        const d = p.v - series[i - 1].v;
+        if (!bestDay || d > bestDay.delta) bestDay = { day: p.day, delta: d };
+      }
+    });
+    const inPeriod = series.filter(p => p.day >= S);
+
+    // 先生スナップショット（期間中の回だけ）
+    let snap = null;
+    if (extra.snap) {
+      let total = 0, best = 0, n = 0;
+      Object.entries(extra.snap.results || {}).forEach(([d, r]) => {
+        if (d < S || d > E) return;
+        const row = (r.rows || []).find(x => x.id === id);
+        if (!row) return;
+        n++; total += row.point | 0;
+        if (row.rank && (!best || row.rank < best)) best = row.rank;
+      });
+      if (n) snap = { total, best, n, label: extra.snap.label || "先生スナップショット" };
+    }
+    const exam = extra.exam && extra.exam.players ? (extra.exam.players[id] || null) : null;
+
+    // VC（合計・いちばんいたVC・いっしょに過ごした仲間）
+    let vc = null;
+    const vu = (extra.vcUsers || []).find(u => "u_" + u.id === id || u.id === id);
+    const comp = extra.vcComp && extra.vcComp.byUser ? (extra.vcComp.byUser[id] || {}) : {};
+    const mates = Object.entries(comp).map(([oid, sec]) => ({ id: oid, seconds: sec }))
+      .filter(x => x.seconds >= 60 && x.id !== id)
+      .sort((a, b) => b.seconds - a.seconds).slice(0, 3);
+    if (vu || mates.length) {
+      vc = {
+        seconds: vu ? vu.seconds : 0,
+        topChannel: vu && vu.byChannel && vu.byChannel[0] ? vu.byChannel[0] : null,
+        mates
+      };
+    }
+
+    return {
+      id, name: m.name || "—", avatar: m.avatar || "", riotId: m.riotId || "",
+      roles: rolesOf(m),
+      start: startAbs != null ? { day: startKey, abs: startAbs, rank: rankOfAbs(startAbs) } : null,
+      end: endAbs != null ? { day: endKey, abs: endAbs, rank: endRank } : null,
+      gain: (startAbs != null && endAbs != null) ? endAbs - startAbs : null,
+      peak: peak ? { day: peak.day, abs: peak.v, rank: rankOfAbs(peak.v) } : null,
+      bestDay: bestDay && bestDay.delta > 0 ? bestDay : null,
+      days: inPeriod.length,
+      series,
+      snap, exam, vc,
+      comment: (album.comments || {})[id] || "",
+      // この人がもらった特別賞（表示するかどうかは album.awardsOpen で決める）
+      awards: (album.awards || []).filter(a => (a.winners || []).indexOf(id) >= 0)
+    };
+  }
+
+  /* =============================================================
+     入学許可書（admission.html）
+
+     保存先: lboard_index/admission
+       { enabled, date, term, body, tag, post, shareUrl, updatedAt }
+
+     ・生徒ひとりずつに、入学許可書の画像を作って X に投稿してもらう
+     ・post は X に投稿する文面。{name} {rank} {no} {date} が使える
+     ・学籍番号は、メンバー名簿（lboard_index/members）に登録された順
+     ============================================================= */
+  const ADM_DOC = "admission";
+  const ADM_LS_KEY = "mcc-lb2-admission";
+  function defaultAdmission() {
+    return {
+      enabled: true,
+      date: "2026-10-25",
+      term: "TFT合宿　SET18",   // 入学許可書のアイコンの下に印字する文字（空欄なら出さない）
+      body: "あなたを本校の生徒として\n入学を許可します",
+      tag: "TFT合宿",          // 画像の下に入るハッシュタグ（# は付けない）
+      /* 講師用（講師任命書） */
+      tTitle: "講師任命書",
+      tBody: "あなたを本校の講師に\n任命します",
+      tPost: "クラウドハッシュテイル校の講師に就任しました🎓\n生徒のみんなと一緒に高め合います！\n#TFT合宿",
+      post: "クラウドハッシュテイル校に入学しました🎓\n入学時のランクは {rank}。ここから一緒に高め合います！\n#TFT合宿",
+      shareUrl: "",
+      updatedAt: 0
+    };
+  }
+  function normAdmission(raw) {
+    const d = defaultAdmission();
+    raw = raw || {};
+    const url = String(raw.shareUrl || "").trim();
+    return {
+      enabled: raw.enabled !== false,
+      date: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date || "")) ? String(raw.date) : d.date,
+      term: String(raw.term == null ? d.term : raw.term).trim().slice(0, 20),
+      body: String(raw.body == null ? d.body : raw.body).slice(0, 120),
+      tag: String(raw.tag == null ? d.tag : raw.tag).trim().replace(/^[#＃]+/, "").slice(0, 30),
+      tTitle: String(raw.tTitle || "").trim().slice(0, 12) || d.tTitle,
+      tBody: String(raw.tBody == null ? d.tBody : raw.tBody).slice(0, 120),
+      tPost: String(raw.tPost == null ? d.tPost : raw.tPost).slice(0, 280),
+      post: String(raw.post == null ? d.post : raw.post).slice(0, 280),
+      shareUrl: /^https?:\/\//i.test(url) ? url.slice(0, 300) : "",
+      updatedAt: raw.updatedAt || 0
+    };
+  }
+  async function loadAdmission() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(ADM_DOC).get();
+        if (snap.exists) return normAdmission(snap.data());
+      } else {
+        const raw = localStorage.getItem(ADM_LS_KEY);
+        if (raw) return normAdmission(JSON.parse(raw));
+      }
+    } catch (e) { console.warn("入学許可書の設定の読み込みに失敗", e); }
+    const a = normAdmission(null);
+    a.isDefault = true;
+    return a;
+  }
+  async function saveAdmission(cfg) {
+    if (!isAdmin()) throw new Error("入学許可書の設定は管理者のみです");
+    const a = normAdmission(cfg);
+    a.updatedAt = Date.now();
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(ADM_DOC).set(a);
+      else localStorage.setItem(ADM_LS_KEY, JSON.stringify(a));
+    } catch (e) {
+      throw new Error("入学許可書の設定を保存できませんでした（" + (e.code || e.message) + "）");
+    }
+    return a;
+  }
+  /* 講師かどうか：先生スナップショットで選んだ「先生ロール」を1つでも持っているか。
+       roleIds … loadSnapshot().roleIds
+       who     … 名簿（members）か LP名簿の1人ぶん（roles を持っているもの） */
+  function isTeacherOf(who, roleIds) {
+    const ids = (roleIds || []).map(String);
+    if (!ids.length || !who) return false;
+    return rolesOf(who).some(r => ids.indexOf(String(r.id)) >= 0);
+  }
+  /* 学籍番号：名簿に登録された順（運営は除く）。{ "u_…": 1, … } */
+  function studentNumbers(members) {
+    const list = Object.values(members || {}).filter(isParticipant)
+      .sort((a, b) => ((a.joinedAt || 0) - (b.joinedAt || 0)) || String(a.id).localeCompare(String(b.id)));
+    const out = {};
+    list.forEach((m, i) => { out[m.id] = i + 1; });
+    return out;
+  }
+  /* 入学時のランク：入学日以前の最後の記録。無ければ最初の記録、それも無ければ今のランク */
+  function admissionRank(lp, id, date, fallback) {
+    const h = ((lp && lp.hist) || {})[id] || {};
+    const keys = Object.keys(h).sort();
+    const le = keys.filter(k => k <= date);
+    const k = le.length ? le[le.length - 1] : keys[0];
+    if (k != null) {
+      const m = ((lp && lp.members) || {})[id] || {};
+      const latest = keys[keys.length - 1];
+      if (k === latest && m.tier) return { tier: m.tier, division: m.division || "", lp: m.lp | 0 };
+      return rankOfAbs(h[k]);
+    }
+    return fallback || null;
+  }
+
   /* =============================================================
      Discord へ投げるメッセージの文面
 
@@ -3468,23 +3846,44 @@
     if (raw) RKICONS = normRankIcons(JSON.parse(raw));
   } catch (e) { }
 
+  /* javascript: などを弾く。画像として使えるのは次の3つだけ。
+       ・画像のデータURL（管理コンソールで「画像を選ぶ」「トリミング」をしたとき）
+       ・https:// または http:// の画像URL
+       ・同じサイト内の相対パス（例 rank/TFT_Regalia_Master.png）
+     相対パスは「:」を含まない＝スキームが付けられないので安全。 */
+  function okRankImg(v) {
+    return /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(v) ||
+           /^https?:\/\//i.test(v) ||
+           /^[\w./-]+\.(png|jpe?g|gif|webp|svg)$/i.test(v);
+  }
+  /* 1ティアぶんの設定
+       img   … 画面に出す画像（トリミングしたときは切り抜いた結果）
+       src   … トリミングの元になる画像（URL か、アップロードした画像）
+       crop  … 元画像のどこを使うか。{x,y,w,h} を 0〜1 の割合で（無ければ全体）
+       emoji … Discord 用の絵文字コード
+     元画像と範囲を残しておくので、トリミングはあとから何度でもやり直せる。 */
   function normRankIcons(raw) {
     raw = raw || {};
-    const src = raw.tiers || {};
+    const all = raw.tiers || {};
     const out = { tiers: {}, updatedAt: raw.updatedAt || 0 };
+    const n01 = v => Math.min(1, Math.max(0, Number(v) || 0));
     Object.keys(TIER_ART).forEach(t => {
-      const a = src[t] || {};
+      const a = all[t] || {};
       const img = typeof a.img === "string" ? a.img.trim() : "";
+      const src = typeof a.src === "string" ? a.src.trim() : "";
       const emoji = typeof a.emoji === "string" ? a.emoji.trim().slice(0, 60) : "";
-      /* javascript: などを弾く。使えるのは次の3つだけ。
-           ・画像のデータURL（管理コンソールで「画像を選ぶ」をしたとき）
-           ・https:// または http:// の画像URL
-           ・同じサイト内の相対パス（例 rank/TFT_Regalia_Master.png）
-         相対パスは「:」を含まない＝スキームが付けられないので安全。 */
-      const okImg = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(img) ||
-                    /^https?:\/\//i.test(img) ||
-                    /^[\w./-]+\.(png|jpe?g|gif|webp|svg)$/i.test(img);
-      if (okImg || emoji) out.tiers[t] = { img: okImg ? img : "", emoji: emoji };
+      let crop = null;
+      if (a.crop && typeof a.crop === "object") {
+        const c = { x: n01(a.crop.x), y: n01(a.crop.y), w: n01(a.crop.w), h: n01(a.crop.h) };
+        if (c.w > 0.01 && c.h > 0.01 && c.x + c.w <= 1.0001 && c.y + c.h <= 1.0001) crop = c;
+      }
+      const okImg = okRankImg(img), okSrc = okRankImg(src);
+      if (okImg || emoji) {
+        const e = { img: okImg ? img : "", emoji: emoji };
+        if (okSrc) e.src = src;
+        if (okSrc && crop) e.crop = crop;
+        out.tiers[t] = e;
+      }
     });
     return out;
   }
@@ -3652,7 +4051,9 @@
     safeUrl, safeImg,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
-    loadVcMeta, loadVcRange, vcMonthsBetween, vcHm,
+    loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, loadVcCompanions, loadExamScores, rankOfAbs,
+    defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
+    defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,

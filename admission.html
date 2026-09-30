@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>入学許可書 ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="クラウドハッシュテイル校 入学許可書">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!-- 「入学許可書」の達筆な文字（毛筆体 Yuji Boku）。使う文字だけ読み込むので軽い -->
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E5%85%A5%E5%AD%A6%E8%A8%B1%E5%8F%AF%E6%9B%B8%E6%AE%BF%E8%AC%9B%E5%B8%AB%E4%BB%BB%E5%91%BD&display=swap" rel="stylesheet" id="brushFont">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--brush:"Yuji Boku","Zen Kaku Gothic New",serif}
+.brush{font-family:var(--brush);font-weight:400;letter-spacing:.14em}
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:16px}
+.pbody{padding:18px 20px}
+.spacer{flex:1}
+.empty{padding:34px 18px;text-align:center;font-size:13px;color:var(--muted);line-height:1.9}
+.note{font-size:11.5px;color:var(--muted);line-height:1.8}
+.xbtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid var(--border-strong);background:var(--surface);
+  color:var(--ink);border-radius:999px;padding:10px 18px;font-size:13px;font-weight:900;cursor:pointer;font-family:inherit;
+  text-decoration:none;transition:transform .1s,border-color .1s,box-shadow .1s}
+.xbtn:hover:not(:disabled){transform:translateY(-1px);border-color:var(--leaf);box-shadow:var(--shadow-soft)}
+.xbtn:disabled{opacity:.45;cursor:default}
+.xbtn.main{background:var(--leaf);border-color:transparent;color:#fff}
+.xbtn.x{background:#0f1419;border-color:transparent;color:#fff}
+.xbtn svg{width:15px;height:15px;fill:currentColor}
+.hero{text-align:center;padding:26px 20px 8px}
+.hero h1{font-size:42px;line-height:1.2;margin:4px 0}
+.hero .kicker{font-size:11px;font-weight:900;letter-spacing:.24em;color:var(--leaf)}
+.hero p{font-size:13px;color:var(--muted);margin-top:6px}
+.card-img{padding:6px 20px 4px}
+.card-img img{width:100%;display:block;border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow-soft);background:var(--surface-2)}
+.card-img .ph{aspect-ratio:1200/675;border-radius:16px;border:1px dashed var(--border-strong);display:grid;place-items:center;
+  font-size:13px;color:var(--muted);background:var(--surface-2)}
+.acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:14px 20px 6px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:10px 20px 20px}
+.step{border:1.5px solid var(--border);border-radius:14px;padding:11px 13px;font-size:12px;line-height:1.7;background:var(--surface-2)}
+.step b{display:block;font-size:12.5px;margin-bottom:2px}
+.step i{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:99px;background:var(--leaf);
+  color:#fff;font-size:11px;font-weight:900;margin-right:6px}
+.post{padding:0 20px 20px}
+.post textarea{width:100%;min-height:96px;border:1.5px solid var(--border-strong);border-radius:12px;background:var(--surface-2);
+  color:var(--ink);padding:10px 12px;font-family:inherit;font-size:13px;line-height:1.75}
+.post textarea:focus{outline:2px solid var(--leaf);outline-offset:-1px;border-color:transparent}
+.post .lbl{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:900;margin-bottom:6px}
+.post .lbl small{font-weight:700;color:var(--muted);margin-left:auto}
+.admin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-radius:14px;margin-bottom:14px;font-size:12px;
+  background:color-mix(in srgb,var(--gold) 12%,var(--surface));border:1.5px solid color-mix(in srgb,var(--gold) 40%,var(--border))}
+.admin select{border:1px solid var(--border-strong);border-radius:9px;padding:6px 9px;font-family:inherit;font-size:12.5px;background:var(--surface);color:var(--ink)}
+@media (max-width:620px){ .hero h1{font-size:32px} .acts .xbtn{flex:1 1 44%} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/emblem.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div>
+        <h1>入学許可書</h1>
+        <div class="sub">クラウドハッシュテイル校 TOOLS</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html?tab=p-adm" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div id="view"><div class="panel"><div class="empty">入学許可書を用意しています…</div></div></div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+  if (!C || typeof C.loadAdmission !== "function"){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;font-family:sans-serif;line-height:1.9">' +
+      '<b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      '入学許可書に対応した core.js に差し替えて、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome ? window.MCCHome.boot(session) : null;
+  const toast = m => (ctx && ctx.toast ? ctx.toast(m) : alert(m));
+  const IS_ADMIN = C.isAdmin(session);
+  const ME = "u_" + session.discord.id;
+  if (IS_ADMIN) $("editorLink").style.display = "";
+
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const jdate = k => k ? (Number(k.slice(0, 4)) + "年" + Number(k.slice(5, 7)) + "月" + Number(k.slice(8)) + "日") : "";
+  const pad3 = n => String(n).padStart(3, "0");
+  function cssColor(v){
+    const el = document.createElement("span"); el.style.color = v; el.style.display = "none";
+    document.body.appendChild(el); const c = getComputedStyle(el).color; el.remove(); return c || "#85A856";
+  }
+
+  let D = null;   // { adm, lp, members, nums, people }
+  let blob = null, cur = null;
+
+  async function loadAll(){
+    const safe = p => p.catch(e => { console.warn(e); return null; });
+    const [adm, lp, members, snap, album] = await Promise.all([C.loadAdmission(), safe(C.loadLpData()), safe(C.loadMembers()), safe(C.loadSnapshot()),
+      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null))]);
+    const mem = members || {};
+    const teacherRoles = (snap && snap.roleIds) || [];
+    // タイトルを変えていても毛筆体で出るように、使う文字を読み込み直す
+    const l = $("brushFont");
+    if (l) l.href = "https://fonts.googleapis.com/css2?family=Yuji+Boku&text=" +
+      encodeURIComponent(Array.from(new Set("入学許可書殿講師任命" + adm.tTitle)).join("")) + "&display=swap";
+    const nums = C.studentNumbers(mem);
+    // 生徒の一覧（名簿＋LP名簿を合わせる）
+    const people = {};
+    Object.values(mem).forEach(m => {
+      const t = C.isTeacherOf(m, teacherRoles);
+      if (!C.isParticipant(m) && !t) return;          // 運営は除く（ただし講師は入れる）
+      people[m.id] = { id: m.id, name: m.name, avatar: (m.discord && m.discord.avatar) || "", rank: m.rank, teacher: t };
+    });
+    Object.entries((lp && lp.members) || {}).forEach(([id, m]) => {
+      const p = people[id] || (people[id] = { id, name: m.name, avatar: m.avatar, rank: null });
+      if (!p.avatar) p.avatar = m.avatar || "";
+      if (!p.name || p.name === "—") p.name = m.name;
+      if (C.isTeacherOf(m, teacherRoles)) p.teacher = true;
+    });
+    // 自分（名簿にまだ載っていなくても作れるように）
+    if (!people[ME]) people[ME] = { id: ME, name: session.discord.name || session.discord.username,
+      avatar: session.discord.avatar || "", rank: session.riot && session.riot.rank };
+    if (C.isTeacherOf(session.discord, teacherRoles)) people[ME].teacher = true;
+    // 担当の生徒（管理コンソール →「卒業証書」で決めたもの。{ 生徒ID: 先生ID }）
+    const mentors = (album && album.mentors) || {};
+    D = { adm, lp: lp || { members: {}, hist: {} }, nums, people, teacherRoles, mentors };
+  }
+
+  function personOf(id){
+    const p = D.people[id];
+    if (!p) return null;
+    const rank = C.admissionRank(D.lp, id, D.adm.date, p.rank || (id === ME ? session.riot && session.riot.rank : null));
+    const no = D.nums[id] || (Object.keys(D.nums).length + 1);
+    let student = null;
+    if (p.teacher){
+      const sid = Object.keys(D.mentors).find(k => D.mentors[k] === id && D.people[k]);
+      if (sid) student = { id: sid, name: D.people[sid].name || "—", avatar: D.people[sid].avatar };
+    }
+    return { id, name: p.name || "—", avatar: p.avatar, rank, no, teacher: !!p.teacher, student };
+  }
+  // 講師なら「講師任命書」、生徒なら「入学許可書」
+  const docTitle = p => p.teacher ? D.adm.tTitle : "入学許可書";
+  function postText(p){
+    const vars = { name: p.name, rank: p.rank ? C.rankLabel(p.rank) : "ランクなし", no: pad3(p.no), date: jdate(D.adm.date),
+      student: p.student ? p.student.name : "" };
+    return String((p.teacher ? D.adm.tPost : D.adm.post) || "").replace(/\{(\w+)\}/g, (m, k) => vars[k] != null ? vars[k] : m);
+  }
+
+  /* ================= 画面 ================= */
+  function view(id){
+    const p = personOf(id);
+    if (!p){ $("view").innerHTML = '<div class="panel"><div class="empty">この人の入学許可書は見つかりませんでした。</div></div>'; return; }
+    cur = p; blob = null;
+    const others = IS_ADMIN ? Object.values(D.people).sort((a, b) => String(a.name).localeCompare(String(b.name), "ja")) : [];
+    const X_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.9 2H22l-6.8 7.8L23 22h-6.2l-4.8-6.3L6.4 22H3.3l7.3-8.3L1 2h6.3l4.4 5.8zm-1.1 18h1.7L6.3 3.9H4.5z"/></svg>';
+    $("view").innerHTML =
+      (IS_ADMIN ? '<div class="admin">⚙️ 管理者表示：' +
+        '<select id="who">' + others.map(o => '<option value="' + esc(o.id) + '"' + (o.id === id ? " selected" : "") + ">" +
+          esc(o.name) + (o.teacher ? "（講師）" : "") + "</option>").join("") + "</select>" +
+        (D.adm.enabled ? "" : '<b style="color:var(--danger)">いまは非公開です（生徒には見えません）</b>') +
+        '<a href="editor.html?tab=p-adm" style="margin-left:auto;font-weight:900">✏️ 文面を編集</a></div>' : "") +
+      '<div class="panel">' +
+        '<div class="hero"><div class="kicker">CLOUD HASHTAIL SCHOOL</div>' +
+          '<h1 class="brush">' + esc(docTitle(p)) + "</h1>" +
+          "<p>" + (id === ME
+            ? (p.teacher ? "ようこそ、先生！ あなたの" + esc(docTitle(p)) + "です。Xに投稿して、着任を報告しよう"
+                         : "ようこそ！ あなたの入学許可書です。Xに投稿して、入学を報告しよう")
+            : esc(p.name) + " さんの" + esc(docTitle(p))) + "</p></div>" +
+        '<div class="card-img" id="imgBox"><div class="ph">入学許可書を作っています…</div></div>' +
+        '<div class="acts">' +
+          '<button class="xbtn main" id="bSave" disabled>🖼 画像を保存</button>' +
+          '<button class="xbtn x" id="bPost">' + X_ICON + "Xに投稿</button>" +
+          (navigator.share ? '<button class="xbtn" id="bShare" disabled>📤 画像ごとシェア</button>' : "") +
+        "</div>" +
+        '<div class="steps">' +
+          '<div class="step"><b><i>1</i>画像を保存</b>上の入学許可書を保存します。</div>' +
+          '<div class="step"><b><i>2</i>「Xに投稿」を押す</b>投稿文が入った状態でXが開きます。</div>' +
+          '<div class="step"><b><i>3</i>画像を添付して投稿</b>保存した画像を付けて投稿しよう！スマホは「画像ごとシェア」が楽です。</div>' +
+        "</div>" +
+        '<div class="post"><div class="lbl">投稿する文章<small id="len"></small></div>' +
+          '<textarea id="postTx" maxlength="280"></textarea>' +
+          '<div class="acts" style="padding:8px 0 0;justify-content:flex-start"><button class="xbtn" id="bCopy">📋 文章をコピー</button></div>' +
+        "</div>" +
+      "</div>";
+
+    $("postTx").value = postText(p) + (D.adm.shareUrl ? "\n" + D.adm.shareUrl : "");
+    const len = () => {
+      const t = $("postTx").value;
+      const n = Array.from(t.replace(/https?:\/\/\S+/g, "")).reduce((c, ch) => c + (/[\u0000-ɏ]/.test(ch) ? 1 : 2), 0) +
+        (t.match(/https?:\/\/\S+/g) || []).length * 23;
+      $("len").textContent = "およそ " + n + " / 280";
+      $("len").style.color = n > 280 ? "var(--danger)" : "";
+    };
+    $("postTx").oninput = len; len();
+    if ($("who")) $("who").onchange = () => { history.replaceState(null, "", "?id=" + encodeURIComponent($("who").value)); view($("who").value); };
+
+    $("bPost").onclick = () => {
+      // Xの投稿画面を開く（画像はXの仕様で自動では付けられないので、保存した画像を添付してもらう）
+      const url = "https://x.com/intent/post?text=" + encodeURIComponent($("postTx").value);
+      window.open(url, "_blank", "noopener");
+    };
+    $("bCopy").onclick = () => {
+      const t = $("postTx").value;
+      (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(
+        () => toast("投稿文をコピーしました"),
+        () => { $("postTx").select(); document.execCommand("copy"); toast("投稿文をコピーしました"); });
+    };
+
+    makeImage(p).then(b => {
+      if (cur !== p) return;
+      blob = b;
+      const u = URL.createObjectURL(b);
+      $("imgBox").innerHTML = '<img alt="' + esc(p.name) + ' さんの入学許可書">';
+      $("imgBox").querySelector("img").src = u;
+      $("bSave").disabled = false;
+      if ($("bShare")) $("bShare").disabled = false;
+    }).catch(err => {
+      $("imgBox").innerHTML = '<div class="ph">画像を作れませんでした：' + esc(err.message) + "</div>";
+    });
+    $("bSave").onclick = () => {
+      if (!blob) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = docTitle(p) + "_" + p.name.replace(/[\\/:*?"<>|]/g, "") + ".png";
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast("保存しました。次は「Xに投稿」から画像を添付してね");
+    };
+    if ($("bShare")) $("bShare").onclick = async () => {
+      if (!blob) return;
+      const file = new File([blob], "admission.png", { type: "image/png" });
+      const data = { text: $("postTx").value, files: [file] };
+      try {
+        if (navigator.canShare && navigator.canShare(data)) await navigator.share(data);
+        else await navigator.share({ text: data.text });
+      } catch(e){ if (e && e.name !== "AbortError") toast("シェアできませんでした：" + e.message); }
+    };
+    document.title = p.name + " の" + docTitle(p) + " ｜ クラウドハッシュテイル校";
+  }
+
+  /* ================= 画像（1200×675・Xにそのまま貼れるサイズ） ================= */
+  function loadImg(src){
+    return new Promise(res => {
+      if (!src) return res(null);
+      const im = new Image();
+      if (!/^data:/.test(src)) { try { if (new URL(src, location.href).origin !== location.origin) im.crossOrigin = "anonymous"; } catch(e){} }
+      im.onload = () => res(im); im.onerror = () => res(null); im.src = src;
+    });
+  }
+  function rr(g, x, y, w, h, r){
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  function fitText(g, t, maxW){
+    t = String(t || "");
+    if (g.measureText(t).width <= maxW) return t;
+    while (t.length > 1 && g.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+    return t + "…";
+  }
+  function spaced(g, text, cx, y, sp){
+    const chs = Array.from(text);
+    const w = chs.reduce((n, ch) => n + g.measureText(ch).width, 0) + sp * (chs.length - 1);
+    let x = cx - w / 2; g.textAlign = "left";
+    chs.forEach(ch => { g.fillText(ch, x, y); x += g.measureText(ch).width + sp; });
+  }
+
+  async function makeImage(p){
+    try { await Promise.all([
+      document.fonts.load('900 40px "Zen Kaku Gothic New"'), document.fonts.load('500 20px "Zen Kaku Gothic New"'),
+      document.fonts.load('700 30px "Space Grotesk"'), document.fonts.load('400 60px "Yuji Boku"', "入学許可書殿講師任命" + D.adm.tTitle)]); } catch(x){}
+    const W = 1200, H = 675;
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    const JP = '"Zen Kaku Gothic New",sans-serif', EN = '"Space Grotesk",sans-serif', BR = '"Yuji Boku",' + JP;
+    const ink = "#23384D", muted = "#6D8699", leaf = cssColor("var(--leaf)"), goldA = "#C9A24A", goldB = "#E8CD82", red = "#C8372D";
+
+    // 紙の地
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#FBF8EE"); bg.addColorStop(.6, "#F4F8EC"); bg.addColorStop(1, "#E8F2F8");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // うすい校章（すかし）
+    const em = await loadImg("assets/emblem.png");
+    if (em){ g.save(); g.globalAlpha = .06; const s = 420; g.drawImage(em, W / 2 - s / 2 + 140, H / 2 - s / 2 + 20, s, s); g.restore(); }
+    // 金の二重枠
+    g.strokeStyle = goldA; g.lineWidth = 6; rr(g, 26, 26, W - 52, H - 52, 20); g.stroke();
+    g.strokeStyle = goldB; g.lineWidth = 2; rr(g, 40, 40, W - 80, H - 80, 14); g.stroke();
+    // 四すみの飾り
+    [[40, 40], [W - 40, 40], [40, H - 40], [W - 40, H - 40]].forEach(([x, y]) => {
+      g.beginPath(); g.arc(x, y, 9, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(x, y, 4, 0, Math.PI * 2); g.fillStyle = "#FBF8EE"; g.fill();
+    });
+
+    // 見出し
+    const T = p.teacher;   // 講師なら講師任命書
+    g.fillStyle = leaf; g.font = "900 13px " + EN;
+    spaced(g, "CLOUD HASHTAIL SCHOOL ・ " + (T ? "APPOINTMENT" : "ADMISSION"), W / 2, 88, 3);
+    g.fillStyle = ink; g.font = "400 64px " + BR; spaced(g, docTitle(p), W / 2, 158, docTitle(p).length > 5 ? 12 : 22);
+    // 見出しの下の飾り線
+    g.strokeStyle = goldA; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(W / 2 - 170, 184); g.lineTo(W / 2 - 18, 184); g.moveTo(W / 2 + 18, 184); g.lineTo(W / 2 + 170, 184); g.stroke();
+    g.beginPath(); g.moveTo(W / 2, 178); g.lineTo(W / 2 + 6, 184); g.lineTo(W / 2, 190); g.lineTo(W / 2 - 6, 184); g.closePath(); g.fillStyle = goldA; g.fill();
+
+    // 左：アイコン（右の名前〜ランクの高さに合わせて、少し下・大きめに）
+    const ax = 240, ay = 382, R = 116;
+    const av = await loadImg(p.avatar);
+    g.save(); g.beginPath(); g.arc(ax, ay, R + 8, 0, Math.PI * 2);
+    const ring = g.createLinearGradient(ax - R, ay - R, ax + R, ay + R); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
+    g.fillStyle = ring; g.fill();
+    g.beginPath(); g.arc(ax, ay, R, 0, Math.PI * 2); g.clip();
+    if (av) g.drawImage(av, ax - R, ay - R, R * 2, R * 2);
+    else { g.fillStyle = leaf; g.fillRect(ax - R, ay - R, R * 2, R * 2);
+      g.fillStyle = "#fff"; g.font = "900 90px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(String(p.name).slice(0, 1), ax, ay + 4); g.textBaseline = "alphabetic"; }
+    g.restore();
+    // アイコンの下の文字（例：TFT合宿　SET18）
+    if (D.adm.term){
+      g.textAlign = "center"; g.fillStyle = ink; g.font = "900 24px " + JP;
+      g.fillText(fitText(g, D.adm.term, 300), ax, ay + R + 50);
+      g.strokeStyle = goldA; g.lineWidth = 2;
+      const lw = Math.min(150, g.measureText(D.adm.term).width / 2 + 10);
+      g.beginPath(); g.moveTo(ax - lw, ay + R + 64); g.lineTo(ax + lw, ay + R + 64); g.stroke();
+    }
+
+    // 右：名前・本文・入学時ランク
+    const X = 420;
+    g.textAlign = "left"; g.fillStyle = ink; g.font = "900 52px " + JP;
+    const nm = fitText(g, p.name, 560);
+    g.fillText(nm, X, 280);
+    const nw = g.measureText(nm).width;
+    g.font = "400 36px " + BR; g.fillText("殿", X + nw + 16, 280);
+    g.strokeStyle = "rgba(35,56,77,.25)"; g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(X, 298); g.lineTo(X + Math.min(640, nw + 70), 298); g.stroke();
+
+    g.fillStyle = ink; g.font = "500 25px " + JP;
+    const BODY = String((T ? D.adm.tBody : D.adm.body) || "");
+    BODY.split(/\n/).slice(0, 3).forEach((ln, i) => g.fillText(fitText(g, ln, 660), X, 348 + i * 40));
+
+    const ry = 348 + Math.min(3, BODY.split(/\n/).length) * 40 + 14;
+    rr(g, X, ry, 420, 64, 16); g.fillStyle = "rgba(133,168,86,.12)"; g.fill();
+    g.fillStyle = muted; g.font = "900 13px " + JP; g.fillText(T ? "着任時のランク" : "入学時のランク", X + 18, ry + 24);
+    g.fillStyle = ink; g.font = "900 22px " + JP;
+    let rx = X + 18;
+    if (p.rank){
+      const ov = C.rankIconOf(p.rank.tier);
+      const ic = ov && ov.img ? await loadImg(ov.img) : null;
+      if (ic){ const h = 34, w = Math.min(h * 1.6, ic.naturalWidth * h / ic.naturalHeight);
+        g.drawImage(ic, rx, ry + 26, w, ic.naturalHeight * (w / ic.naturalWidth)); rx += w + 8; }
+      g.fillText(C.rankLabel(p.rank), rx, ry + 52);
+    } else g.fillText("これから！", rx, ry + 52);
+
+    // 講師：担当する生徒（ランクの右に、アイコンつき）
+    if (T && p.student){
+      const bx = X + 436, bw = W - 84 - bx;
+      rr(g, bx, ry, bw, 64, 16); g.fillStyle = "rgba(201,162,74,.16)"; g.fill();
+      const sa = await loadImg(p.student.avatar), scx = bx + 34, scy = ry + 32, sr = 22;
+      g.save(); g.beginPath(); g.arc(scx, scy, sr + 3, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(scx, scy, sr, 0, Math.PI * 2); g.clip();
+      if (sa) g.drawImage(sa, scx - sr, scy - sr, sr * 2, sr * 2);
+      else { g.fillStyle = leaf; g.fillRect(scx - sr, scy - sr, sr * 2, sr * 2);
+        g.fillStyle = "#fff"; g.font = "900 20px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(String(p.student.name).slice(0, 1), scx, scy + 1); g.textBaseline = "alphabetic"; }
+      g.restore();
+      g.textAlign = "left"; g.fillStyle = "#9A7426"; g.font = "900 13px " + JP; g.fillText("担当する生徒", bx + 66, ry + 24);
+      g.fillStyle = ink; g.font = "900 22px " + JP; g.fillText(fitText(g, p.student.name, bw - 80), bx + 66, ry + 52);
+    }
+
+    // 下：日付・校名・署名・朱印
+    g.fillStyle = ink; g.font = "500 20px " + JP; g.textAlign = "left";
+    g.fillText(jdate(D.adm.date), X, 592);
+    g.textAlign = "right"; g.font = "900 24px " + JP; g.fillText("クラウドハッシュテイル校", W - 150, 588);
+    // 朱印（「入学許可」）
+    g.save(); g.translate(W - 98, 572); g.rotate(-0.08);
+    g.strokeStyle = red; g.lineWidth = 4.5; rr(g, -38, -38, 76, 76, 8); g.stroke();
+    g.strokeStyle = red; g.lineWidth = 1.5; rr(g, -32, -32, 64, 64, 5); g.stroke();
+    g.fillStyle = red; g.font = "400 25px " + BR; g.textAlign = "center";
+    if (T){ g.fillText("講師", 0, -3); g.fillText("任命", 0, 25); }
+    else { g.fillText("入学", 0, -3); g.fillText("許可", 0, 25); }
+    g.restore();
+    // ハッシュタグ
+    g.textAlign = "center"; g.fillStyle = "rgba(109,134,153,.9)"; g.font = "700 14px " + JP;
+    if (D.adm.tag) g.fillText("#" + D.adm.tag, W / 2, H - 52);
+
+    return new Promise((res, rej) => {
+      try { cv.toBlob(b => b ? res(b) : rej(new Error("画像を作れませんでした")), "image/png"); } catch(e){ rej(e); }
+    });
+  }
+
+  /* ================= 起動 ================= */
+  loadAll().then(() => {
+    if (!D.adm.enabled && !IS_ADMIN){
+      $("view").innerHTML = '<div class="panel"><div class="hero"><div class="kicker">CLOUD HASHTAIL SCHOOL</div>' +
+        '<h1 class="brush">入学許可書</h1></div><div class="empty">入学許可書は、まもなく受け取れるようになります。<br>もう少しだけ待っていてください！</div></div>';
+      return;
+    }
+    const q = new URLSearchParams(location.search).get("id");
+    view(IS_ADMIN && q && D.people[q] ? q : ME);
+  }).catch(err => {
+    console.error(err);
+    $("view").innerHTML = '<div class="panel"><div class="empty">入学許可書を読み込めませんでした。<br>' + esc(err.message) + "</div></div>";
+  });
+})();
+</script>
+</body>
+</html>
