@@ -59,6 +59,22 @@
 /* リンク先が未設定のタイル */
 .pop.unset{opacity:.66;cursor:default}
 .pop.unset:hover{transform:none;border-color:var(--border);box-shadow:var(--shadow-pop)}
+/* ---- プロフィールの右：入学許可書（講師は講師任命書）を開くボタン ---- */
+.mecard{display:flex;align-items:center;flex-wrap:wrap}
+.mecard .who{flex:1;min-width:0}
+.mecert{margin-left:auto;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink);
+  padding:10px 16px 10px 10px;border-radius:16px;position:relative;flex:none;
+  background:linear-gradient(135deg,#FBF8EE,#F4F8EC 60%,#E8F2F8);
+  border:3px solid #C9A24A;box-shadow:inset 0 0 0 4px #FBF8EE,inset 0 0 0 5.5px #E8CD82,var(--shadow-soft);
+  transition:transform .12s,box-shadow .12s}
+.mecert:hover{transform:translateY(-2px) rotate(-.4deg)}
+.mecert .seal{width:44px;height:44px;border:2.5px solid #C8372D;border-radius:6px;display:grid;place-items:center;
+  color:#C8372D;font-weight:900;font-size:12px;line-height:1.1;text-align:center;transform:rotate(-6deg);flex:none;background:rgba(255,255,255,.5)}
+.mecert b{display:block;font-size:15px;font-weight:900;letter-spacing:.06em;color:#23384D}
+.mecert small{display:block;font-size:11px;color:#6D8699;font-weight:700;margin-top:1px}
+.mecert .go{font-size:11.5px;font-weight:900;color:#9A7426;margin-left:4px}
+.mecert .off{position:absolute;top:-9px;right:10px;font-size:10px;font-weight:900;padding:1px 8px;border-radius:99px;background:#C8372D;color:#fff}
+@media (max-width:620px){ .mecert{margin:10px 0 0;width:100%} }
 @media (prefers-reduced-motion:reduce){
   .kids{animation:none}
   .kid:hover{transform:none}
@@ -93,6 +109,12 @@
       <div class="rank" id="meRank">—</div>
       <div class="roles" id="meRoles"></div>
     </div>
+    <!-- 入学許可書（表示・非表示は 管理コンソール →「入学許可書」） -->
+    <a class="mecert" id="meCert" href="admission.html" style="display:none">
+      <span class="seal" id="meCertSeal">入学<br>許可</span>
+      <span><b id="meCertTitle">入学許可書</b><small id="meCertSub">画像を保存してXに投稿しよう</small></span>
+      <span class="go">開く →</span>
+    </a>
   </div>
 
   <!-- メニュー -->
@@ -364,6 +386,26 @@
   /* 初回描画は「前回このブラウザで見た内容」から行う。
      こうしないと Firestore の応答を待つ間、既定の並び順が一瞬見えてしまう。
      取得後、内容が実際に変わっていたときだけ描き直す（updatedAt の差では描き直さない）。 */
+  /* プロフィールの右の「入学許可書を開く」。
+     管理コンソール →「入学許可書」の「公開」と「HOMEに出す」が両方オンのときだけ出す（管理者には公開前も出す）。
+     先生ロールの人には「講師任命書」として出す。 */
+  if (typeof C.loadAdmission === "function"){
+    Promise.all([C.loadAdmission(), C.loadSnapshot ? C.loadSnapshot().catch(() => null) : null]).then(([adm, snap]) => {
+      if (!adm || adm.homeBtn === false) return;
+      const admin = C.isAdmin(session);
+      if (!adm.enabled && !admin) return;
+      const teacher = C.isTeacherOf && C.isTeacherOf(session.discord, (snap && snap.roleIds) || []);
+      $("meCertTitle").textContent = teacher ? (adm.tTitle || "講師任命書") : "入学許可書";
+      $("meCertSeal").innerHTML = teacher ? "講師<br>任命" : "入学<br>許可";
+      if (!adm.enabled){
+        const off = document.createElement("span");
+        off.className = "off"; off.textContent = "非公開（管理者にだけ表示）";
+        $("meCert").appendChild(off);
+      }
+      $("meCert").style.display = "";
+    }).catch(e => console.warn("入学許可書", e));
+  }
+
   let shown = C.cachedHomeConfig() || C.defaultHomeConfig();
   renderTiles(shown);
   renderTools(shown);

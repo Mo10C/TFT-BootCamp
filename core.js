@@ -2205,8 +2205,10 @@
         name: String(m.name || "—"),
         riotId: String(m.riotId || ""),
         puuid: String(m.puuid || ""),
-        rank: (m.rank && m.rank.tier) ? { tier: String(m.rank.tier),
-               division: String(m.rank.division || ""), lp: m.rank.lp | 0 } : null,
+        // ランクは「毎日の自動集計（rank / rankAt）」と「ログイン時（rankLogin / rankLoginAt）」の新しいほう
+        rank: (r => (r && r.tier) ? { tier: String(r.tier), division: String(r.division || ""), lp: r.lp | 0 } : null)(
+          (m.rankLogin && m.rankLogin.tier && (!m.rank || !m.rank.tier || (m.rankLoginAt || 0) > (m.rankAt || 0))) ? m.rankLogin : m.rank),
+        rankAt: Math.max(m.rankAt || 0, m.rankLoginAt || 0),
         discord: m.discord ? {
           id: String(m.discord.id || ""), name: String(m.discord.name || ""),
           username: String(m.discord.username || ""), avatar: String(m.discord.avatar || "")
@@ -2238,16 +2240,48 @@
 
   /* ログインした本人を名簿に登録する。1日1回でじゅうぶん。
      home-common.js の boot() から呼ばれるので、どのページを開いても登録される。 */
+  /* 毎日の自動集計（Worker・23:45）で更新された自分のランクを、ログイン中のセッションにも反映する。
+     HOMEのプロフィール帯などはセッションのランクを表示しているので、次に開いたページから新しいランクになる。
+     3時間に1回まで。 */
+  async function syncMyRank(session) {
+    session = session || Session.get();
+    if (!Session.isComplete(session)) return false;
+    const id = "u_" + session.discord.id;
+    const flag = "mcc-lb2-ranksync-" + id;
+    try { if (Date.now() - Number(localStorage.getItem(flag) || 0) < 3 * 3600 * 1000) return false; } catch (e) { }
+    try { localStorage.setItem(flag, String(Date.now())); } catch (e) { }
+    let m = null;
+    try {
+      const db = openDb();
+      if (!db) return false;
+      const snap = await db.collection("lboard_index").doc(MEMBERS_DOC).get();
+      m = snap.exists ? ((snap.data().members || {})[id] || null) : null;
+    } catch (e) { return false; }
+    if (!m || !m.rank || !m.rank.tier || !m.rankAt) return false;
+    const mine = session.riot.rankAt || session.loggedInAt || 0;
+    if (m.rankAt <= mine) return false;
+    const r = { tier: String(m.rank.tier), division: String(m.rank.division || ""), lp: m.rank.lp | 0 };
+    const cur = session.riot.rank || {};
+    session.riot.rankAt = m.rankAt;
+    if (cur.tier === r.tier && (cur.division || "") === r.division && (cur.lp | 0) === r.lp){ Session.set(session); return false; }
+    session.riot.rank = r;
+    Session.set(session);
+    try { window.dispatchEvent(new CustomEvent("lb-rank-sync", { detail: r })); } catch (e) { }
+    return true;
+  }
+
   async function registerMember(session, force) {
     session = session || Session.get();
     const p = Session.toPlayer(session);
     if (!p) return false;
+    syncMyRank(session).catch(() => {});
     const flag = "mcc-lb2-member-done-" + p.id + "-" + dayKey();
     try { if (!force && localStorage.getItem(flag)) return false; } catch (e) { }
 
+    // ランクは rankLogin に入れる（毎日の自動集計が書く rank を古い値で上書きしないため）
     const entry = {
       name: p.name, riotId: p.riotId || "", puuid: p.puuid || "",
-      rank: p.rank || null, discord: p.discord || null,
+      rankLogin: p.rank || null, rankLoginAt: session.loggedInAt || Date.now(), discord: p.discord || null,
       roles: rolesOf(p), staff: !!p.staff,
       joinedAt: Date.now(), updatedAt: Date.now()
     };
@@ -3201,6 +3235,7 @@
   function defaultAdmission() {
     return {
       enabled: true,
+      homeBtn: true,            // HOMEのプロフィールの右に「入学許可書を開く」を出す
       date: "2026-10-25",
       term: "TFT合宿　SET18",   // 入学許可書のアイコンの下に印字する文字（空欄なら出さない）
       body: "あなたを本校の生徒として\n入学を許可します",
@@ -3222,6 +3257,7 @@
     const url = String(raw.shareUrl || "").trim();
     return {
       enabled: raw.enabled !== false,
+      homeBtn: raw.homeBtn !== false,
       date: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date || "")) ? String(raw.date) : d.date,
       term: String(raw.term == null ? d.term : raw.term).trim().slice(0, 20),
       body: String(raw.body == null ? d.body : raw.body).slice(0, 120),
@@ -4142,7 +4178,7 @@
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
-    loadMembers, registerMember, updateGlobalMember, removeGlobalMember,
+    loadMembers, registerMember, syncMyRank, updateGlobalMember, removeGlobalMember,
     PROFILE_THEMES, PROFILE_PATTERNS,
     PROFILE_MAX_FREE, PROFILE_MAX_GALLERY, PROFILE_MAX_BYTES,
     PROFILE_REQUIRED, PROFILE_CATS, missingRequired, tacticsUrlFor,

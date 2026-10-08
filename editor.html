@@ -1042,6 +1042,9 @@ body.ad-on{overflow:hidden}
       </div>
       <div class="row"><label style="min-width:84px">公開</label>
         <label class="chk" style="font-size:12.5px"><input type="checkbox" id="admOn"> 生徒が入学許可書を受け取れるようにする</label></div>
+      <div class="row"><label style="min-width:84px">HOME</label>
+        <label class="chk" style="font-size:12.5px"><input type="checkbox" id="admHome"> HOMEのプロフィールの右に「入学許可書を開く」を出す</label>
+        <span class="hint">「公開」がオフのあいだは、オンにしても生徒には出ません</span></div>
       <div class="row"><label style="min-width:84px">入学日</label>
         <input type="date" id="admDate"><span class="hint">この日より前の最後の記録を「入学時ランク」にします</span></div>
       <div class="row"><label style="min-width:84px">アイコンの下</label>
@@ -4048,6 +4051,7 @@ body.ad-on{overflow:hidden}
     const SAMPLE = { name: "もと", rank: "DIAMOND III 50LP", no: "007", date: "2026年10月25日", student: "ひよこ" };
     function fill(){
       $("admOn").checked = !!adEdit.enabled;
+      $("admHome").checked = adEdit.homeBtn !== false;
       $("admDate").value = adEdit.date;
       $("admTerm").value = adEdit.term;
       $("admBody").value = adEdit.body;
@@ -4086,6 +4090,7 @@ body.ad-on{overflow:hidden}
      ["admTTitle","tTitle"],["admTBody","tBody"],["admTPost","tPost"],["admTTbd","tTbd"]]
       .forEach(([el, k]) => $(el).addEventListener("input", () => { adEdit[k] = $(el).value; mark(); prev(); }));
     $("admOn").onchange = () => { adEdit.enabled = $("admOn").checked; mark(); };
+    $("admHome").onchange = () => { adEdit.homeBtn = $("admHome").checked; mark(); };
     document.querySelectorAll("#p-adm .vbtn").forEach(b => b.onclick = () => {
       const key = b.dataset.t === "admTPost" ? "tPost" : "post";
       const ta = $(b.dataset.t || "admPost"), v = b.dataset.v;
