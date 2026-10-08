@@ -221,11 +221,6 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         <option value="day">前日からの伸び順</option>
         <option value="name">名前順</option>
       </select>
-      <div class="range">
-        <button class="rbtn on" data-mode="base">基準日から</button>
-        <button class="rbtn" data-mode="30">30日</button>
-        <button class="rbtn" data-mode="90">90日</button>
-      </div>
       <button class="rbtn" id="scaleBtn" title="全員のグラフの縦幅を同じLP数にそろえて、伸びの傾きを見比べられるようにします">縦をそろえる</button>
       <button class="rbtn" id="tableBtn">表で見る</button>
     </div>
@@ -863,11 +858,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   function boot(data){
     lp = data || { members:{}, hist:{}, baseline:"", groupOrder:[] };
     rows = Object.values(lp.members || {});
-    if (!lp.baseline){
-      mode = 30;   // 基準日が無いうちは直近30日で表示する
-      document.querySelectorAll(".rbtn[data-mode]").forEach(x =>
-        x.classList.toggle("on", x.dataset.mode === "30"));
-    }
+    // 期間はいつも「基準日から今日まで」（基準日が無いうちは直近30日）
     step("並び順の割り当て", assignGroups);
     step("並べ替え",       sortRows);
     step("グラフの描画",   render);

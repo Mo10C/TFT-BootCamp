@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>VC稼働 ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="VCごとの稼働時間と、ユーザーごとの滞在時間">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;
+  box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:14px}
+.phead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 17px;
+  border-bottom:1px solid var(--border)}
+.phead h2{font-size:15px;font-weight:900}
+.phead .sub{font-size:10.5px;color:var(--muted)}
+.spacer{flex:1}
+.pbody{padding:13px 17px 16px}
+.empty{padding:32px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
+.note{font-size:11px;color:var(--muted);line-height:1.8;padding:10px 17px 14px;border-top:1px solid var(--border)}
+.note b{color:var(--ink)}
+
+/* ---- 期間えらび ---- */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:16px;
+  padding:11px 14px;margin-bottom:14px;box-shadow:var(--shadow-soft)}
+.chip{border:1.5px solid var(--border);background:var(--surface);color:var(--muted);
+  border-radius:999px;padding:6px 14px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.chip:hover{border-color:var(--accent)}
+.chip.on{border-color:var(--accent);color:var(--accent-deep);
+  background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.filters input[type=date]{border:1.5px solid var(--border);border-radius:11px;background:var(--surface);
+  color:var(--ink);font-family:inherit;font-size:12.5px;padding:6px 10px}
+
+/* ---- KPI ---- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;
+  padding:13px 16px;box-shadow:var(--shadow-soft)}
+.kpi .lb{font-size:10.5px;font-weight:900;color:var(--muted);letter-spacing:.06em}
+.kpi .v{font-family:"Space Grotesk",sans-serif;font-size:25px;font-weight:700;
+  font-variant-numeric:tabular-nums;line-height:1.25;margin-top:3px}
+.kpi .v small{font-size:12.5px;font-weight:500;color:var(--muted);margin-left:2px}
+.kpi .n{font-size:10.5px;color:var(--muted);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- 横棒ランキング ---- */
+.rows{display:flex;flex-direction:column;gap:9px}
+.row{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:center;
+  padding:3px 4px;border-radius:10px}
+.row:hover{background:var(--surface-2)}
+.row .no{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;
+  color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.row.top1 .no{color:var(--gold)}
+.lab{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.lab .nm{font-size:13px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lab .meta{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.lab .val{margin-left:auto;font-family:"Space Grotesk",sans-serif;font-size:13px;font-weight:700;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.track{height:10px;border-radius:5px;overflow:hidden;
+  background:color-mix(in srgb,var(--accent) 16%,var(--surface-2))}
+.fill{height:100%;border-radius:5px;background:var(--accent);
+  transition:width .35s cubic-bezier(.2,.9,.3,1)}
+.subbar{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.tagv{font-size:10px;color:var(--muted);background:var(--surface-2);
+  border:1px solid var(--border);border-radius:999px;padding:1px 8px}
+
+/* ---- 日ごとの推移（小さい棒）---- */
+.spark{display:flex;align-items:flex-end;gap:2px;height:56px;padding:0 2px}
+.spark .b{flex:1;min-width:2px;border-radius:3px 3px 0 0;
+  background:color-mix(in srgb,var(--accent) 65%,var(--surface));min-height:2px}
+.spark .b:hover{background:var(--accent-deep)}
+.sparkx{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:5px}
+
+/* ---- 表 ---- */
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t th,table.t td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}
+table.t th{font-family:"Space Grotesk",sans-serif;font-size:11px;letter-spacing:.06em;
+  color:var(--muted);font-weight:700;background:var(--surface-2)}
+table.t td.n{text-align:right;font-family:"Space Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+.tbl{display:none;overflow-x:auto}
+.tbl.on{display:block}
+@media (max-width:620px){ .kpi .v{font-size:21px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/tile-vc.png" alt="VC稼働" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div>
+        <h1>VC稼働</h1>
+        <div class="sub" id="since">クラウドハッシュテイル校 TOOLS</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div class="filters">
+    <span class="sub" style="font-weight:900">期間</span>
+    <button class="chip" data-days="1">きょう</button>
+    <button class="chip on" data-days="7">7日</button>
+    <button class="chip" data-days="30">30日</button>
+    <button class="chip" data-days="0">全期間</button>
+    <span class="spacer"></span>
+    <input type="date" id="from"><span class="sub">〜</span><input type="date" id="to">
+    <button class="chip" id="apply">この期間で見る</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="panel">
+    <div class="phead"><h2>🔊 VCごとの稼働時間</h2>
+      <span class="sub">誰か1人でもいた実時間</span>
+      <span class="spacer"></span>
+      <button class="chip" data-tbl="chTbl">表で見る</button></div>
+    <div class="pbody"><div class="rows" id="chRows"><div class="empty">読み込み中…</div></div></div>
+    <div class="tbl" id="chTbl"></div>
+    <div class="note"><b>稼働時間</b>＝そのVCに誰かがいた実時間（何人いても1回分）。
+      <b>延べ</b>＝全員の滞在時間の合計です。</div>
+  </div>
+
+  <div class="panel">
+    <div class="phead"><h2>🧑 ユーザーごとの滞在時間</h2>
+      <span class="sub">長い順</span>
+      <span class="spacer"></span>
+      <button class="chip" data-tbl="usTbl">表で見る</button></div>
+    <div class="pbody"><div class="rows" id="usRows"></div></div>
+    <div class="tbl" id="usTbl"></div>
+  </div>
+
+  <div class="panel" id="dailyPanel" style="display:none">
+    <div class="phead"><h2>📅 日ごとの稼働</h2><span class="sub" id="dailySub">—</span></div>
+    <div class="pbody"><div class="spark" id="spark"></div><div class="sparkx" id="sparkx"></div></div>
+  </div>
+
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+
+  if (!C || typeof C.loadVcRange !== "function"){
+    document.body.innerHTML =
+      '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;' +
+      'font-family:sans-serif;line-height:1.9"><b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>' +
+      'VC稼働に対応した core.js に差し替えて、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+
+  const session = C.Session.require();
+  if (!session) return;
+  if (window.MCCHome) window.MCCHome.boot(session);
+
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const hm = C.vcHm;
+  const hours = sec => { const h = (sec || 0) / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
+  const md = k => Number(k.slice(5, 7)) + "/" + Number(k.slice(8));
+
+  let started = "";   // 記録開始日
+  let mode = { days: 7 };
+
+  /* ---- 期間 ---- */
+  document.querySelectorAll("[data-days]").forEach(b => b.onclick = () => {
+    document.querySelectorAll("[data-days]").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    $("from").value = ""; $("to").value = "";
+    mode = { days: Number(b.dataset.days) };
+    load();
+  });
+  $("apply").onclick = () => {
+    const f = $("from").value, t = $("to").value;
+    if (!f && !t) return;
+    document.querySelectorAll("[data-days]").forEach(x => x.classList.remove("on"));
+    mode = { from: f || started || "2020-01-01", to: t || C.dayKey() };
+    load();
+  };
+  document.querySelectorAll("[data-tbl]").forEach(b => b.onclick = () => {
+    const el = $(b.dataset.tbl);
+    el.classList.toggle("on");
+    b.textContent = el.classList.contains("on") ? "グラフで見る" : "表で見る";
+  });
+
+  function range(){
+    const today = C.dayKey();
+    if (mode.from) return { from: mode.from, to: mode.to };
+    if (!mode.days) return { from: started || "2020-01-01", to: today };   // 全期間
+    return { from: C.shiftDay(today, -(mode.days - 1)), to: today };
+  }
+
+  /* ---- 描画 ---- */
+  function bars(list, box, pick){
+    const max = Math.max.apply(null, list.map(pick.value).concat([1]));
+    box.innerHTML = list.length ? list.map((x, i) => {
+      const v = pick.value(x);
+      return '<div class="row' + (i === 0 ? " top1" : "") + '" title="' + esc(pick.tip(x)) + '">' +
+        '<div class="no">' + (i + 1) + '</div><div>' +
+        '<div class="lab"><span class="nm">' + esc(pick.name(x)) + '</span>' +
+        '<span class="meta">' + esc(pick.meta(x)) + '</span>' +
+        '<span class="val">' + hm(v) + '</span></div>' +
+        '<div class="track"><div class="fill" style="width:' + Math.max(1.5, v / max * 100) + '%"></div></div>' +
+        (pick.sub ? pick.sub(x) : "") + '</div></div>';
+    }).join("") : '<div class="empty">この期間の記録はありません。</div>';
+  }
+  function table(list, box, cols){
+    box.innerHTML = list.length
+      ? '<table class="t"><tr>' + cols.map(c => "<th>" + esc(c[0]) + "</th>").join("") + "</tr>" +
+        list.map(x => "<tr>" + cols.map(c =>
+          '<td class="' + (c[2] ? "n" : "") + '">' + esc(c[1](x)) + "</td>").join("") + "</tr>").join("") + "</table>"
+      : '<div class="empty">この期間の記録はありません。</div>';
+  }
+  function kpi(lb, v, unit, note){
+    return '<div class="kpi"><div class="lb">' + esc(lb) + "</div>" +
+      '<div class="v">' + esc(v) + "<small>" + esc(unit) + "</small></div>" +
+      '<div class="n">' + esc(note) + "</div></div>";
+  }
+
+  function render(d){
+    const t = d.totals;
+    $("kpis").innerHTML =
+      kpi("VC稼働時間", hours(t.uptime), "時間", "誰かがVCにいた実時間") +
+      kpi("延べ滞在時間", hours(t.seconds), "時間", "全員の滞在の合計") +
+      kpi("使われたVC", t.channels, "個", d.channels[0] ? "最多 " + d.channels[0].name : "—") +
+      kpi("参加した人", t.users, "人", d.users[0] ? "最長 " + d.users[0].name : "—");
+
+    bars(d.channels, $("chRows"), {
+      value: x => x.uptime,
+      name:  x => x.name,
+      meta:  x => x.users + "人 ・ 延べ" + hm(x.seconds),
+      tip:   x => x.name + "：稼働 " + hm(x.uptime) + " / 延べ " + hm(x.seconds),
+      sub:   x => x.top ? '<div class="subbar"><span class="tagv">最長 ' + esc(x.top.name) +
+               " " + hm(x.top.seconds) + "</span></div>" : ""
+    });
+    table(d.channels, $("chTbl"), [
+      ["VC", x => x.name], ["稼働時間", x => hm(x.uptime), 1], ["延べ滞在", x => hm(x.seconds), 1],
+      ["人数", x => x.users, 1],
+      ["いちばん長い人", x => x.top ? x.top.name + "（" + hm(x.top.seconds) + "）" : "—"]
+    ]);
+
+    bars(d.users, $("usRows"), {
+      value: x => x.seconds,
+      name:  x => x.name,
+      meta:  x => x.byChannel.length + "つのVC",
+      tip:   x => x.name + "：" + hm(x.seconds),
+      sub:   x => '<div class="subbar">' + x.byChannel.slice(0, 4).map(c =>
+               '<span class="tagv">' + esc(c.name) + " " + hm(c.seconds) + "</span>").join("") + "</div>"
+    });
+    table(d.users, $("usTbl"), [
+      ["ユーザー", x => x.name], ["滞在時間", x => hm(x.seconds), 1],
+      ["内訳", x => x.byChannel.map(c => c.name + " " + hm(c.seconds)).join(" / ")]
+    ]);
+
+    // 日ごとの推移（2日以上の期間のときだけ）
+    if (d.daily.length >= 2){
+      $("dailyPanel").style.display = "";
+      const max = Math.max.apply(null, d.daily.map(x => x.uptime).concat([1]));
+      $("spark").innerHTML = d.daily.map(x =>
+        '<div class="b" style="height:' + Math.max(2, x.uptime / max * 100) + '%" title="' +
+        esc(md(x.day) + "：稼働 " + hm(x.uptime)) + '"></div>').join("");
+      $("sparkx").innerHTML = "<span>" + md(d.daily[0].day) + "</span><span>" +
+        md(d.daily[d.daily.length - 1].day) + "</span>";
+      $("dailySub").textContent = "記録があった日 " + d.daily.length + "日 ・ いちばん長い日 " +
+        hm(max);
+    } else {
+      $("dailyPanel").style.display = "none";
+    }
+  }
+
+  function load(){
+    const r = range();
+    $("since").textContent = r.from + " 〜 " + r.to +
+      (started ? "　（記録開始 " + started + "）" : "");
+    $("chRows").innerHTML = '<div class="empty">読み込み中…</div>';
+    C.loadVcRange(r.from, r.to).then(render).catch(e => {
+      console.error(e);
+      $("chRows").innerHTML = '<div class="empty">読み込めませんでした。<br>' + esc(e.message) + "</div>";
+    });
+  }
+
+  C.loadVcMeta().then(m => {
+    started = m && m.startedAt ? C.dayKey(m.startedAt) : "";
+    if (started) $("from").min = $("to").min = started;
+    load();
+  }).catch(load);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>謎解き ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="謎解き — チームで画像の謎を解いてキーワードを入力">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--nz:#1F4E5F;--nz2:#2E7D8C;--nzA:#F2B544}
+.wrap.wide{max-width:1440px}
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:14px}
+.phead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 17px;border-bottom:1px solid var(--border)}
+.phead h2{font-size:15px;font-weight:900}
+.phead .sub{font-size:11px;color:var(--muted)}
+.pbody{padding:15px 17px}
+.spacer{flex:1}
+.empty{padding:28px 18px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.9}
+.note{font-size:11.5px;color:var(--muted);line-height:1.75}
+.txt{font-size:14px;line-height:2;white-space:pre-wrap;word-break:break-word}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.xbtn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border-strong);background:var(--surface);color:var(--ink);
+  border-radius:999px;padding:8px 15px;font-size:12.5px;font-weight:900;cursor:pointer;font-family:inherit;text-decoration:none;transition:transform .1s,border-color .1s}
+.xbtn:hover:not(:disabled){transform:translateY(-1px);border-color:var(--nz2)}
+.xbtn:disabled{opacity:.45;cursor:default}
+.xbtn.main{background:var(--nz);border-color:transparent;color:#fff}
+.xbtn.gold{background:var(--nzA);border-color:transparent;color:#3B2A05}
+.xbtn.sm{padding:5px 11px;font-size:11.5px}
+.xbtn.danger{color:var(--danger)}
+.av{width:26px;height:26px;border-radius:99px;object-fit:cover;flex:none;border:2px solid var(--surface)}
+.avf{display:inline-grid;place-items:center;background:var(--nz2);color:#fff;font-size:11px;font-weight:900}
+
+/* 表紙・ロビー */
+.hero{position:relative;padding:28px 24px 24px;text-align:center;color:#EAF6F4;border-radius:20px;margin-bottom:14px;overflow:hidden;
+  background:radial-gradient(420px 200px at 10% 0%,rgba(242,181,68,.35),transparent 70%),
+             radial-gradient(520px 240px at 95% 110%,rgba(124,164,85,.45),transparent 70%),
+             linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B)}
+.hero .kicker{font-size:11px;font-weight:900;letter-spacing:.3em;color:var(--nzA)}
+.hero h1{font-size:34px;font-weight:900;letter-spacing:.06em;margin:6px 0 4px}
+.hero p{font-size:13px;opacity:.85}
+.teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.tc{border:1.5px solid var(--border);border-radius:18px;padding:14px 16px;background:var(--surface);border-top:6px solid var(--tc)}
+.tc h3{font-size:17px;font-weight:900;display:flex;align-items:center;gap:8px}
+.tc .slots{display:flex;flex-direction:column;gap:6px;margin:10px 0 12px;min-height:122px}
+.tc .slot{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700}
+.tc .slot.free{color:var(--muted);font-weight:500}
+.tc .slot.free i{width:26px;height:26px;border-radius:99px;border:2px dashed var(--border-strong);display:inline-block}
+.tc .pg{font-size:11.5px;color:var(--muted);font-weight:700}
+.tc.mine{box-shadow:0 0 0 2.5px var(--tc)}
+.rk{width:100%;border-collapse:collapse;font-size:13px}
+.rk td{padding:8px 6px;border-bottom:1px solid var(--border)}
+.rk .n{font-family:"Space Grotesk",sans-serif;font-weight:700;width:34px;text-align:center}
+.rk .dot{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:6px;vertical-align:-1px}
+.rk tr.me td{background:color-mix(in srgb,var(--nzA) 12%,transparent)}
+
+/* ゲーム画面 */
+.game{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px;align-items:start}
+@media (max-width:980px){ .game{grid-template-columns:1fr} }
+.tool{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:8px}
+.tool .tt{font-weight:900;font-size:14px;margin-right:6px;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb{border:1.5px solid var(--border);background:var(--surface);border-radius:10px;min-width:34px;height:32px;padding:0 8px;cursor:pointer;font-family:inherit;
+  font-size:13px;font-weight:900;color:var(--ink);display:inline-grid;place-items:center}
+.tb.on{border-color:var(--nz2);background:color-mix(in srgb,var(--nz2) 14%,var(--surface))}
+.tb:disabled{opacity:.4;cursor:default}
+.cl{width:22px;height:22px;border-radius:99px;border:2px solid rgba(0,0,0,.12);cursor:pointer;padding:0}
+.cl.on{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--nz2)}
+.sep{width:1px;height:22px;background:var(--border);margin:0 2px}
+.stage{position:relative;border-radius:16px;overflow:hidden;background:#0E1E25;aspect-ratio:16/9;box-shadow:var(--shadow-soft);user-select:none}
+.stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%}
+.stage.pen canvas{cursor:crosshair;touch-action:none}
+.stage.text canvas{cursor:text;touch-action:none}
+.stage.erase canvas{cursor:not-allowed;touch-action:none}
+.stage .lock{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-weight:900;font-size:18px;background:rgba(8,18,22,.82);text-align:center;line-height:1.9}
+.stage .nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;border:none;border-radius:12px;background:rgba(0,0,0,.35);color:#fff;
+  font-size:24px;cursor:pointer;opacity:.0;transition:opacity .15s;z-index:3}
+.stage:hover .nav{opacity:1}
+.stage .nav:disabled{display:none}
+.stage .nav.l{left:8px} .stage .nav.r{right:8px}
+.tin{position:absolute;z-index:4;border:2px solid var(--nzA);border-radius:8px;padding:4px 8px;font:inherit;font-size:15px;font-weight:900;min-width:160px;background:rgba(255,255,255,.95);color:#222}
+.below{border:1.5px solid var(--border);border-radius:16px;background:var(--surface);margin-top:10px;padding:14px 16px}
+.below h2{font-size:19px;font-weight:900;margin-bottom:4px}
+.below .no{font-family:"Space Grotesk",sans-serif;font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--nz2)}
+.ans{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.ans input{flex:1;min-width:180px;border:2px solid var(--border-strong);border-radius:14px;padding:12px 16px;font:inherit;font-size:17px;font-weight:700;background:var(--surface);color:var(--ink);outline:none;letter-spacing:.06em}
+.ans input:focus{border-color:var(--nz2)}
+.ans .xbtn{padding:12px 22px;font-size:14px}
+.ans.ng input{border-color:var(--danger);animation:shake .35s}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.fb{margin-top:8px;font-size:13px;font-weight:900;min-height:18px}
+.fb.ng{color:var(--danger)}
+.hint{margin-top:10px;border:1.5px dashed color-mix(in srgb,var(--nzA) 70%,var(--border));border-radius:14px;padding:10px 14px;font-size:13px;line-height:1.85;white-space:pre-wrap;background:color-mix(in srgb,var(--nzA) 9%,var(--surface))}
+.ok{margin-top:12px;border-radius:14px;padding:12px 16px;background:color-mix(in srgb,#5FA35A 12%,var(--surface));border:1.5px solid color-mix(in srgb,#5FA35A 55%,var(--border))}
+.ok b{font-size:18px;color:#4C8F47}
+.exp{margin-top:14px;border-radius:14px;padding:14px 16px;background:color-mix(in srgb,var(--nzA) 10%,var(--surface));border:1.5px solid color-mix(in srgb,var(--nzA) 50%,var(--border))}
+.exp img{max-width:100%;border-radius:12px;margin-top:10px}
+.kwbox{margin-top:12px;border:1.5px solid color-mix(in srgb,var(--nzA) 55%,var(--border));border-radius:14px;padding:10px 14px;background:color-mix(in srgb,var(--nzA) 7%,var(--surface))}
+.kwbox b{font-size:13.5px}
+.kwbox input{flex:1;min-width:160px;border:2px solid var(--border-strong);border-radius:12px;padding:9px 14px;font:inherit;font-size:16px;font-weight:900;letter-spacing:.06em;background:var(--surface);color:var(--ink);outline:none}
+.kwbox input:focus{border-color:var(--nzA)}
+.kwgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:12px 0 4px}
+.kwc{border:2px dashed var(--border-strong);border-radius:14px;padding:10px 8px;background:var(--surface);cursor:pointer;font-family:inherit;color:var(--ink);text-align:center}
+.kwc span{display:block;font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;color:var(--nz2);letter-spacing:.1em}
+.kwc b{display:block;font-size:18px;font-weight:900;margin-top:2px;word-break:break-all}
+.kwc.on{border-style:solid;border-color:var(--nzA);background:color-mix(in srgb,var(--nzA) 12%,var(--surface))}
+.sl .kwt{font-size:10.5px;font-weight:900;padding:1px 7px;border-radius:99px;background:color-mix(in srgb,var(--nzA) 22%,var(--surface));max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clear{text-align:center;padding:20px 16px;border-radius:16px;margin-top:12px;color:#3B2A05;background:linear-gradient(135deg,#FFE6A6,#F7C95C 60%,#F2B544)}
+.clear h3{font-size:24px;font-weight:900;letter-spacing:.08em}
+
+/* サイド */
+.side .box{border:1.5px solid var(--border);border-radius:16px;background:var(--surface);padding:12px 14px;margin-bottom:10px}
+.side .tn{display:flex;align-items:center;gap:8px;font-weight:900;font-size:15px}
+.side .tn i{width:14px;height:14px;border-radius:4px;background:var(--tc)}
+.side .mem{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.side .mem span{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:2px 8px 2px 2px;border-radius:99px;background:var(--surface-2)}
+.side .mem span.me{outline:2px solid var(--tc)}
+.side .tm{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:20px;margin-top:8px}
+.sl{display:flex;flex-direction:column;gap:4px}
+.sl button{display:flex;align-items:center;gap:8px;border:1.5px solid transparent;background:none;border-radius:10px;padding:6px 8px;cursor:pointer;font-family:inherit;color:var(--ink);font-size:12.5px;font-weight:700;text-align:left}
+.sl button:hover:not(:disabled){background:var(--surface-2)}
+.sl button.on{border-color:var(--nz2);background:color-mix(in srgb,var(--nz2) 10%,var(--surface))}
+.sl button:disabled{color:var(--muted);cursor:default}
+.sl .st{margin-left:auto;font-size:11px}
+.sl .k{font-family:"Space Grotesk",sans-serif;font-size:11px;font-weight:700;color:var(--nz2);width:34px}
+.memo textarea{width:100%;min-height:200px;border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;font:inherit;font-size:13px;line-height:1.8;background:color-mix(in srgb,#FFF1A8 22%,var(--surface));color:var(--ink);resize:vertical}
+.memo .mt{font-size:10.5px;color:var(--muted);margin-top:4px;min-height:14px}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;cursor:pointer}
+.spec{padding:9px 14px;border-radius:12px;margin-bottom:10px;font-size:12.5px;font-weight:900;background:color-mix(in srgb,var(--danger) 10%,var(--surface));border:1.5px solid color-mix(in srgb,var(--danger) 40%,var(--border));display:flex;gap:10px;align-items:center}
+
+/* 拡大 */
+.zoom{position:fixed;inset:0;z-index:60;background:rgba(5,12,16,.92);display:none;align-items:center;justify-content:center;cursor:zoom-out}
+.zoom.on{display:flex}
+.zoom img{max-width:96vw;max-height:94vh;object-fit:contain}
+
+/* 編集 */
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.seg button{border:1.5px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:900;cursor:pointer;font-family:inherit}
+.seg button.on{border-color:var(--nz2);color:#fff;background:var(--nz)}
+.ed label{display:block;font-size:11.5px;font-weight:900;color:var(--muted);margin:10px 0 4px}
+.ed label.chk{display:inline-flex;margin:0 16px 0 0;color:var(--ink);font-size:12.5px}
+.ed .chk input{width:auto}
+.ed input,.ed textarea,.ed select{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;background:var(--surface);color:var(--ink)}
+.ed textarea{min-height:80px;line-height:1.8;resize:vertical}
+.ed input[type=color]{width:44px;height:34px;padding:2px}
+.edc{border:1.5px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:12px;border-left:6px solid var(--nz2)}
+.edc .pv{width:160px;aspect-ratio:16/9;border-radius:10px;background:#0E1E25 center/contain no-repeat;border:1px solid var(--border);flex:none}
+.savebar{position:sticky;bottom:10px;display:flex;gap:8px;align-items:center;padding:10px 14px;border-radius:14px;background:var(--surface);border:1.5px solid var(--border);box-shadow:var(--shadow);margin-top:10px;z-index:5}
+.savebar.dirty{border-color:var(--nzA)}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl td,.tbl th{padding:7px 6px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
+@media (max-width:620px){ .hero h1{font-size:26px} .ans input{font-size:16px} .tool .tt{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/emblem.png" alt="" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div><h1>謎解き</h1><div class="sub">クラウドハッシュテイル校 TOOLS ・ 遊び場</div></div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <button class="iconbtn" id="gmBtn" style="display:none">🛠 編集・進行</button>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+  <div id="view"><div class="panel"><div class="empty">読み込み中…</div></div></div>
+</div>
+<div class="zoom" id="zoom"><img alt=""></div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome ? window.MCCHome.boot(session) : null;
+  const toast = t => (ctx && ctx.toast ? ctx.toast(t) : alert(t));
+  const IS_GM = C.isAdmin(session);
+  const me = { id: String(session.discord.id), name: session.discord.name || session.discord.username || "?", avatar: session.discord.avatar || "" };
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  /* =========================================================
+     保存先（既存のFirestoreルール match /lboard_index/{id} のまま使える）
+       lboard_index/nazo            … 問題（イントロ・問題・アウトロ・チーム）
+       lboard_index/nazo_t_<チームID> … チームごとの進み具合・メモ・スライド上の書き込み
+     答えは「ひらがな・小文字・空白なし」にそろえてから SHA-256 にして保存します。
+     ========================================================= */
+  const DOC_CFG = "nazo", DOC_ST = "nazo_state", TDOC = id => "nazo_t_" + id;
+
+  /* ---- Firestore（無ければ localStorage で動く。テスト用） ---- */
+  function openDb(){
+    const fb = (window.MCC_LB_CONFIG || {}).firebase || {};
+    if (!(fb.apiKey && fb.projectId && typeof window.firebase !== "undefined" && firebase.firestore)) return null;
+    if (!firebase.apps.length) firebase.initializeApp(fb);
+    return firebase.firestore();
+  }
+  const db = openDb();
+  const LS = id => "mcc-nz-" + id;
+  const lsGet = id => { try { return JSON.parse(localStorage.getItem(LS(id)) || "null"); } catch(e){ return null; } };
+  const lsSubs = {};
+  const lsFire = id => (lsSubs[id] || []).forEach(f => f(lsGet(id)));
+  function deepMerge(a, b){ Object.keys(b).forEach(k => { if (b[k] && typeof b[k] === "object" && !Array.isArray(b[k])) { a[k] = a[k] && typeof a[k] === "object" ? a[k] : {}; deepMerge(a[k], b[k]); } else a[k] = b[k]; }); return a; }
+  const store = {
+    sub(id, cb){
+      if (db) return db.collection("lboard_index").doc(id).onSnapshot(s => cb(s.exists ? s.data() : null), e => { console.warn(e); cb(null); });
+      (lsSubs[id] = lsSubs[id] || []).push(cb); setTimeout(() => cb(lsGet(id)), 0);
+      return () => { lsSubs[id] = (lsSubs[id] || []).filter(f => f !== cb); };
+    },
+    async merge(id, obj){
+      if (db) return db.collection("lboard_index").doc(id).set(obj, { merge: true });
+      const cur = lsGet(id) || {}; deepMerge(cur, obj); localStorage.setItem(LS(id), JSON.stringify(cur)); lsFire(id);
+    },
+    async put(id, obj){
+      if (db) return db.collection("lboard_index").doc(id).set(obj);
+      localStorage.setItem(LS(id), JSON.stringify(obj)); lsFire(id);
+    },
+    async del(id, path){
+      if (db) return db.collection("lboard_index").doc(id).update({ [path]: firebase.firestore.FieldValue.delete() });
+      const cur = lsGet(id) || {}; const ps = path.split("."); let o = cur;
+      for (let i = 0; i < ps.length - 1; i++){ o = o[ps[i]]; if (!o) return; }
+      delete o[ps[ps.length - 1]]; localStorage.setItem(LS(id), JSON.stringify(cur)); lsFire(id);
+    },
+    async tx(id, fn){        // fn(cur) → 書き込むmerge用オブジェクト（エラーで中止）
+      if (db){
+        const ref = db.collection("lboard_index").doc(id);
+        return db.runTransaction(async t => { const s = await t.get(ref); const w = fn(s.exists ? s.data() : null); if (w) t.set(ref, w, { merge: true }); });
+      }
+      const w = fn(lsGet(id)); if (w) await store.merge(id, w);
+    }
+  };
+  window.addEventListener("storage", e => { if (e.key && e.key.indexOf("mcc-nz-") === 0) lsFire(e.key.slice(7)); });
+
+  /* ---------- 答えのそろえ方 ---------- */
+  function normAns(s){
+    s = String(s || "").normalize("NFKC").toLowerCase();
+    s = s.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+    return s.replace(/[\s　・、。,.!！?？「」『』()（）\[\]【】"'`~〜\-_―‐]/g, "");
+  }
+  async function hashAns(pid, s){
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("chc-nazo:" + pid + ":" + normAns(s)));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  /* ---------- 問題の形 ---------- */
+  const TEAM_COLORS = ["#E06A5B", "#3F7FC4", "#4F9A55", "#8A5CC6", "#E0A13A", "#2E9C9C"];
+  function sampleCfg(){
+    const q = (i, title) => ({ id: "q" + i, title, img: "assets/nazo/q" + i + ".png", text: "（ここに問題文や補足を書きます）", hint: "" });
+    return {
+      title: "クラウドハッシュテイル校の謎", subtitle: "4人1チームで、5つの謎を解き明かせ", open: true, ranking: true, teamSize: 4,
+      teams: [1, 2, 3, 4].map(i => ({ id: "t" + i, name: "チーム" + i, color: TEAM_COLORS[i - 1] })),
+      intro: { title: "プロローグ", img: "assets/nazo/intro.png", text: "（ここにイントロのストーリーを書きます）\nある日、校舎に一通の手紙が届いた──。" },
+      questions: [q(1, "第1の謎"), q(2, "第2の謎"), q(3, "第3の謎"), q(4, "第4の謎"), q(5, "第5の謎")],
+      // 答えは最終回答の1つだけ
+      final: { title: "最終回答", img: "", text: "5つの謎のキーワードを組み合わせると、最後の答えが見えてくる。たどり着いた答えを提出しよう。", hint: "", answers: ["こたえ"], hashes: [] },
+      outro: { title: "エピローグ", img: "assets/nazo/outro.png", text: "（ここにアウトロのストーリーを書きます）",
+        explain: "（ここに全体の解説を書きます）", explainImg: "" },
+      updatedAt: 0
+    };
+  }
+  function normCfg(raw){
+    const d = sampleCfg(); raw = raw || d;
+    const s = (v, def, n) => String(v == null ? def : v).slice(0, n || 8000);
+    const qs = Array.isArray(raw.questions) ? raw.questions : (Array.isArray(raw.puzzles) ? raw.puzzles : d.questions);
+    const teams = (Array.isArray(raw.teams) && raw.teams.length ? raw.teams : d.teams).slice(0, 24).map((t, i) => ({
+      id: String(t.id || ("t" + (i + 1))).replace(/[^\w-]/g, ""), name: s(t.name, "チーム" + (i + 1), 30), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : TEAM_COLORS[i % TEAM_COLORS.length] }));
+    const io = (o, dd) => ({ title: s((o || {}).title, dd.title, 60), img: s((o || {}).img, dd.img, 2000), text: s((o || {}).text, dd.text) });
+    const outro = Object.assign(io(raw.outro, d.outro), { explain: s((raw.outro || {}).explain, d.outro.explain), explainImg: s((raw.outro || {}).explainImg, "", 2000) });
+    return {
+      title: s(raw.title, d.title, 60), subtitle: s(raw.subtitle, "", 100), open: raw.open !== false, ranking: raw.ranking !== false,
+      teamSize: Math.max(1, Math.min(8, raw.teamSize | 0 || 4)), teams,
+      intro: io(raw.intro, d.intro),
+      questions: qs.slice(0, 20).map((p, i) => ({
+        id: String(p.id || ("q" + (i + 1))), title: s(p.title, "謎" + (i + 1), 60), img: s(p.img, "", 2000), text: s(p.text, ""), hint: s(p.hint, ""), kwHint: s(p.kwHint, "", 60) })),
+      final: (f => ({ title: s(f.title, "最終回答", 60), img: s(f.img, "", 2000), text: s(f.text, ""), hint: s(f.hint, ""),
+        answers: Array.isArray(f.answers) ? f.answers.map(String).filter(Boolean).slice(0, 20) : [],
+        hashes: Array.isArray(f.hashes) ? f.hashes.map(String).filter(x => /^[0-9a-f]{64}$/.test(x)).slice(0, 20) : [] }))(raw.final && typeof raw.final === "object" ? raw.final : d.final),
+      outro, updatedAt: raw.updatedAt || 0
+    };
+  }
+  function normTeam(raw){
+    raw = raw || {};
+    const members = {};
+    Object.entries(raw.members || {}).forEach(([k, m]) => { if (m) members[k] = { name: String(m.name || "?"), avatar: String(m.avatar || ""), at: m.at || 0 }; });
+    const ink = {};
+    Object.entries(raw.ink || {}).forEach(([sl, items]) => { ink[sl] = {}; Object.entries(items || {}).forEach(([k, v]) => { if (v && v.t) ink[sl][k] = v; }); });
+    return { members, start: raw.start || 0, end: raw.end || 0, hints: Object.assign({}, raw.hints || {}),
+      answer: raw.answer && raw.answer.at ? raw.answer : null,            // 提出した最終回答 { ans, by, name, at }
+      kw: (k => { const o = {}; Object.entries(k || {}).forEach(([q, v]) => { if (v && v.v) o[q] = { v: String(v.v).slice(0, 40), name: String(v.name || ""), at: v.at || 0 }; }); return o; })(raw.kw),   // 謎ごとのキーワード（チームのメモ・判定なし）
+      result: raw.result && raw.result.at ? { ok: !!raw.result.ok, at: raw.result.at } : null,   // 管理者が開示した結果
+      cur: String(raw.cur || "intro"), memo: String(raw.memo || ""), memoBy: String(raw.memoBy || ""), memoAt: raw.memoAt || 0, ink };
+  }
+
+  /* ---------- 状態 ---------- */
+  let cfg = normCfg(null), cfgReady = false;
+  const T = {};                 // チームID → normTeam
+  const tSubs = {};
+  let slide = "intro", follow = true, tool = matchMedia("(pointer:fine)").matches ? "pen" : "none", color = "#E5484D", inkOn = true;
+  let gm = false, gmTab = "edit", edit = null, dirty = false, spectate = "";
+  let lastKey = "", memoTimer = null, resubmit = false;
+  // 全チーム共通の進行。管理者が切り替える： prologue（待機）→ play（謎解き中）→ epilogue
+  let S = { phase: "prologue", startAt: 0, at: 0 };
+  const normState = raw => ({ phase: ["prologue", "play", "epilogue"].indexOf((raw || {}).phase) >= 0 ? raw.phase : "prologue", startAt: (raw || {}).startAt || 0, at: (raw || {}).at || 0 });
+  const playing = () => S.phase !== "prologue";
+  let stReady = false;
+
+  const myTeamId = () => cfg.teams.map(t => t.id).find(id => T[id] && T[id].members[me.id]) || "";
+  const viewTeamId = () => spectate || myTeamId();
+  const team = () => T[viewTeamId()] || null;
+  const teamCfg = id => cfg.teams.find(t => t.id === id) || { name: "?", color: "#888" };
+  const slides = () => [{ key: "intro", kind: "intro" }].concat(cfg.questions.map((q, i) => ({ key: q.id, kind: "q", i, q })),
+    [{ key: "final", kind: "final" }, { key: "outro", kind: "outro" }]);
+  const cleared = t => !!(t && t.result && t.result.ok);
+  const revealed = t => !!(t && t.result);
+  // スタートすると5つの謎と最終回答はぜんぶ見られる。エピローグは管理者が結果を開示してから
+  function unlockedKey(t, key){
+    if (key === "intro") return true;
+    if (key === "outro") return S.phase === "epilogue";
+    return !!t && playing() && slides().some(s => s.key === key);
+  }
+  const statusText = t => !t || !playing() ? "スタート前" : t.result ? (t.result.ok ? "🏆 正解" : "❌ 不正解") : t.answer ? "📨 提出済み・発表待ち" : "挑戦中";
+  const fmt = ms => { ms = Math.max(0, ms); const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+    return (h ? h + ":" + String(m % 60).padStart(2, "0") : m) + ":" + String(s % 60).padStart(2, "0"); };
+  function avatar(u){
+    return u.avatar ? '<img class="av" src="' + esc(u.avatar) + '" alt="" onerror="this.outerHTML=\'<span class=&quot;av avf&quot;>' + esc(String(u.name).slice(0, 1)) + '</span>\'">'
+                    : '<span class="av avf">' + esc(String(u.name || "?").slice(0, 1)) + "</span>";
+  }
+
+  /* ---------- チームの購読 ---------- */
+  function syncSubs(){
+    const ids = cfg.teams.map(t => t.id);
+    Object.keys(tSubs).forEach(id => { if (ids.indexOf(id) < 0){ tSubs[id](); delete tSubs[id]; delete T[id]; } });
+    ids.forEach(id => {
+      if (tSubs[id]) return;
+      tSubs[id] = store.sub(TDOC(id), raw => {
+        const before = T[id];
+        T[id] = normTeam(raw);
+        onTeamChange(id, before);
+      });
+    });
+  }
+  function onTeamChange(id, before){
+    const t = T[id];
+    if (id === viewTeamId() && t){
+      // ほかのメンバーが画面を動かした → ついていく
+      if (follow && before && before.cur !== t.cur && t.cur !== slide && unlockedKey(t, t.cur)) slide = t.cur;
+      if (before && !spectate){
+        if (t.answer && (!before.answer || before.answer.at !== t.answer.at) && t.answer.by !== me.id) toast("📨 " + t.answer.name + " さんが最終回答「" + t.answer.ans + "」を提出しました");
+        if (t.result && !before.result){ toast(t.result.ok ? "🎉 結果発表：正解！" : "結果発表：残念…不正解でした"); if (follow){ slide = "final"; } }
+      }
+    }
+    if (gm && gmTab === "edit") return;      // 編集中は入力をじゃましない
+    render();
+  }
+
+  /* =========================================================
+     画面
+     ========================================================= */
+  function render(){
+    if (!cfgReady) return;
+    if (gm && IS_GM){ $("wrap").classList.remove("wide"); lastKey = ""; return renderGm(); }
+    if (!cfg.open && !IS_GM){ $("view").innerHTML = '<div class="panel"><div class="empty">🔒 謎解きは、まだ公開されていません。</div></div>'; lastKey = ""; return; }
+    const tid = viewTeamId();
+    if (!tid || !T[tid]){ $("wrap").classList.remove("wide"); lastKey = ""; return renderLobby(); }
+    $("wrap").classList.add("wide");
+    renderGame();
+  }
+
+  function rankRows(){
+    return cfg.teams.map(tc => {
+      const t = T[tc.id]; if (!t) return null;
+      const st = cleared(t) ? 3 : revealed(t) ? 1 : t.answer ? 2 : playing() ? 0.5 : 0;
+      return { tc, t, st, time: t.answer && S.startAt ? t.answer.at - S.startAt : 0 };
+    }).filter(r => r && Object.keys(r.t.members).length).sort((a, b) => (b.st - a.st) || ((a.time || 9e15) - (b.time || 9e15)));
+  }
+  function rankingHtml(){
+    if (!cfg.ranking) return "";
+    const rows = rankRows(); if (!rows.length) return "";
+    const mt = myTeamId();
+    return '<div class="panel" style="margin-top:14px"><div class="phead"><h2>🏅 チームの進み具合</h2><span class="sub">正解したチームが上・提出が早い順</span></div><div class="pbody"><table class="rk">' +
+      rows.map((r, k) => '<tr class="' + (r.tc.id === mt ? "me" : "") + '"><td class="n">' + (k + 1) + '</td><td><span class="dot" style="background:' + r.tc.color + '"></span><b>' + esc(r.tc.name) + "</b></td>" +
+        '<td style="text-align:right;font-weight:900">' + (statusText(r.t) + (r.time && revealed(r.t) ? "（" + fmt(r.time) + "）" : "")) + "</td></tr>").join("") +
+      "</table></div></div>";
+  }
+
+  function renderLobby(){
+    const size = cfg.teamSize;
+    $("view").innerHTML =
+      '<div class="hero"><div class="kicker">MYSTERY PUZZLE ・ TEAM</div><h1>' + esc(cfg.title) + "</h1>" + (cfg.subtitle ? "<p>" + esc(cfg.subtitle) + "</p>" : "") + "</div>" +
+      (!cfg.open ? '<div class="panel"><div class="pbody note">🔒 非公開中です（管理者にだけ見えています）</div></div>' : "") +
+      '<div class="panel"><div class="pbody note">チームを1つ選んで参加してください（1チーム' + size + '人まで）。<br>同じチームの人とは、<b>スライド・メモ・スライドへの書き込み・ヒント</b>がぜんぶ共有されます。<br>5つの謎はどれからでも挑戦OK。それぞれの謎で見つけた<b>キーワード</b>を組み合わせて、<b>最終回答</b>を1つ提出します。チームで1つ提出し、正解かどうかは<b>管理者の発表</b>で分かります。</div></div>' +
+      '<div class="teams">' + cfg.teams.map(tc => {
+        const t = T[tc.id]; const mem = t ? Object.entries(t.members).sort((a, b) => a[1].at - b[1].at) : [];
+        const full = mem.length >= size;
+        return '<div class="tc" style="--tc:' + tc.color + '"><h3><span style="width:14px;height:14px;border-radius:4px;background:' + tc.color + '"></span>' + esc(tc.name) +
+          '<span class="spacer"></span><span class="pg">' + mem.length + " / " + size + "人</span></h3>" +
+          '<div class="slots">' + mem.map(([k, m]) => '<div class="slot">' + avatar(m) + esc(m.name) + "</div>").join("") +
+            Array.from({ length: Math.max(0, size - mem.length) }, () => '<div class="slot free"><i></i>あき</div>').join("") + "</div>" +
+          (t && playing() ? '<div class="pg" style="margin-bottom:8px">' + statusText(t) + "</div>" : "") +
+          '<button class="xbtn ' + (full ? "" : "main") + ' sm" data-join="' + esc(tc.id) + '"' + (full ? " disabled" : "") + ">" + (full ? "満員" : "このチームに入る") + "</button>" +
+        "</div>";
+      }).join("") + "</div>" + rankingHtml();
+    document.querySelectorAll("[data-join]").forEach(b => b.onclick = () => join(b.dataset.join));
+  }
+  async function join(id){
+    const tc = teamCfg(id);
+    if (!confirm("「" + tc.name + "」に参加しますか？")) return;
+    try {
+      await store.tx(TDOC(id), raw => {
+        const t = normTeam(raw);
+        if (!t.members[me.id] && Object.keys(t.members).length >= cfg.teamSize) throw new Error("このチームは満員です");
+        return { members: { [me.id]: { name: me.name, avatar: me.avatar, at: Date.now() } } };
+      });
+      slide = (T[id] && T[id].cur) || "intro";
+      toast("「" + tc.name + "」に参加しました");
+    } catch(e){ toast(e.message); }
+  }
+
+  /* ---- ゲーム画面 ---- */
+  function renderGame(){
+    const tid = viewTeamId(), t = T[tid], tc = teamCfg(tid);
+    if (!slides().some(s => s.key === slide) || !unlockedKey(t, slide)) slide = "intro";
+    const sl = slides().find(s => s.key === slide);
+    const key = JSON.stringify([tid, slide, sl.kind === "final" || sl.kind === "outro" ? t.kw : 0, !!t.hints[slide], t.answer ? t.answer.at : 0, t.result ? [t.result.ok, t.result.at] : 0, S.phase, resubmit, Object.keys(t.members).sort(), spectate, cfg.updatedAt,
+      slides().map(s => unlockedKey(t, s.key))]);
+    if (key === lastKey){ drawInk(); updateSide(); updateKw(); return; }
+    lastKey = key;
+    const list = slides(), idx = list.findIndex(s => s.key === slide);
+    const img = sl.kind === "intro" ? cfg.intro.img : sl.kind === "outro" ? cfg.outro.img : sl.kind === "final" ? cfg.final.img : sl.q.img;
+    const title = sl.kind === "intro" ? cfg.intro.title : sl.kind === "outro" ? cfg.outro.title : sl.kind === "final" ? cfg.final.title : sl.q.title;
+    const ro = !!spectate;
+    let below = "";
+    if (sl.kind === "intro"){
+      below = '<div class="no">PROLOGUE</div><h2>' + esc(cfg.intro.title) + '</h2><div class="txt">' + esc(cfg.intro.text) + "</div>" +
+        (!playing() ? '<div class="exp" style="text-align:center;margin-top:14px"><b>⏳ スタートの合図を待っています</b><div class="note">管理者がスタートすると、全チームいっせいに第1の謎が開きます</div></div>'
+                    : (cfg.questions[0] ? '<div class="row" style="margin-top:12px"><button class="xbtn main" data-go="' + esc(cfg.questions[0].id) + '">第1の謎へ →</button></div>' : ""));
+    } else if (sl.kind === "q"){
+      const q = sl.q, hinted = t.hints[q.id], next = list[idx + 1];
+      below = '<div class="no">QUESTION ' + (sl.i + 1) + " / " + cfg.questions.length + "</div><h2>" + esc(q.title) + "</h2>" + (q.text ? '<div class="txt">' + esc(q.text) + "</div>" : "") +
+        '<div class="kwbox"><div class="row"><b>🔑 この謎のキーワード</b>' + (q.kwHint ? '<span class="note">（' + esc(q.kwHint) + "）</span>" : "") +
+          '<span class="spacer"></span><span class="note">チームで共有 ・ 正解かどうかの判定はありません</span></div>' +
+          '<div class="row" style="margin-top:6px"><input id="kwIn" maxlength="40" autocomplete="off" placeholder="解けたらキーワードをメモ"' + (ro || S.phase === "epilogue" ? " disabled" : "") + ' value="' + esc((t.kw[q.id] || {}).v || "") + '">' +
+            (ro ? "" : '<button class="xbtn sm main" id="kwSave">記録</button>') + '</div><div class="note" id="kwBy" style="margin-top:4px"></div></div>' +
+        (q.hint ? (hinted ? '<div class="hint">💡 ' + esc(q.hint) + "</div>" : (ro ? "" : '<button class="xbtn sm" id="hintBtn" style="margin-top:10px">💡 ヒントを見る（チーム全員に出ます）</button>')) : "") +
+        '<div class="row" style="margin-top:12px">' + (next && next.kind === "q" ? '<button class="xbtn" data-go="' + esc(next.key) + '">次の謎へ →</button>' : "") +
+          '<button class="xbtn gold" data-go="final">🔑 最終回答へ</button></div>';
+    } else if (sl.kind === "final"){
+      const f = cfg.final, a = t.answer, r = t.result, hinted = t.hints.final;
+      const form = '<form class="ans" id="ansF"><input id="ansIn" autocomplete="off" placeholder="最終回答を入力" maxlength="60"' + (ro ? " disabled" : "") +
+          (a ? ' value="' + esc(a.ans) + '"' : "") + '><button class="xbtn main" type="submit"' + (ro ? " disabled" : "") + ">📨 提出する</button></form>" +
+        '<div class="note" style="margin-top:6px">提出すると、管理者が結果を発表するまで 正解かどうかは分かりません（発表までは何度でも提出しなおせます）</div>';
+      below = '<div class="no">FINAL ANSWER</div><h2>' + esc(f.title) + "</h2>" + (f.text ? '<div class="txt">' + esc(f.text) + "</div>" : "") +
+        kwGrid(t) +
+        (r ? (r.ok ? '<div class="ok" style="text-align:center;padding:18px"><div style="font-size:34px">⭕</div><b style="font-size:24px">正解！</b>'
+                   : '<div class="ok" style="text-align:center;padding:18px;background:color-mix(in srgb,var(--danger) 10%,var(--surface));border-color:color-mix(in srgb,var(--danger) 45%,var(--border))"><div style="font-size:34px">❌</div><b style="font-size:24px;color:var(--danger)">残念…不正解</b>') +
+              '<div style="margin-top:6px">あなたのチームの回答：<b>' + esc(a ? a.ans : "（未提出）") + "</b></div>" +
+              '<div class="row" style="margin-top:12px;justify-content:center"><button class="xbtn main" data-go="outro">エピローグへ →</button></div></div>'
+           : a && !resubmit ? '<div class="exp"><div style="font-size:13px;font-weight:900">📨 提出済み</div>' +
+                '<div style="font-size:22px;font-weight:900;margin:4px 0">「' + esc(a.ans) + "」</div>" +
+                '<div class="note">' + esc(a.name) + " さんが " + new Date(a.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + " に提出 ・ 結果の発表を待っています…</div>" +
+                (ro ? "" : '<button class="xbtn sm" id="resubBtn" style="margin-top:10px">✏️ 提出しなおす</button>') + "</div>"
+           : form + (resubmit ? '<button class="xbtn sm" id="resubCancel" style="margin-top:8px">やめる</button>' : "")) +
+        '<div class="fb" id="fb"></div>' +
+        (!r && f.hint ? (hinted ? '<div class="hint">💡 ' + esc(f.hint) + "</div>" : (ro ? "" : '<button class="xbtn sm" id="hintBtn" style="margin-top:8px">💡 ヒントを見る（チーム全員に出ます）</button>')) : "");
+    } else {
+      const o = cfg.outro;
+      below = '<div class="no">EPILOGUE</div><h2>' + esc(o.title) + '</h2><div class="txt">' + esc(o.text) + "</div>" +
+        (Object.keys(t.kw).length ? '<div class="note" style="margin-top:12px;font-weight:900">あなたのチームのキーワード' + (t.answer ? " ・ 最終回答「" + esc(t.answer.ans) + "」" : "") + "</div>" + kwGrid(t) : "") +
+        (cleared(t) ? '<div class="clear"><div style="font-size:34px">🏆</div><h3>全問クリア！</h3><div style="font-weight:900">提出までのタイム ' + fmt(t.answer.at - S.startAt) + "</div></div>"
+                    : revealed(t) ? '<div class="exp" style="text-align:center"><b>あと一歩…！</b><div class="note">解説を読んで、謎の答えをたしかめよう</div></div>' : "") +
+        (o.explain || o.explainImg ? '<div class="exp"><b>📖 解説</b><div class="txt" style="margin-top:4px">' + esc(o.explain) + "</div>" +
+          (o.explainImg ? '<img src="' + esc(o.explainImg) + '" alt="" class="zoomable">' : "") + "</div>" : "");
+    }
+
+    $("view").innerHTML =
+      (spectate ? '<div class="spec">👀 観戦中：' + esc(tc.name) + '（書き込み・回答はできません）<span class="spacer"></span><button class="xbtn sm" id="specOff">観戦をやめる</button></div>' : "") +
+      '<div class="game"><div>' +
+        '<div class="tool"><span class="tt">' + esc(title) + "</span><span class=\"spacer\"></span>" +
+          (ro ? "" :
+          '<button class="tb' + (tool === "none" ? " on" : "") + '" data-tool="none" title="見るだけ（スマホでスクロールしたいとき）">👆</button>' +
+          '<button class="tb' + (tool === "pen" ? " on" : "") + '" data-tool="pen" title="ペン">✏️</button>' +
+          '<button class="tb' + (tool === "text" ? " on" : "") + '" data-tool="text" title="文字（クリックした場所に書く）">T</button>' +
+          '<button class="tb' + (tool === "erase" ? " on" : "") + '" data-tool="erase" title="消しゴム（書き込みをクリックで消す）">⌫</button>' +
+          '<span class="sep"></span>' + ["#E5484D", "#3B82F6", "#F5B400", "#1E1E1E", "#FFFFFF"].map(c => '<button class="cl' + (c === color ? " on" : "") + '" data-color="' + c + '" style="background:' + c + '"></button>').join("") +
+          '<span class="sep"></span><button class="tb" id="undoBtn" title="自分の最後の書き込みを取り消す">↶</button><button class="tb" id="clearBtn" title="このスライドの書き込みを全部消す">🗑</button>') +
+          '<button class="tb' + (inkOn ? " on" : "") + '" id="inkTg" title="書き込みの表示／非表示">👁</button>' +
+          '<button class="tb" id="zoomBtn" title="画像を大きく見る">⛶</button>' +
+        "</div>" +
+        '<div class="stage ' + (ro ? "" : tool) + '" id="stage">' +
+          (img ? '<img id="simg" src="' + esc(img) + '" alt="">' : '<div class="lock" style="background:linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B);font-size:30px;letter-spacing:.12em">🔑 ' + esc(title) + "</div>") + '<canvas id="ink"></canvas>' +
+          '<button class="nav l" data-step="-1"' + (idx > 0 ? "" : " disabled") + ">‹</button>" +
+          '<button class="nav r" data-step="1"' + (idx < list.length - 1 && unlockedKey(t, list[idx + 1].key) ? "" : " disabled") + ">›</button>" +
+        "</div>" +
+        '<div class="below">' + below + "</div>" +
+      "</div>" +
+      '<aside class="side" style="--tc:' + tc.color + '">' +
+        '<div class="box"><div class="tn"><i></i>' + esc(tc.name) + '<span class="spacer"></span><span class="note" id="sCnt"></span></div>' +
+          '<div class="mem" id="sMem"></div><div class="tm" id="sTime"></div>' +
+          (ro ? "" : '<div class="row" style="margin-top:8px"><label class="chk"><input type="checkbox" id="followCk"' + (follow ? " checked" : "") + "> 🔗 チームで画面を合わせる</label></div>") +
+        "</div>" +
+        '<div class="box"><div class="note" style="font-weight:900;margin-bottom:6px">スライド</div><div class="sl">' + list.map(s => {
+          const ok = unlockedKey(t, s.key), solved = s.kind === "final" ? (t.result ? (t.result.ok ? "⭕" : "❌") : t.answer ? "📨" : "")
+            : s.kind === "q" && t.kw[s.key] ? '<span class="kwt">' + esc(t.kw[s.key].v) + "</span>" : "";
+          return '<button data-go="' + esc(s.key) + '" class="' + (s.key === slide ? "on" : "") + '"' + (ok ? "" : " disabled") + '><span class="k">' +
+            (s.kind === "intro" ? "INTRO" : s.kind === "outro" ? "OUTRO" : s.kind === "final" ? "🔑" : "Q" + (s.i + 1)) + "</span>" +
+            esc(ok ? (s.kind === "intro" ? cfg.intro.title : s.kind === "outro" ? cfg.outro.title : s.kind === "final" ? cfg.final.title : s.q.title) : "？？？") +
+            '<span class="st">' + (solved || (ok ? "" : "🔒")) + "</span></button>";
+        }).join("") + "</div></div>" +
+        '<div class="box memo"><div class="row" style="margin-bottom:6px"><b style="font-size:13px">📝 チームのメモ</b><span class="spacer"></span><span class="note">全員で共有</span></div>' +
+          '<textarea id="memo" placeholder="気づいたこと・答えの候補などを自由に"' + (ro ? " readonly" : "") + "></textarea><div class=\"mt\" id=\"memoMt\"></div></div>" +
+        (ro ? "" : '<div style="text-align:right"><button class="xbtn sm danger" id="leaveBtn">チームを抜ける</button></div>') +
+      "</aside></div>";
+
+    $("memo").value = t.memo;
+    bindGame();
+    updateSide(); updateKw();
+    if ($("simg")) $("simg").onload = () => drawInk();
+    drawInk();
+  }
+  // 5つの謎のキーワード一覧（最終回答・エピローグ用）
+  function kwGrid(t){
+    return '<div class="kwgrid">' + cfg.questions.map((q, i) => { const k = t.kw[q.id];
+      return '<button class="kwc' + (k ? " on" : "") + '" data-go="' + esc(q.id) + '" title="' + esc(q.title) + 'を開く"><span>Q' + (i + 1) + "</span><b>" + (k ? esc(k.v) : "？") + "</b></button>"; }).join("") + "</div>";
+  }
+  function updateKw(){
+    const t = team(), inp = $("kwIn"); if (!t || !inp) return;
+    const k = t.kw[slide];
+    if (document.activeElement !== inp && inp.value !== ((k || {}).v || "")) inp.value = (k || {}).v || "";
+    if ($("kwBy")) $("kwBy").textContent = k ? "記録：" + k.name + "（" + new Date(k.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + "）" : "";
+  }
+  function updateSide(){
+    const t = team(); if (!t || !$("sMem")) return;
+    $("sMem").innerHTML = Object.entries(t.members).sort((a, b) => a[1].at - b[1].at).map(([k, m]) => '<span class="' + (k === me.id ? "me" : "") + '">' + avatar(m) + esc(m.name) + "</span>").join("");
+    $("sCnt").textContent = statusText(t);
+    $("sTime").textContent = playing() && S.startAt ? "⏱ " + fmt((t.answer ? t.answer.at : Date.now()) - S.startAt) : "⏱ スタート前";
+    const ta = $("memo");
+    if (ta && document.activeElement !== ta && ta.value !== t.memo) ta.value = t.memo;
+    if ($("memoMt")) $("memoMt").textContent = t.memoAt ? "最後に書いた人：" + t.memoBy + "（" + new Date(t.memoAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + "）" : "";
+  }
+  setInterval(() => {
+    const t = team(); if (t && playing() && S.startAt && !t.answer && $("sTime")) $("sTime").textContent = "⏱ " + fmt(Date.now() - S.startAt);
+    if (gm && gmTab === "prog" && $("gTime") && playing()) $("gTime").textContent = fmt(Date.now() - S.startAt);
+  }, 1000);
+
+  function go(key){
+    const t = team(); if (!t || !unlockedKey(t, key)) return;
+    slide = key; render();
+    if (!spectate && follow && t.cur !== key) store.merge(TDOC(viewTeamId()), { cur: key }).catch(() => {});
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function bindGame(){
+    const tid = viewTeamId(), t = T[tid];
+    document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+    document.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { const l = slides(), i = l.findIndex(s => s.key === slide) + Number(b.dataset.step); if (l[i]) go(l[i].key); });
+    if ($("specOff")) $("specOff").onclick = () => { spectate = ""; gm = true; gmTab = "prog"; render(); };
+    document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => { tool = b.dataset.tool; document.querySelectorAll("[data-tool]").forEach(x => x.classList.toggle("on", x === b)); $("stage").className = "stage " + tool; });
+    document.querySelectorAll("[data-color]").forEach(b => b.onclick = () => {
+      color = b.dataset.color;
+      document.querySelectorAll("[data-color]").forEach(x => x.classList.toggle("on", x === b));
+      if (tool === "none" || tool === "erase"){      // 色を選んだらペンにもどす
+        tool = "pen"; document.querySelectorAll("[data-tool]").forEach(x => x.classList.toggle("on", x.dataset.tool === "pen")); $("stage").className = "stage pen";
+      }
+    });
+    $("inkTg").onclick = () => { inkOn = !inkOn; $("inkTg").classList.toggle("on", inkOn); drawInk(); };
+    $("zoomBtn").onclick = () => { if ($("simg")){ $("zoom").querySelector("img").src = $("simg").src; $("zoom").classList.add("on"); } };
+    document.querySelectorAll(".zoomable").forEach(im => im.onclick = () => { $("zoom").querySelector("img").src = im.src; $("zoom").classList.add("on"); });
+    if ($("followCk")) $("followCk").onchange = e => { follow = e.target.checked; if (follow && t.cur && unlockedKey(t, t.cur)){ slide = t.cur; render(); } };
+    if ($("leaveBtn")) $("leaveBtn").onclick = async () => {
+      if (!confirm("チームを抜けますか？（進み具合とメモはチームに残ります）")) return;
+      await store.del(TDOC(tid), "members." + me.id).catch(e => toast(e.message));
+      slide = "intro"; lastKey = ""; render();
+    };
+    if ($("hintBtn")) $("hintBtn").onclick = async () => {
+      if (!confirm("ヒントを見ますか？（チーム全員の画面に出ます）")) return;
+      await store.merge(TDOC(tid), { hints: { [slide]: Date.now() } }).catch(e => toast(e.message));
+    };
+    const saveKw = async () => {
+      const inp = $("kwIn"); if (!inp || spectate) return;
+      const v = inp.value.trim(), cur = (t.kw[slide] || {}).v || "";
+      if (v === cur) return;
+      try {
+        if (v) await store.merge(TDOC(tid), { kw: { [slide]: { v: v.slice(0, 40), by: me.id, name: me.name, at: Date.now() } } });
+        else await store.del(TDOC(tid), "kw." + slide);
+        toast(v ? "🔑 キーワード「" + v + "」を記録しました" : "キーワードを消しました");
+      } catch(e){ toast(e.message); }
+    };
+    if ($("kwSave")) $("kwSave").onclick = saveKw;
+    if ($("kwIn")) $("kwIn").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); saveKw(); $("kwIn").blur(); } };
+    if ($("ansF")) $("ansF").onsubmit = async ev => {
+      ev.preventDefault();
+      const v = $("ansIn").value.trim();
+      if (slide !== "final" || !v || t.result) return;
+      if (S.phase !== "play") return toast("いまは提出できません");
+      if (!confirm("「" + v + "」をチームの最終回答として提出しますか？")) return;
+      const now = Date.now();
+      try {
+        await store.merge(TDOC(tid), { answer: { ans: v.slice(0, 60), by: me.id, name: me.name, at: now }, end: now });
+        resubmit = false; lastKey = ""; render();
+        toast("📨 提出しました。結果の発表を待ってください");
+      } catch(e){ toast("提出できませんでした：" + e.message); }
+    };
+    if ($("resubBtn")) $("resubBtn").onclick = () => { resubmit = true; lastKey = ""; render(); setTimeout(() => $("ansIn") && $("ansIn").select(), 50); };
+    if ($("resubCancel")) $("resubCancel").onclick = () => { resubmit = false; lastKey = ""; render(); };
+    const ta = $("memo");
+    if (ta && !spectate) ta.oninput = () => {
+      clearTimeout(memoTimer);
+      $("memoMt").textContent = "保存中…";
+      memoTimer = setTimeout(() => store.merge(TDOC(tid), { memo: ta.value.slice(0, 20000), memoBy: me.name, memoAt: Date.now() }).catch(e => toast(e.message)), 700);
+    };
+    if ($("undoBtn")) $("undoBtn").onclick = () => {
+      const items = Object.entries((t.ink || {})[slide] || {}).filter(([k, v]) => v.by === me.id).sort((a, b) => b[1].at - a[1].at);
+      if (items.length) store.del(TDOC(tid), "ink." + slide + "." + items[0][0]).catch(e => toast(e.message));
+    };
+    if ($("clearBtn")) $("clearBtn").onclick = () => {
+      if (!Object.keys((t.ink || {})[slide] || {}).length) return;
+      if (confirm("このスライドの書き込みを、チーム全員の分まで全部消しますか？")) store.del(TDOC(tid), "ink." + slide).catch(e => toast(e.message));
+    };
+    bindInk();
+  }
+
+  /* ---------- スライド上の書き込み ----------
+     座標は画像の左上を(0,0)、右下を(1000,1000)にした整数で保存（画面の大きさが違っても同じ位置） */
+  function imgRect(){
+    const st = $("stage"), im = $("simg"); const W = st.clientWidth, H = st.clientHeight;
+    if (!im || !im.naturalWidth) return { x: 0, y: 0, w: W, h: H };
+    const r = Math.min(W / im.naturalWidth, H / im.naturalHeight), w = im.naturalWidth * r, h = im.naturalHeight * r;
+    return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+  }
+  let drawing = null;
+  function drawInk(){
+    const cv = $("ink"); if (!cv) return;
+    const st = $("stage"), dpr = window.devicePixelRatio || 1;
+    const W = st.clientWidth, H = st.clientHeight;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+    if (!inkOn) return;
+    const t = team(); if (!t) return;
+    const R = imgRect(), X = v => R.x + v / 1000 * R.w, Y = v => R.y + v / 1000 * R.h;
+    const items = Object.values((t.ink || {})[slide] || {}).sort((a, b) => a.at - b.at);
+    if (drawing) items.push(drawing);
+    items.forEach(it => {
+      if (it.t === "l"){
+        const pts = String(it.p || "").split(" ").map(s => s.split(",").map(Number)).filter(p => p.length === 2);
+        if (!pts.length) return;
+        g.strokeStyle = it.c; g.lineWidth = Math.max(2, R.w / 1000 * 3.2 * (it.w || 1)); g.lineCap = "round"; g.lineJoin = "round";
+        g.beginPath(); g.moveTo(X(pts[0][0]), Y(pts[0][1]));
+        if (pts.length === 1) g.lineTo(X(pts[0][0]) + .1, Y(pts[0][1]));
+        for (let i = 1; i < pts.length - 1; i++){ const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2; g.quadraticCurveTo(X(pts[i][0]), Y(pts[i][1]), X(mx), Y(my)); }
+        if (pts.length > 1) g.lineTo(X(pts[pts.length - 1][0]), Y(pts[pts.length - 1][1]));
+        g.stroke();
+      } else if (it.t === "x"){
+        const fs = Math.max(12, R.w / 1000 * 30);
+        g.font = "900 " + fs + 'px "Zen Kaku Gothic New",sans-serif'; g.textBaseline = "top";
+        g.lineWidth = Math.max(3, fs / 5); g.strokeStyle = it.c === "#FFFFFF" ? "rgba(0,0,0,.75)" : "rgba(255,255,255,.92)"; g.lineJoin = "round";
+        String(it.s || "").split("\n").forEach((ln, i) => { g.strokeText(ln, X(it.x), Y(it.y) + i * fs * 1.2); g.fillStyle = it.c; g.fillText(ln, X(it.x), Y(it.y) + i * fs * 1.2); });
+      }
+    });
+  }
+  window.addEventListener("resize", () => drawInk());
+  function bindInk(){
+    const cv = $("ink"); if (!cv || spectate) return;
+    const tid = viewTeamId();
+    const pos = e => { const b = cv.getBoundingClientRect(), R = imgRect();
+      return [Math.round(Math.max(0, Math.min(1000, (e.clientX - b.left - R.x) / R.w * 1000))), Math.round(Math.max(0, Math.min(1000, (e.clientY - b.top - R.y) / R.h * 1000)))]; };
+    cv.onpointerdown = e => {
+      if (!unlockedKey(team(), slide)) return;
+      if (tool === "pen"){
+        cv.setPointerCapture(e.pointerId);
+        const p = pos(e);
+        drawing = { t: "l", c: color, w: 1, p: p.join(","), by: me.id, at: Date.now(), _pts: [p] };
+        drawInk(); e.preventDefault();
+      } else if (tool === "text"){
+        e.preventDefault(); textInput(e, pos(e));
+      } else if (tool === "erase"){
+        const p = pos(e), hit = hitTest(p);
+        if (hit) store.del(TDOC(tid), "ink." + slide + "." + hit).catch(er => toast(er.message));
+      }
+    };
+    cv.onpointermove = e => {
+      if (!drawing) return;
+      const p = pos(e), l = drawing._pts[drawing._pts.length - 1];
+      if (Math.hypot(p[0] - l[0], p[1] - l[1]) < 3 || drawing._pts.length > 600) return;
+      drawing._pts.push(p); drawing.p = drawing._pts.map(x => x.join(",")).join(" "); drawInk();
+    };
+    cv.onpointerup = cv.onpointercancel = () => {
+      if (!drawing) return;
+      const it = { t: "l", c: drawing.c, w: 1, p: drawing.p, by: me.id, at: Date.now() };
+      drawing = null;
+      const id = "i" + uid();
+      const t = team(); t.ink[slide] = t.ink[slide] || {}; t.ink[slide][id] = it;      // 先に手元に描いておく
+      drawInk();
+      store.merge(TDOC(tid), { ink: { [slide]: { [id]: it } } }).catch(er => toast("書き込みを保存できませんでした：" + er.message));
+    };
+  }
+  function hitTest(p){
+    const t = team(); const items = Object.entries((t.ink || {})[slide] || {}).sort((a, b) => b[1].at - a[1].at);
+    for (const [k, it] of items){
+      if (it.t === "l"){
+        const pts = String(it.p).split(" ").map(s => s.split(",").map(Number));
+        for (let i = 0; i < pts.length; i++){
+          const a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)];
+          const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+          const u = L ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)) : 0;
+          if (Math.hypot(a[0] + u * dx - p[0], a[1] + u * dy - p[1]) < 14) return k;
+        }
+      } else if (it.t === "x"){
+        const lines = String(it.s).split("\n"), w = Math.max(...lines.map(l => l.length)) * 30, h = lines.length * 36;
+        if (p[0] >= it.x - 6 && p[0] <= it.x + w && p[1] >= it.y - 6 && p[1] <= it.y + h) return k;
+      }
+    }
+    return "";
+  }
+  function textInput(e, p){
+    const st = $("stage"), b = st.getBoundingClientRect();
+    const old = st.querySelector(".tin"); if (old) old.remove();
+    const inp = document.createElement("input");
+    inp.className = "tin"; inp.maxLength = 80; inp.placeholder = "メモを入力して Enter";
+    inp.style.left = Math.min(e.clientX - b.left, b.width - 180) + "px"; inp.style.top = Math.min(e.clientY - b.top, b.height - 40) + "px"; inp.style.color = color === "#FFFFFF" ? "#222" : color;
+    st.appendChild(inp); setTimeout(() => inp.focus(), 0);
+    let done = false;
+    const commit = () => {
+      if (done) return; done = true;
+      const s = inp.value.trim(); inp.remove();
+      if (!s) return;
+      const it = { t: "x", c: color, x: p[0], y: p[1], s, by: me.id, at: Date.now() }, id = "i" + uid();
+      const t = team(); t.ink[slide] = t.ink[slide] || {}; t.ink[slide][id] = it; drawInk();
+      store.merge(TDOC(viewTeamId()), { ink: { [slide]: { [id]: it } } }).catch(er => toast(er.message));
+    };
+    inp.onkeydown = ev => { if (ev.key === "Enter"){ ev.preventDefault(); commit(); } else if (ev.key === "Escape"){ done = true; inp.remove(); } };
+    inp.onblur = commit;
+  }
+  document.addEventListener("keydown", e => {
+    if (gm || !team() || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ const l = slides(), i = l.findIndex(s => s.key === slide) + (e.key === "ArrowRight" ? 1 : -1); if (l[i]) go(l[i].key); }
+  });
+  $("zoom").onclick = () => $("zoom").classList.remove("on");
+
+  /* =========================================================
+     編集・進行（管理者のみ）
+     ========================================================= */
+  function renderGm(){
+    let html = '<div class="seg">' + [["edit", "✏️ 問題の編集"], ["prog", "📊 チームの進行"]].map(x => '<button data-gt="' + x[0] + '" class="' + (gmTab === x[0] ? "on" : "") + '">' + x[1] + "</button>").join("") +
+      '<div class="spacer"></div><button class="xbtn sm" id="toPlayer">👤 プレイヤー画面へ</button></div>';
+    if (gmTab === "prog"){
+      const PH = { prologue: "🌅 プロローグ（スタート待ち）", play: "🔍 謎解き中", epilogue: "🌙 エピローグ" };
+      const waiting = cfg.teams.filter(tc => T[tc.id] && T[tc.id].answer && !T[tc.id].result).length;
+      html += '<div class="panel" style="border-color:color-mix(in srgb,var(--nzA) 60%,var(--border))"><div class="phead"><h2>🎬 全チームの画面</h2>' +
+          '<span class="sub">ここを切り替えると、全チームの画面がいっせいに動きます</span></div><div class="pbody">' +
+          '<div class="row" style="margin-bottom:12px"><span class="note">いま：</span><b style="font-size:16px">' + PH[S.phase] + "</b>" +
+            (playing() && S.startAt ? '<span class="note" style="margin-left:10px">スタートから</span><b id="gTime" style="font-family:Space Grotesk,sans-serif;font-size:18px">' + fmt(Date.now() - S.startAt) + "</b>" : "") + "</div>" +
+          '<div class="row">' +
+            '<button class="xbtn' + (S.phase === "prologue" ? " main" : "") + '" data-phase="prologue">🌅 プロローグを表示</button>' +
+            '<button class="xbtn' + (S.phase === "play" ? " main" : "") + '" data-phase="play">▶ 謎解きスタート</button>' +
+            '<button class="xbtn' + (S.phase === "epilogue" ? " main" : "") + '" data-phase="epilogue">🌙 エピローグを開く</button>' +
+          "</div>" +
+          '<div class="note" style="margin-top:8px">プロローグ：全チームがプロローグの画面で待機（謎は開きません）／ 謎解きスタート：全チームが第1の謎へ移動し、タイム計測開始 ／ エピローグ：全チームがエピローグへ移動（提出は締め切り）' +
+            (waiting ? '<br><b style="color:var(--danger)">発表していないチームが ' + waiting + " チームあります</b>" : "") + "</div></div></div>";
+      html += '<div class="panel"><div class="phead"><h2>📊 チームの進行</h2></div><div class="pbody" style="overflow:auto"><table class="tbl"><tr><th>チーム</th><th>メンバー</th>' +
+        "<th>キーワード</th><th>最終回答（提出）</th><th>自動判定</th><th>結果の発表</th><th>ヒント</th><th>タイム</th><th></th></tr>" +
+        cfg.teams.map(tc => { const t = T[tc.id] || normTeam(null);
+          return '<tr><td><b style="color:' + tc.color + '">■</b> <b>' + esc(tc.name) + "</b></td><td>" +
+            Object.entries(t.members).map(([k, m]) => esc(m.name) + ' <button class="xbtn sm danger" data-kick="' + esc(tc.id) + "|" + esc(k) + '" title="外す">×</button>').join("<br>") + "</td>" +
+            '<td style="font-size:11.5px;line-height:1.7">' + (Object.keys(t.members).length ? cfg.questions.map((q, i) => "Q" + (i + 1) + "：" + (t.kw[q.id] ? "<b>" + esc(t.kw[q.id].v) + "</b>" : '<span class="note">—</span>')).join("<br>") : "—") + "</td>" +
+            "<td>" + (t.answer ? "<b>「" + esc(t.answer.ans) + '」</b><br><span class="note">' + esc(t.answer.name) + " ・ " + new Date(t.answer.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + "</span>" : playing() && Object.keys(t.members).length ? "挑戦中" : "—") + "</td>" +
+            "<td>" + (t.answer ? (autoJudge(t.answer.ans) == null ? "…" : autoJudge(t.answer.ans) ? '<b style="color:var(--ok)">⭕ 正解</b>' : '<b style="color:var(--danger)">❌ 不正解</b>') : "—") + "</td>" +
+            '<td style="white-space:nowrap">' + (t.result ? (t.result.ok ? "⭕ 正解で発表済み" : "❌ 不正解で発表済み") + ' <button class="xbtn sm" data-unrev="' + esc(tc.id) + '">取り消す</button>'
+              : t.answer ? '<button class="xbtn sm main" data-rev="' + esc(tc.id) + '|auto">📣 発表</button> <button class="xbtn sm" data-rev="' + esc(tc.id) + '|1" title="正解として発表">⭕</button> <button class="xbtn sm" data-rev="' + esc(tc.id) + '|0" title="不正解として発表">❌</button>' : "—") + "</td>" +
+            "<td>" + (Object.keys(t.hints).length ? "💡" + Object.keys(t.hints).length : "—") + "</td>" +
+            "<td>" + (t.answer && S.startAt ? fmt(t.answer.at - S.startAt) : "—") + "</td>" +
+            '<td style="white-space:nowrap"><button class="xbtn sm" data-spec="' + esc(tc.id) + '">👀 画面を見る</button> <button class="xbtn sm danger" data-treset="' + esc(tc.id) + '">リセット</button></td></tr>';
+        }).join("") + "</table>" +
+        '<div class="note" style="margin-top:8px">「📣 発表」は自動判定のとおりに結果を出します。表記ゆれなどで判定を変えたいときは ⭕ / ❌ で発表してください。<br>「画面を見る」で、チームのスライド・メモ・書き込みをそのまま見られます</div>' +
+        '<div class="row" style="margin-top:12px"><button class="xbtn main" id="revAll">📣 提出済みのチームをまとめて発表（自動判定）</button></div>' +
+        '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="xbtn sm danger" id="resetAll">🗑 全チームをリセット（メンバーも外す）</button></div></div></div>';
+    } else {
+      if (!edit){ edit = JSON.parse(JSON.stringify(cfg)); edit.final._new = edit.final.answers.join("、"); dirty = false; }
+      const imgRow = (path, val, ph) => '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(val) + '\')"></span>' +
+        '<div style="flex:1;min-width:200px"><label>画像（ファイルの場所かURL）</label><input data-p="' + path + '" value="' + esc(val) + '" placeholder="' + ph + '"></div></div>';
+      html += '<div class="panel ed"><div class="phead"><h2>📘 基本</h2></div><div class="pbody">' +
+          '<div class="row"><label class="chk"><input type="checkbox" data-pb="open"' + (edit.open ? " checked" : "") + "> 公開する</label>" +
+            '<label class="chk"><input type="checkbox" data-pb="ranking"' + (edit.ranking ? " checked" : "") + "> チームの進み具合を表示</label></div>" +
+          '<label>タイトル</label><input data-p="title" value="' + esc(edit.title) + '" maxlength="60">' +
+          '<label>サブタイトル</label><input data-p="subtitle" value="' + esc(edit.subtitle) + '" maxlength="100">' +
+          '<label>1チームの人数</label><input data-p="teamSize" type="number" min="1" max="8" value="' + edit.teamSize + '" style="width:100px"></div></div>' +
+        '<div class="panel ed"><div class="phead"><h2>👥 チーム</h2><span class="sub">名前と色。チームを消すと、そのチームの記録は見えなくなります</span></div><div class="pbody">' +
+          edit.teams.map((t, i) => '<div class="row" style="margin-bottom:6px"><input type="color" data-tc="' + i + '" value="' + t.color + '"><input data-tn="' + i + '" value="' + esc(t.name) + '" maxlength="30" style="flex:1">' +
+            '<button class="xbtn sm danger" data-tdel="' + i + '">削除</button></div>').join("") +
+          '<button class="xbtn sm" id="tadd">＋ チームを足す</button></div></div>' +
+        '<div class="panel ed"><div class="phead"><h2>🌅 イントロ（ストーリー＋画像）</h2></div><div class="pbody">' +
+          '<label>見出し</label><input data-p="intro.title" value="' + esc(edit.intro.title) + '">' + imgRow("intro.img", edit.intro.img, "assets/nazo/intro.png") +
+          '<label>ストーリー</label><textarea data-p="intro.text" style="min-height:140px">' + esc(edit.intro.text) + "</textarea></div></div>" +
+        '<div class="panel ed"><div class="phead"><h2>🧩 問題</h2><span class="sub">画像は 16:9（例 1600×900）がおすすめ</span></div><div class="pbody">' +
+          edit.questions.map((q, i) => '<div class="edc" data-qi="' + i + '"><div class="row"><b style="font-size:13px">問題 ' + (i + 1) + '</b><div class="spacer"></div>' +
+              '<button class="xbtn sm" data-qm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-qm="1"' + (i < edit.questions.length - 1 ? "" : " disabled") + ">▼</button>" +
+              '<button class="xbtn sm danger" data-qdel>削除</button></div>' +
+            '<label>タイトル</label><input data-qf="title" value="' + esc(q.title) + '" maxlength="60">' +
+            '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(q.img) + '\')"></span><div style="flex:1;min-width:200px"><label>画像</label><input data-qf="img" value="' + esc(q.img) + '" placeholder="assets/nazo/q' + (i + 1) + '.png"></div></div>' +
+            '<label>問題文・補足（任意）</label><textarea data-qf="text">' + esc(q.text) + "</textarea>" +
+            '<label>キーワード欄の説明（任意・例：ひらがな3文字）</label><input data-qf="kwHint" value="' + esc(q.kwHint || "") + '" maxlength="60">' +
+            '<label>ヒント（任意）</label><textarea data-qf="hint" style="min-height:60px">' + esc(q.hint) + "</textarea></div>").join("") +
+          '<button class="xbtn sm" id="qadd">＋ 問題を足す</button></div></div>' +
+        '<div class="panel ed"><div class="phead"><h2>🔑 最終回答</h2><span class="sub">答えはここの1つだけ。チームが提出 → 管理者が「チームの進行」で結果を発表すると、アウトロが開きます</span></div><div class="pbody">' +
+          '<label>見出し</label><input data-p="final.title" value="' + esc(edit.final.title) + '">' + imgRow("final.img", edit.final.img, "（任意）assets/nazo/final.png") +
+          '<label>説明（任意）</label><textarea data-p="final.text">' + esc(edit.final.text) + "</textarea>" +
+          '<label>答え（「、」区切りで複数OK。ひらがな/カタカナ/大文字小文字/空白は区別しません）</label>' +
+          '<input data-p="final._new" value="' + esc(edit.final._new || "") + '" placeholder="' + (edit.final.hashes.length ? "登録済み " + edit.final.hashes.length + "個（暗号化して保存中）。変えるときだけ入力" : "例：ひかり、光") + '">' +
+          '<div class="row" style="margin-top:6px"><input id="fchk" placeholder="答えの確認：ここに入れて▶" style="flex:1;min-width:160px"><button class="xbtn sm" id="fchkBtn" type="button">▶ 判定</button><span class="note" id="fchkR"></span></div>' +
+          '<label>ヒント（任意）</label><textarea data-p="final.hint" style="min-height:60px">' + esc(edit.final.hint) + "</textarea></div></div>" +
+        '<div class="panel ed"><div class="phead"><h2>🌙 アウトロ（ストーリー＋解説＋画像）</h2><span class="sub">全問正解したチームにだけ開きます</span></div><div class="pbody">' +
+          '<label>見出し</label><input data-p="outro.title" value="' + esc(edit.outro.title) + '">' + imgRow("outro.img", edit.outro.img, "assets/nazo/outro.png") +
+          '<label>ストーリー</label><textarea data-p="outro.text" style="min-height:120px">' + esc(edit.outro.text) + "</textarea>" +
+          '<label>解説</label><textarea data-p="outro.explain" style="min-height:140px">' + esc(edit.outro.explain) + "</textarea>" +
+          '<label>解説の画像（任意）</label><input data-p="outro.explainImg" value="' + esc(edit.outro.explainImg) + '" placeholder="assets/nazo/explain.png"></div></div>' +
+        '<div class="savebar' + (dirty ? " dirty" : "") + '"><b style="font-size:12.5px">謎解き</b><span class="note">' + (dirty ? "未保存の変更があります" : "保存済み") + '</span><div class="spacer"></div>' +
+          '<button class="xbtn sm" id="erev">もとに戻す</button><button class="xbtn main sm" id="esave">💾 保存</button></div>';
+    }
+    $("view").innerHTML = html;
+    bindGm();
+  }
+  // 自動判定（答えの暗号と照らし合わせる。結果はキャッシュ）
+  const judgeCache = {};
+  function autoJudge(ans){
+    const k = normAns(ans);
+    if (k in judgeCache) return judgeCache[k];
+    judgeCache[k] = null;
+    hashAns("final", ans).then(h => {
+      judgeCache[k] = cfg.final.hashes.includes(h) || cfg.final.answers.some(a => normAns(a) === k);
+      if (gm && gmTab === "prog") render();
+    });
+    return null;
+  }
+  async function reveal(tid, mode){
+    const t = T[tid]; if (!t || !t.answer) return;
+    let ok = mode === "1";
+    if (mode === "auto"){ const h = await hashAns("final", t.answer.ans); ok = cfg.final.hashes.includes(h) || cfg.final.answers.some(a => normAns(a) === normAns(t.answer.ans)); }
+    await store.merge(TDOC(tid), { result: { ok, at: Date.now() } });
+  }
+  function bindGm(){
+    document.querySelectorAll("[data-gt]").forEach(b => b.onclick = () => { gmTab = b.dataset.gt; render(); });
+    $("toPlayer").onclick = () => { if (dirty && !confirm("未保存の変更を捨てますか？")) return; gm = false; edit = null; dirty = false; render(); };
+    document.querySelectorAll("[data-spec]").forEach(b => b.onclick = () => { spectate = b.dataset.spec; gm = false; slide = (T[spectate] && T[spectate].cur) || "intro"; lastKey = ""; render(); });
+    document.querySelectorAll("[data-kick]").forEach(b => b.onclick = () => { const [tid, k] = b.dataset.kick.split("|"); if (confirm("このメンバーをチームから外しますか？")) store.del(TDOC(tid), "members." + k).catch(e => toast(e.message)); });
+    document.querySelectorAll("[data-phase]").forEach(b => b.onclick = async () => {
+      const ph = b.dataset.phase;
+      if (ph === S.phase) return;
+      const msg = { prologue: "全チームをプロローグの画面にもどしますか？（謎は閉じます）",
+        play: S.startAt ? "謎解きを再開しますか？（タイムはさいしょのスタートから数えます）" : "全チームいっせいに謎解きをスタートしますか？（タイム計測が始まります）",
+        epilogue: "全チームの画面をエピローグに切り替えますか？（最終回答の提出は締め切られます）" }[ph];
+      if (!confirm(msg)) return;
+      const w = { phase: ph, at: Date.now() };
+      if (ph === "play" && !S.startAt) w.startAt = Date.now();
+      try { await store.merge(DOC_ST, w); toast("切り替えました"); } catch(e){ toast(e.message); }
+    });
+    document.querySelectorAll("[data-rev]").forEach(b => b.onclick = async () => {
+      const [tid, mode] = b.dataset.rev.split("|");
+      const msg = mode === "auto" ? "自動判定のとおりに" : mode === "1" ? "⭕ 正解として" : "❌ 不正解として";
+      if (!confirm("「" + teamCfg(tid).name + "」の結果を" + msg + "発表しますか？")) return;
+      try { await reveal(tid, mode); toast("発表しました"); } catch(e){ toast(e.message); }
+    });
+    document.querySelectorAll("[data-unrev]").forEach(b => b.onclick = async () => {
+      if (!confirm("発表を取り消して、発表前にもどしますか？")) return;
+      store.del(TDOC(b.dataset.unrev), "result").catch(e => toast(e.message));
+    });
+    if ($("revAll")) $("revAll").onclick = async () => {
+      const ids = cfg.teams.map(x => x.id).filter(id => T[id] && T[id].answer && !T[id].result);
+      if (!ids.length) return toast("発表待ちのチームはありません");
+      if (!confirm(ids.length + "チームの結果を、自動判定のとおりに発表しますか？")) return;
+      for (const id of ids) await reveal(id, "auto").catch(e => toast(e.message));
+      toast(ids.length + "チームの結果を発表しました");
+    };
+    document.querySelectorAll("[data-treset]").forEach(b => b.onclick = async () => {
+      if (!confirm("このチームの進み具合・メモ・書き込みを消します（メンバーは残ります）")) return;
+      const t = T[b.dataset.treset] || normTeam(null);
+      await store.put(TDOC(b.dataset.treset), { members: t.members }); toast("リセットしました");
+    });
+    if ($("resetAll")) $("resetAll").onclick = async () => {
+      if (!confirm("全チームの進み具合・メモ・書き込み・メンバーを消して、プロローグ（スタート前）にもどします。よろしいですか？")) return;
+      for (const tc of cfg.teams) await store.put(TDOC(tc.id), {});
+      await store.put(DOC_ST, { phase: "prologue", startAt: 0, at: Date.now() });
+      toast("全チームをリセットしました");
+    };
+    if (gmTab !== "edit") return;
+    const mark = () => { if (!dirty){ dirty = true; const sb = document.querySelector(".savebar"); if (sb){ sb.classList.add("dirty"); sb.querySelector(".note").textContent = "未保存の変更があります"; } } };
+    const setPath = (path, v) => { const ps = path.split("."); let o = edit; for (let i = 0; i < ps.length - 1; i++) o = o[ps[i]]; o[ps[ps.length - 1]] = v; };
+    document.querySelectorAll("[data-p]").forEach(el => el.oninput = () => {
+      setPath(el.dataset.p, el.dataset.p === "teamSize" ? Math.max(1, Math.min(8, el.value | 0)) : el.value); mark();
+      const pv = el.closest(".row") && el.closest(".row").querySelector(".pv"); if (pv && /img$/.test(el.dataset.p)) pv.style.backgroundImage = "url('" + el.value.replace(/'/g, "") + "')";
+    });
+    document.querySelectorAll("[data-pb]").forEach(el => el.onchange = () => { edit[el.dataset.pb] = el.checked; mark(); });
+    document.querySelectorAll("[data-tn]").forEach(el => el.oninput = () => { edit.teams[+el.dataset.tn].name = el.value; mark(); });
+    document.querySelectorAll("[data-tc]").forEach(el => el.oninput = () => { edit.teams[+el.dataset.tc].color = el.value; mark(); });
+    document.querySelectorAll("[data-tdel]").forEach(b => b.onclick = () => { if (confirm("このチームを削除しますか？")){ edit.teams.splice(+b.dataset.tdel, 1); dirty = true; render(); } });
+    $("tadd").onclick = () => { const n = edit.teams.length; edit.teams.push({ id: "t" + uid(), name: "チーム" + (n + 1), color: TEAM_COLORS[n % TEAM_COLORS.length] }); dirty = true; render(); };
+    document.querySelectorAll("[data-qi]").forEach(box => {
+      const i = +box.dataset.qi, q = edit.questions[i];
+      box.querySelectorAll("[data-qf]").forEach(el => el.oninput = () => {
+        q[el.dataset.qf] = el.value; mark();
+        if (el.dataset.qf === "img") box.querySelector(".pv").style.backgroundImage = "url('" + el.value.replace(/'/g, "") + "')";
+      });
+      box.querySelectorAll("[data-qm]").forEach(b => b.onclick = () => { const j = i + Number(b.dataset.qm); const x = edit.questions[i]; edit.questions[i] = edit.questions[j]; edit.questions[j] = x; dirty = true; render(); });
+      box.querySelector("[data-qdel]").onclick = () => { if (confirm("この問題を削除しますか？")){ edit.questions.splice(i, 1); dirty = true; render(); } };
+    });
+    $("fchkBtn").onclick = async () => {
+      const f = edit.final, v = $("fchk").value, r = $("fchkR");
+      const news = String(f._new || "").split(/[、,，\n]/).map(x => x.trim()).filter(Boolean);
+      const ok = news.length ? news.some(a => normAns(a) === normAns(v)) : f.hashes.includes(await hashAns("final", v));
+      r.textContent = ok ? "⭕ 正解になります" : "✖ 不正解になります"; r.style.color = ok ? "var(--ok)" : "var(--danger)";
+    };
+    $("qadd").onclick = () => { const n = edit.questions.length + 1; edit.questions.push({ id: "q" + uid(), title: "第" + n + "の謎", img: "assets/nazo/q" + n + ".png", text: "", hint: "", kwHint: "" }); dirty = true; render(); };
+    $("erev").onclick = () => { if (!dirty || confirm("編集中の内容を捨てますか？")){ edit = null; render(); } };
+    $("esave").onclick = async () => {
+      try {
+        const out = JSON.parse(JSON.stringify(edit));
+        const f = out.final;
+        const news = String(f._new || "").split(/[、,，\n]/).map(x => x.trim()).filter(Boolean);
+        if (news.length) f.hashes = await Promise.all(news.map(a => hashAns("final", a)));
+        if (!f.hashes.length) throw new Error("最終回答の答えが入っていません");
+        f.answers = []; delete f._new;              // 答えそのものは保存しない
+        if (!out.teams.length) throw new Error("チームを1つ以上作ってください");
+        const next = normCfg(Object.assign(out, { updatedAt: Date.now() }));
+        await store.put(DOC_CFG, next);
+        edit = null; dirty = false; toast("保存しました（答えは暗号化して保存）"); render();
+      } catch(e){ toast("保存できませんでした：" + e.message); }
+    };
+  }
+
+  /* ---------- 起動 ---------- */
+  if (IS_GM){
+    $("gmBtn").style.display = "";
+    $("gmBtn").onclick = () => { if (gm && dirty && !confirm("未保存の変更を捨てますか？")) return; gm = !gm; spectate = ""; edit = null; dirty = false; lastKey = ""; render(); };
+  }
+  window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
+  store.sub(DOC_ST, raw => {
+    const before = S, first = !stReady; S = normState(raw); stReady = true;
+    if (!first && before.phase !== S.phase){
+      // 管理者の切り替えで、全員の画面を動かす
+      if (S.phase === "play" && cfg.questions[0] && (slide === "intro" || slide === "outro")) slide = cfg.questions[0].id;
+      if (S.phase === "epilogue") slide = "outro";
+      if (S.phase === "prologue") slide = "intro";
+      if (!gm) toast(S.phase === "play" ? "🔍 謎解きスタート！" : S.phase === "epilogue" ? "🌙 エピローグが始まりました" : "🌅 プロローグにもどりました");
+    } else if (first && S.phase === "epilogue") slide = "outro";
+    lastKey = "";
+    if (!(gm && gmTab === "edit")) render();
+  });
+  store.sub(DOC_CFG, raw => {
+    cfg = normCfg(raw); cfgReady = true; syncSubs();
+    if (!(gm && gmTab === "edit")){ lastKey = ""; render(); }
+  });
+})();
+</script>
+</body>
+</html>

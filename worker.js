@@ -175,32 +175,19 @@ async function getMsg(env, key) {
   try { saved = await fsGet(env, "lboard_index/messages"); } catch (e) { }
   const d = DEFAULT_MSG[key];
   const a = (saved && saved[key]) || {};
-  // ★ 投稿先も管理コンソールから変えられる。既定は "notice"（連絡事項）。
-  const chans = (saved && saved.channels) || {};
-  const ch = (chans[key] === "chat") ? "chat" : "notice";
   return {
     head: typeof a.head === "string" ? a.head : d.head,
     line: (typeof a.line === "string" && a.line.trim()) ? a.line : d.line,
-    foot: typeof a.foot === "string" ? a.foot : d.foot,
-    channel: ch
+    foot: typeof a.foot === "string" ? a.foot : d.foot
   };
 }
 
-/* ---- 投稿先チャンネルを決める ----
-   "notice"（連絡事項）= DISCORD_SCHEDULE_CHANNEL_ID
-   "chat"  （談話室）  = DISCORD_ANNOUNCE_CHANNEL_ID
-   片方しか設定されていなければ、そちらへ流す。
-   ★ 既定はすべて「連絡事項」。自動投稿が談話室に散らからないようにするため。 */
-function channelFor(env, which) {
-  const notice = env.DISCORD_SCHEDULE_CHANNEL_ID || "";
-  const chat   = env.DISCORD_ANNOUNCE_CHANNEL_ID || "";
-  return (which === "chat") ? (chat || notice) : (notice || chat);
-}
-function channelName(env, which) {
-  const notice = env.DISCORD_SCHEDULE_CHANNEL_ID || "";
-  const chat   = env.DISCORD_ANNOUNCE_CHANNEL_ID || "";
-  if (which === "chat") return chat ? "談話室" : (notice ? "連絡事項（談話室が未設定のため）" : "未設定");
-  return notice ? "連絡事項" : (chat ? "談話室（連絡事項が未設定のため）" : "未設定");
+/* ---- 投稿先チャンネル ----
+   自動投稿はすべて「連絡事項」= DISCORD_SCHEDULE_CHANNEL_ID の1つだけ。
+   ★ 談話室（旧 DISCORD_ANNOUNCE_CHANNEL_ID）への投稿は廃止しました。
+     未設定のときは、どこにも投稿しません（別のチャンネルに落とさない）。 */
+function noticeChannel(env) {
+  return env.DISCORD_SCHEDULE_CHANNEL_ID || "";
 }
 
 /* =============================================================
@@ -361,7 +348,7 @@ async function announcePromotions(env, list) {
   const emoji = { BRONZE:"🥉", SILVER:"🥈", GOLD:"🥇", PLATINUM:"💎", EMERALD:"💚",
                   DIAMOND:"💠", MASTER:"👑", GRANDMASTER:"🔥", CHALLENGER:"🏆" };
   const tpl = await getMsg(env, "promote");
-  const ch = channelFor(env, tpl.channel);
+  const ch = noticeChannel(env);
   if (!ch || !env.DISCORD_BOT_TOKEN) return 0;
   // ★ 管理コンソールで登録した絵文字があればそちらを優先する
   const custom = await getTierEmoji(env);
@@ -392,7 +379,7 @@ async function collectEndpoint(url, env) {
    予定が無い日は何もしない（毎朝おはようだけ流れると邪魔なので）。
 
    ★ 投稿先は管理コンソール（Discord文面）で選べる。既定は「連絡事項」
-      ＝ DISCORD_SCHEDULE_CHANNEL_ID。未設定なら DISCORD_ANNOUNCE_CHANNEL_ID。
+      ＝ DISCORD_SCHEDULE_CHANNEL_ID。未設定のときは投稿しません。
    ============================================================= */
 async function announceToday(env) {
   const today = jstDayKey();
@@ -419,10 +406,10 @@ async function announceToday(env) {
     note: String(e.note || "").trim() ? "　" + String(e.note).trim() : ""
   })));
 
-  const ch = channelFor(env, tpl.channel);
+  const ch = noticeChannel(env);
   const ok = await postTo(env, ch, content);
   return { ok: true, date: today, posted: ok ? todays.length : 0,
-           channel: channelName(env, tpl.channel),
+           channel: "連絡事項",
            events: todays.map(e => e.name), discord: ok ? "投稿しました" : "投稿できませんでした" };
 }
 
@@ -523,7 +510,7 @@ async function runSnapshot(env, opts) {
     rankLabel: rankLabelW(r, emo), point: r.point
   })));
 
-  const ch = channelFor(env, tplS.channel);
+  const ch = noticeChannel(env);
   const posted = await postTo(env, ch, content);
 
   const patch = { results: Object.assign({}, results, { [today]: { at: nowMs, rows } }),
@@ -565,7 +552,7 @@ async function runSnapshot(env, opts) {
       };
     }));
 
-    const okF = await postTo(env, channelFor(env, tplF.channel), msg);
+    const okF = await postTo(env, noticeChannel(env), msg);
     patch.final = chosen;
     patch.finalAt = Date.now();
     finalOut = { posted: okF, chosen: chosen.map(t => t.name + " " + t.total + "pt") };
@@ -645,7 +632,7 @@ async function diagnostics(env) {
       RETURN_ORIGINS: present("RETURN_ORIGINS") ? env.RETURN_ORIGINS : false,
       FIREBASE_PROJECT_ID: present("FIREBASE_PROJECT_ID") ? env.FIREBASE_PROJECT_ID : false,
       FIREBASE_API_KEY: present("FIREBASE_API_KEY"),
-      DISCORD_ANNOUNCE_CHANNEL_ID: present("DISCORD_ANNOUNCE_CHANNEL_ID") ? env.DISCORD_ANNOUNCE_CHANNEL_ID : false,
+      DISCORD_SCHEDULE_CHANNEL_ID: present("DISCORD_SCHEDULE_CHANNEL_ID") ? env.DISCORD_SCHEDULE_CHANNEL_ID : false,
       CRON_KEY: present("CRON_KEY")
     },
     checks: {}
@@ -689,32 +676,29 @@ async function diagnostics(env) {
   out.checks.lpCollect = need.length
     ? "未設定のため毎日の集計は動きません: " + need.join(", ")
     : "OK: 毎日の集計に必要な設定は揃っています（Cron Trigger \"45 14 * * *\" の登録も必要）";
-  out.checks.announce = (present("DISCORD_SCHEDULE_CHANNEL_ID") || present("DISCORD_ANNOUNCE_CHANNEL_ID"))
-    ? "OK: ランクアップを投稿します"
-    : "チャンネルIDが未設定のため、お祝い投稿は行いません";
+  out.checks.announce = present("DISCORD_SCHEDULE_CHANNEL_ID")
+    ? "OK: ランクアップを連絡事項へ投稿します"
+    : "DISCORD_SCHEDULE_CHANNEL_ID が未設定のため、お祝い投稿は行いません";
 
   // 予定表の当日通知（毎朝9:00 JST → 連絡事項チャンネル）
-  const schCh = present("DISCORD_SCHEDULE_CHANNEL_ID") || present("DISCORD_ANNOUNCE_CHANNEL_ID");
+  const schCh = present("DISCORD_SCHEDULE_CHANNEL_ID");
   const needSch = ["FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "DISCORD_BOT_TOKEN"]
     .filter(k => !present(k)).concat(schCh ? [] : ["DISCORD_SCHEDULE_CHANNEL_ID"]);
   out.checks.scheduleNotify = needSch.length
     ? "未設定のため当日通知は動きません: " + needSch.join(", ")
     : "OK: 当日9:00の予定通知に必要な設定は揃っています（Cron Trigger \"0 0 * * *\" の登録も必要）";
-  // ★ 自動投稿はすべて既定で「連絡事項」（DISCORD_SCHEDULE_CHANNEL_ID）へ。
-  //   管理コンソールの「Discord文面」で、投稿ごとに談話室へ変えられる。
+  /* ★ 自動投稿は「連絡事項」（DISCORD_SCHEDULE_CHANNEL_ID）の1つだけ。
+     談話室（旧 DISCORD_ANNOUNCE_CHANNEL_ID）への投稿は廃止しました。 */
   out.checks.postChannel = present("DISCORD_SCHEDULE_CHANNEL_ID")
-    ? "既定の投稿先: 連絡事項（DISCORD_SCHEDULE_CHANNEL_ID）。ランクアップ・予定・スナップショット・表彰すべてここへ。"
-    : (present("DISCORD_ANNOUNCE_CHANNEL_ID")
-        ? "⚠️ DISCORD_SCHEDULE_CHANNEL_ID が未設定のため、すべて談話室（DISCORD_ANNOUNCE_CHANNEL_ID）へ投稿されます"
-        : "投稿先が未設定です");
+    ? "投稿先: 連絡事項（DISCORD_SCHEDULE_CHANNEL_ID）のみ。ランクアップ・予定・スナップショット・表彰すべてここへ。"
+    : "⚠️ DISCORD_SCHEDULE_CHANNEL_ID が未設定です。自動投稿はどこにも行われません（談話室へは落としません）";
+  if (present("DISCORD_ANNOUNCE_CHANNEL_ID"))
+    out.checks.announceChannelUnused =
+      "DISCORD_ANNOUNCE_CHANNEL_ID は使われなくなりました。Cloudflare の Variables から削除して構いません";
   try {
     if (present("FIREBASE_PROJECT_ID") && present("FIREBASE_API_KEY")) {
       const md = await fsGet(env, "lboard_index/messages");
-      const cs = (md && md.channels) || {};
-      const jp = k => (cs[k] === "chat" ? "談話室" : "連絡事項");
-      out.checks.postChannelEach =
-        "ランクアップ=" + jp("promote") + " / 予定=" + jp("schedule") +
-        " / スナップショット=" + jp("snapshot") + " / 表彰=" + jp("final");
+      out.checks.messagesSaved = md ? "文面は保存済みです" : "文面はまだ保存されていません（既定の文面を使います）";
     }
   } catch (e) { }
   try {

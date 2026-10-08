@@ -1076,6 +1076,9 @@ body.ad-on{overflow:hidden}
         <input type="text" id="admTTitle" maxlength="10" style="width:220px" placeholder="講師任命書"></div>
       <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">本文</label>
         <textarea id="admTBody" maxlength="120" style="flex:1;min-height:64px;font-family:inherit;font-size:13px;line-height:1.8"></textarea></div>
+      <div class="row"><label style="min-width:84px">担当が未定</label>
+        <input type="text" id="admTTbd" maxlength="20" style="width:220px" placeholder="お楽しみに">
+        <span class="hint">担当の生徒がまだ決まっていないとき「担当する生徒」の欄に出す文字</span></div>
       <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">X投稿文</label>
         <div style="flex:1;min-width:0">
           <textarea id="admTPost" maxlength="280" style="width:100%;min-height:84px;font-family:inherit;font-size:13px;line-height:1.8"></textarea>
@@ -1141,6 +1144,21 @@ body.ad-on{overflow:hidden}
       <div class="row"><label style="min-width:72px">ペア画像</label>
         <input type="text" id="alPTitle" style="width:220px" maxlength="10" placeholder="師弟の記録">
         <span class="hint">先生と担当の生徒を並べた画像のタイトル（毛筆）</span></div>
+    </div>
+
+    <div class="card">
+      <h2>💌 寄せ書き</h2>
+      <div class="lead">生徒・先生が <code>yosegaki.html</code> で仲間にひとこと（140文字まで）を書けます。
+        書かれた寄せ書きは<b>卒業証書を公開するまで本人には見えません</b>。公開後は、卒業証書のページと「寄せ書き色紙」の画像に載ります。
+        HOMEにタイルを置くと見つけてもらいやすいです。</div>
+      <div class="row">
+        <label class="chk" style="font-size:13px"><input type="checkbox" id="alYOpen"> 寄せ書きの受付中（オフにすると新しく書けなくなります）</label>
+        <a class="mini" href="yosegaki.html" target="_blank" rel="noopener" style="margin-left:auto">開く ↗</a>
+      </div>
+      <div class="hint" id="alYStat" style="margin:6px 0 10px;font-weight:700"></div>
+      <div class="row"><input type="text" id="alYFilter" placeholder="名前・内容でしぼりこむ" style="width:240px">
+        <button class="mini" id="alYReload" type="button">↻ 読み込み直す</button></div>
+      <div id="alYList" style="max-height:420px;overflow:auto;margin-top:8px"></div>
     </div>
 
     <div class="card">
@@ -3759,6 +3777,7 @@ body.ad-on{overflow:hidden}
       $("alTBody").value = alEdit.tBody || "";
       $("alTSigner").value = alEdit.tSigner || "";
       $("alPTitle").value = alEdit.pTitle || "";
+      $("alYOpen").checked = alEdit.yOpen !== false;
       $("alPubHint").textContent = alEdit.published
         ? "公開中：全員が卒業証書を見られます"
         : "非公開：管理者にだけ見えます（後夜祭で公開にする想定）";
@@ -3917,6 +3936,7 @@ body.ad-on{overflow:hidden}
       } catch(e){}
       renderAwards();
       renderRows();
+      loadYose();
       // 卒業証書のページの「✏️ ひとことを編集」から来たとき：その人の欄へ
       const f = new URLSearchParams(location.search).get("focus");
       const row = f && document.querySelector('.alrow[data-id="' + CSS.escape(f) + '"]');
@@ -3941,6 +3961,46 @@ body.ad-on{overflow:hidden}
         ? "公開中にします：保存すると全員が見られます" : "非公開にします：保存すると管理者にだけ見えます";
       markAl();
     };
+    $("alYOpen").onchange = () => { alEdit.yOpen = $("alYOpen").checked; markAl(); };
+
+    /* ---- 寄せ書き（集計と削除） ---- */
+    let alYose = null;
+    const yName = id => { const m = (alLp && alLp.members || {})[id] || alMem[id] || {}; return m.name || id; };
+    function renderYose(){
+      const box = $("alYList");
+      if (!alYose){ box.innerHTML = '<div class="hint">読み込み中…</div>'; return; }
+      const all = Object.values(alYose).sort((a, b) => b.at - a.at);
+      const writers = new Set(all.map(m => m.from)).size, recv = new Set(all.map(m => m.to)).size;
+      $("alYStat").textContent = "寄せ書き " + all.length + "枚 ・ 書いた人 " + writers + "人 ・ 受け取った人 " + recv + "人";
+      const q = ($("alYFilter").value || "").trim().toLowerCase();
+      const rows = all.filter(m => !q || (yName(m.to) + yName(m.from) + m.text).toLowerCase().indexOf(q) >= 0);
+      box.innerHTML = rows.length ? "" : '<div class="hint" style="padding:8px 0">寄せ書きはまだありません。</div>';
+      rows.forEach(m => {
+        const r = document.createElement("div");
+        r.style.cssText = "display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--border)";
+        r.innerHTML = '<span style="flex:none;width:14px;height:14px;border-radius:4px;margin-top:3px;background:' + C.YOSE_COLORS[m.color] + '"></span>' +
+          '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:900">' + esc(yName(m.from)) +
+            ' <span class="hint">→</span> ' + esc(yName(m.to)) +
+            ' <span class="hint" style="font-weight:500">' + new Date(m.at).toLocaleString("ja-JP") + "</span></div>" +
+          '<div style="font-size:12.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word">' + esc(m.text) + "</div></div>" +
+          '<button class="mini danger" type="button">削除</button>';
+        r.querySelector("button").onclick = async () => {
+          if (!confirm(yName(m.from) + " → " + yName(m.to) + " の寄せ書きを削除しますか？（元に戻せません）")) return;
+          try { await C.removeYosegaki(m.key); delete alYose[m.key]; renderYose(); toast("削除しました"); }
+          catch(e){ toast(e.message); }
+        };
+        box.appendChild(r);
+      });
+    }
+    async function loadYose(){
+      if (typeof C.loadYosegaki !== "function") return;
+      alYose = null; renderYose();
+      try { alYose = await C.loadYosegaki(); } catch(e){ alYose = {}; toast("寄せ書きを読み込めませんでした"); }
+      renderYose();
+    }
+    $("alYFilter").oninput = renderYose;
+    $("alYReload").onclick = loadYose;
+
     $("alAwOpen").onchange = () => {
       alEdit.awardsOpen = $("alAwOpen").checked;
       $("alAwHint").textContent = alEdit.awardsOpen
@@ -3997,6 +4057,7 @@ body.ad-on{overflow:hidden}
       $("admTTitle").value = adEdit.tTitle || "";
       $("admTBody").value = adEdit.tBody || "";
       $("admTPost").value = adEdit.tPost || "";
+      $("admTTbd").value = adEdit.tTbd || "";
       $("admState").textContent = (adData && adData.updatedAt)
         ? "保存済み（" + new Date(adData.updatedAt).toLocaleString("ja-JP") + "）" : "まだ保存していません（既定の文面です）";
       prev();
@@ -4022,7 +4083,7 @@ body.ad-on{overflow:hidden}
       fill();
     }
     [["admDate","date"],["admTerm","term"],["admBody","body"],["admTag","tag"],["admPost","post"],["admUrl","shareUrl"],
-     ["admTTitle","tTitle"],["admTBody","tBody"],["admTPost","tPost"]]
+     ["admTTitle","tTitle"],["admTBody","tBody"],["admTPost","tPost"],["admTTbd","tTbd"]]
       .forEach(([el, k]) => $(el).addEventListener("input", () => { adEdit[k] = $(el).value; mark(); prev(); }));
     $("admOn").onchange = () => { adEdit.enabled = $("admOn").checked; mark(); };
     document.querySelectorAll("#p-adm .vbtn").forEach(b => b.onclick = () => {

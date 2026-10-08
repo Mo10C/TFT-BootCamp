@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>寄せ書き ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="クラウドハッシュテイル校 寄せ書き — 合宿の仲間へひとことを">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Klee+One:wght@600&display=swap" rel="stylesheet">
+<!-- 見出しの毛筆（使う文字だけ読み込む） -->
+<link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E5%AF%84%E3%81%9B%E6%9B%B8%E3%81%8D&display=swap" rel="stylesheet" id="brushFont">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{--brush:"Yuji Boku","Zen Kaku Gothic New",serif;--hand:"Klee One","Zen Kaku Gothic New",sans-serif}
+.brush{font-family:var(--brush);font-weight:400;letter-spacing:.14em}
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:20px;box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:16px}
+.empty{padding:34px 18px;text-align:center;font-size:13px;color:var(--muted);line-height:1.9}
+.note-s{font-size:11.5px;color:var(--muted);line-height:1.8}
+.spacer{flex:1}
+.xbtn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--border-strong);background:var(--surface);
+  color:var(--ink);border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:900;cursor:pointer;
+  font-family:inherit;text-decoration:none;transition:transform .1s,border-color .1s,box-shadow .1s}
+.xbtn:hover:not(:disabled){transform:translateY(-1px);border-color:var(--leaf);box-shadow:var(--shadow-soft)}
+.xbtn:disabled{opacity:.45;cursor:default}
+.xbtn.main{background:var(--leaf);border-color:transparent;color:#fff}
+.xbtn.danger{color:var(--danger)}
+
+/* 表紙 */
+.cover{position:relative;padding:28px 24px 24px;text-align:center;
+  background:
+    radial-gradient(420px 180px at 12% 0%,color-mix(in srgb,#FFD6DF 50%,transparent),transparent 70%),
+    radial-gradient(420px 200px at 92% 10%,color-mix(in srgb,#FFF1A8 60%,transparent),transparent 70%),
+    var(--surface)}
+.cover .kicker{font-size:11px;font-weight:900;letter-spacing:.24em;color:var(--leaf)}
+.cover h1{font-size:46px;margin:8px 0 8px;line-height:1.2}
+.cover p{font-size:13px;line-height:1.9;color:var(--ink);max-width:560px;margin:0 auto}
+.stat{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:900;padding:5px 14px;border-radius:999px;
+  border:1.5px solid var(--border);background:var(--surface)}
+.pill.on{border-color:color-mix(in srgb,var(--leaf) 60%,var(--border));color:var(--leaf)}
+.pill.off{border-color:color-mix(in srgb,var(--danger) 50%,var(--border));color:var(--danger)}
+.bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;width:220px;margin:10px auto 0}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#F7B6C6,#F6D365);border-radius:99px}
+
+/* 一覧 */
+.tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.tools input{flex:1;min-width:160px;max-width:280px;border:1.5px solid var(--border);border-radius:999px;padding:8px 14px;font:inherit;font-size:12.5px;background:var(--surface);color:var(--ink);outline:none}
+.tools input:focus{border-color:var(--leaf)}
+.chip{border:1.5px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;
+  padding:6px 14px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.chip.on{border-color:var(--leaf);color:var(--ink);background:color-mix(in srgb,var(--leaf) 14%,var(--surface))}
+.sec-t{font-size:12px;font-weight:900;letter-spacing:.16em;color:var(--gold);margin:6px 2px 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.pc{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 10px 12px;text-align:center;
+  background:var(--surface);border:1.5px solid var(--border);border-radius:18px;cursor:pointer;font-family:inherit;color:inherit;
+  transition:transform .12s,border-color .12s,box-shadow .12s}
+.pc:hover{transform:translateY(-2px);border-color:var(--leaf);box-shadow:var(--shadow-soft)}
+.pc.done{border-color:color-mix(in srgb,var(--gold) 55%,var(--border))}
+.pc .tag{position:absolute;top:8px;right:8px;font-size:10px;font-weight:900;padding:1px 8px;border-radius:99px;color:#5A4A12}
+.pc .t2{position:absolute;top:8px;left:8px;font-size:10px;font-weight:900;padding:1px 8px;border-radius:99px;
+  background:color-mix(in srgb,var(--gold) 22%,var(--surface));color:#9A7426}
+.av{border-radius:999px;object-fit:cover;background:var(--surface-2);border:3px solid var(--leaf);flex:none;width:64px;height:64px}
+.avf{display:grid;place-items:center;font-weight:900;color:#fff;background:var(--leaf);font-size:24px}
+.pc.t .av{border-color:#D9B75E}
+.pc b{font-size:13.5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc small{font-size:11px;color:var(--muted);font-weight:700}
+.pc .go{font-size:11.5px;font-weight:900;color:var(--leaf)}
+.pc.done .go{color:#9A7426}
+.pc .rc{font-size:10.5px;color:var(--muted)}
+
+/* ふせん */
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;padding:16px 18px 20px}
+.nt{position:relative;padding:16px 16px 12px;border-radius:6px 6px 16px 6px;color:#3A3226;min-height:110px;
+  box-shadow:0 6px 16px -10px rgba(0,0,0,.45);transform:rotate(var(--r,0deg))}
+.nt p{font-family:var(--hand);font-size:15px;line-height:1.75;white-space:pre-wrap;word-break:break-word;margin:0}
+.nt .by{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px;font-size:12px;font-weight:900}
+.nt .by .av{width:22px;height:22px;border-width:2px;border-color:rgba(255,255,255,.8)}
+.nt .by .avf{font-size:10px}
+.nt::before{content:"";position:absolute;top:-7px;left:50%;width:56px;height:14px;transform:translateX(-50%) rotate(-2deg);
+  background:rgba(255,255,255,.55);border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* 書く画面 */
+.dlg{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:16px;
+  background:rgba(20,30,40,.45);backdrop-filter:blur(3px)}
+.dlg.on{display:flex}
+.dbox{width:min(520px,100%);background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:20px 20px 18px;max-height:92vh;overflow:auto}
+.dhead{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.dhead .av{width:52px;height:52px}
+.dhead b{font-size:17px;display:block}
+.dhead small{font-size:11.5px;color:var(--muted)}
+.paper{position:relative;border-radius:8px 8px 22px 8px;padding:18px 18px 10px;box-shadow:0 10px 24px -14px rgba(0,0,0,.5);transition:background .15s}
+.paper textarea{width:100%;min-height:150px;border:none;background:transparent;resize:vertical;outline:none;
+  font-family:var(--hand);font-size:17px;line-height:1.8;color:#3A3226;padding:0}
+.paper .cnt{text-align:right;font-size:11px;color:rgba(58,50,38,.6);font-weight:700}
+.cols{display:flex;gap:8px;align-items:center;margin:12px 0 4px}
+.cols button{width:28px;height:28px;border-radius:999px;border:2px solid rgba(0,0,0,.08);cursor:pointer}
+.cols button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--surface) inset}
+.dfoot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+@media (max-width:620px){ .cover h1{font-size:34px} .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/emblem.png" alt="クラウドハッシュテイル校" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div><h1>寄せ書き</h1><div class="sub">クラウドハッシュテイル校 TOOLS</div></div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html?tab=p-album" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div id="view"><div class="panel"><div class="empty">寄せ書きをひらいています…</div></div></div>
+</div>
+
+<div class="dlg" id="dlg">
+  <div class="dbox">
+    <div class="dhead" id="dHead"></div>
+    <div class="paper" id="paper">
+      <textarea id="dText" placeholder="合宿でのこと、ありがとう、これからもよろしく…など、自由にどうぞ"></textarea>
+      <div class="cnt" id="dCnt"></div>
+    </div>
+    <div class="cols" id="dCols"><span class="note-s" style="margin-right:4px">ふせんの色</span></div>
+    <div class="note-s" id="dNote"></div>
+    <div class="dfoot">
+      <button class="xbtn main" id="dSave">💌 保存する</button>
+      <button class="xbtn danger" id="dDel">消す</button>
+      <div class="spacer"></div>
+      <button class="xbtn" id="dClose">とじる</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+  if (!C || typeof C.loadYosegaki !== "function"){
+    document.body.innerHTML = '<div style="max-width:560px;margin:16vh auto;padding:30px;text-align:center;font-family:sans-serif;line-height:1.9">' +
+      '<b style="color:#D3860A">⚠️ core.js が古いバージョンです</b><br><br>寄せ書きに対応した core.js に差し替えて、強制リロード（Ctrl/⌘ + Shift + R）してください。</div>';
+    return;
+  }
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome ? window.MCCHome.boot(session) : null;
+  const toast = m => (ctx && ctx.toast ? ctx.toast(m) : alert(m));
+  const IS_ADMIN = C.isAdmin(session);
+  const ME = "u_" + session.discord.id;
+  if (IS_ADMIN) $("editorLink").style.display = "";
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const COLORS = C.YOSE_COLORS, MAX = C.YOSE_MAX;
+  // ふせんの傾き（キーから決まる・毎回同じ）
+  const tilt = k => { let h = 0; for (const ch of String(k)) h = (h * 31 + ch.charCodeAt(0)) | 0; return ((Math.abs(h) % 7) - 3) * .6; };
+  function avatar(url, name){
+    const ini = esc(String(name || "?").trim().slice(0, 1));
+    if (!url) return '<span class="av avf">' + ini + "</span>";
+    return '<img class="av" src="' + esc(url) + '" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;av avf&quot;>' + ini + '</span>\'">';
+  }
+
+  let D = null, q = "", onlyTodo = false;
+  async function loadAll(){
+    const safe = p => p.catch(e => { console.warn(e); return null; });
+    const [album, lp, members, snap, yose] = await Promise.all([
+      C.loadAlbum(), safe(C.loadLpData()), safe(C.loadMembers()), safe(C.loadSnapshot()), C.loadYosegaki()]);
+    const mem = members || {}, lpm = (lp && lp.members) || {};
+    const roles = (snap && snap.roleIds) || [];
+    const people = {};
+    Object.values(mem).forEach(m => {
+      const t = C.isTeacherOf(m, roles);
+      if (!C.isParticipant(m) && !t) return;     // 運営は除く（講師は入れる）
+      people[m.id] = { id: m.id, name: m.name, avatar: (m.discord && m.discord.avatar) || "", teacher: t };
+    });
+    Object.entries(lpm).forEach(([id, m]) => {
+      const p = people[id] || (people[id] = { id, name: m.name, avatar: m.avatar || "", teacher: false });
+      if (!p.avatar) p.avatar = m.avatar || "";
+      if (!p.name || p.name === "—") p.name = m.name;
+      if (C.isTeacherOf(m, roles)) p.teacher = true;
+    });
+    D = { album, people, yose };
+  }
+  const nameOf = id => (D.people[id] && D.people[id].name) || "—";
+  const avOf = id => (D.people[id] && D.people[id].avatar) || "";
+  const mine = to => D.yose[to + "__" + ME] || null;
+  const canWrite = () => D.album.yOpen || IS_ADMIN;
+  const revealed = () => D.album.published;
+
+  function noteHtml(m, showTo){
+    const who = showTo ? m.to : m.from;
+    return '<div class="nt" style="background:' + COLORS[m.color] + ";--r:" + tilt(m.key) + 'deg"><p>' + esc(m.text) + "</p>" +
+      '<div class="by">' + (showTo ? "→ " : "") + avatar(avOf(who), nameOf(who)) + esc(nameOf(who)) + "</div></div>";
+  }
+
+  function render(){
+    const list = Object.values(D.people).filter(p => p.id !== ME)
+      .sort((a, b) => (b.teacher - a.teacher) || String(a.name).localeCompare(String(b.name), "ja"));
+    const written = list.filter(p => mine(p.id)).length;
+    const toMe = Object.values(D.yose).filter(m => m.to === ME).sort((a, b) => a.at - b.at);
+    const recv = id => Object.values(D.yose).filter(m => m.to === id).length;
+    const pct = list.length ? Math.round(written / list.length * 100) : 0;
+
+    const card = p => {
+      const m = mine(p.id);
+      if (q && String(p.name).toLowerCase().indexOf(q) < 0) return "";
+      if (onlyTodo && m) return "";
+      return '<button class="pc' + (p.teacher ? " t" : "") + (m ? " done" : "") + '" data-id="' + esc(p.id) + '">' +
+        (p.teacher ? '<span class="t2">講師</span>' : "") +
+        (m ? '<span class="tag" style="background:' + COLORS[m.color] + '">✓ 書いた</span>' : "") +
+        avatar(p.avatar, p.name) + "<b>" + esc(p.name) + "</b>" +
+        '<span class="go">' + (m ? "✏️ 書き直す" : canWrite() ? "💌 書く" : "受付終了") + "</span>" +
+        (IS_ADMIN ? '<span class="rc">受け取り ' + recv(p.id) + "枚</span>" : "") +
+      "</button>";
+    };
+    const teachers = list.filter(p => p.teacher).map(card).join("");
+    const students = list.filter(p => !p.teacher).map(card).join("");
+
+    $("view").innerHTML =
+      '<div class="panel cover">' +
+        '<div class="kicker">CLOUD HASHTAIL SCHOOL</div>' +
+        '<h1 class="brush">寄せ書き</h1>' +
+        "<p>合宿の仲間へ、ひとことを残そう。<br>書いた寄せ書きは<b>後夜祭で卒業証書といっしょに届きます</b>。それまでは、書かれた本人にも見えません。</p>" +
+        '<div class="stat">' +
+          (D.album.yOpen ? '<span class="pill on">● 受付中</span>' : '<span class="pill off">受付は終了しました</span>') +
+          '<span class="pill">あなたが書いた：' + written + " / " + list.length + "人</span>" +
+        "</div>" +
+        '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+      "</div>" +
+
+      (revealed() || IS_ADMIN ?
+        '<div class="panel"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 18px 0">' +
+          '<b style="font-size:15px">📮 あなたへの寄せ書き（' + toMe.length + "枚）</b>" +
+          (!revealed() ? '<span class="note-s">※ 公開前です。管理者にだけ見えています</span>' : "") +
+          '<div class="spacer"></div>' +
+          (toMe.length ? '<a class="xbtn" href="album.html?id=' + encodeURIComponent(ME) + '">🎴 色紙で見る</a>' : "") +
+        "</div>" +
+        (toMe.length ? '<div class="notes">' + toMe.map(m => noteHtml(m, false)).join("") + "</div>"
+                     : '<div class="empty" style="padding:20px">まだ届いていません</div>') + "</div>" : "") +
+
+      '<div class="tools">' +
+        '<input type="text" id="q" placeholder="名前でさがす" value="' + esc(q) + '">' +
+        '<button class="chip' + (onlyTodo ? " on" : "") + '" id="todo">まだ書いていない人だけ</button>' +
+      "</div>" +
+      (teachers ? '<div class="sec-t">🎓 先生</div><div class="grid">' + teachers + "</div>" : "") +
+      (students ? '<div class="sec-t" style="color:var(--leaf)">📜 生徒</div><div class="grid">' + students + "</div>" : "") +
+      (!teachers && !students ? '<div class="panel"><div class="empty">該当する人がいません</div></div>' : "") +
+
+      (written ? '<div class="panel"><div style="padding:16px 18px 0"><b style="font-size:14px">✍️ あなたが書いた寄せ書き（' + written + "枚）</b></div>" +
+        '<div class="notes">' + list.map(p => mine(p.id)).filter(Boolean).map(m => noteHtml(m, true)).join("") + "</div></div>" : "");
+
+    const qi = $("q");
+    qi.oninput = () => { q = qi.value.trim().toLowerCase(); const pos = qi.selectionStart; render(); const n = $("q"); n.focus(); n.setSelectionRange(pos, pos); };
+    $("todo").onclick = () => { onlyTodo = !onlyTodo; render(); };
+    document.querySelectorAll(".pc").forEach(b => b.onclick = () => openDlg(b.dataset.id));
+  }
+
+  /* ---- 書く画面 ---- */
+  let cur = null, curColor = 0;
+  function paint(){
+    $("paper").style.background = COLORS[curColor];
+    $("dCols").querySelectorAll("button").forEach((b, i) => b.classList.toggle("on", i === curColor));
+    const n = Array.from($("dText").value).length;
+    $("dCnt").textContent = n + " / " + MAX;
+    $("dCnt").style.color = n > MAX ? "var(--danger)" : "";
+  }
+  COLORS.forEach((c, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.style.background = c; b.title = "色" + (i + 1);
+    b.onclick = () => { curColor = i; paint(); };
+    $("dCols").appendChild(b);
+  });
+  function openDlg(id){
+    cur = id;
+    const m = mine(id);
+    const p = D.people[id] || {};
+    curColor = m ? m.color : Math.floor(Math.random() * COLORS.length);
+    $("dHead").innerHTML = avatar(p.avatar, p.name) + "<div><b>" + esc(p.name) + " さんへ</b><small>" +
+      (p.teacher ? "講師 ・ " : "") + "後夜祭まで本人には見えません</small></div>";
+    $("dText").value = m ? m.text : "";
+    $("dText").maxLength = MAX;
+    const ok = canWrite();
+    $("dText").readOnly = !ok;
+    $("dSave").disabled = !ok; $("dDel").disabled = !ok || !m;
+    $("dNote").textContent = ok ? "1人につき1枚。あとから何度でも書き直せます。" : "受付は終了しました（書いた内容は見られます）";
+    paint();
+    $("dlg").classList.add("on");
+    if (ok) setTimeout(() => $("dText").focus(), 50);
+  }
+  const closeDlg = () => { $("dlg").classList.remove("on"); cur = null; };
+  $("dClose").onclick = closeDlg;
+  $("dlg").onclick = e => { if (e.target === $("dlg")) closeDlg(); };
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && cur) closeDlg(); });
+  $("dText").oninput = paint;
+  $("dSave").onclick = async () => {
+    const t = $("dText").value.trim();
+    if (!t) return toast("ひとことを書いてください");
+    $("dSave").disabled = true;
+    try {
+      const m = await C.saveYosegaki(cur, t, curColor);
+      D.yose[m.key] = m;
+      toast(nameOf(cur) + " さんへの寄せ書きを保存しました 💌");
+      closeDlg(); render();
+    } catch(e){ toast("保存できませんでした：" + e.message); }
+    $("dSave").disabled = false;
+  };
+  $("dDel").onclick = async () => {
+    if (!confirm(nameOf(cur) + " さんへの寄せ書きを消しますか？")) return;
+    try {
+      await C.saveYosegaki(cur, "", 0);
+      delete D.yose[cur + "__" + ME];
+      toast("消しました"); closeDlg(); render();
+    } catch(e){ toast("消せませんでした：" + e.message); }
+  };
+
+  loadAll().then(() => {
+    render();
+    const to = new URLSearchParams(location.search).get("to");
+    if (to && D.people[to] && to !== ME) openDlg(to);
+  }).catch(err => {
+    console.error(err);
+    $("view").innerHTML = '<div class="panel"><div class="empty">寄せ書きを読み込めませんでした。<br>' + esc(err.message) + "</div></div>";
+  });
+})();
+</script>
+</body>
+</html>

@@ -166,7 +166,7 @@
   const docTitle = p => p.teacher ? D.adm.tTitle : "入学許可書";
   function postText(p){
     const vars = { name: p.name, rank: p.rank ? C.rankLabel(p.rank) : "ランクなし", no: pad3(p.no), date: jdate(D.adm.date),
-      student: p.student ? p.student.name : "" };
+      student: p.student ? p.student.name : (D.adm.tTbd || "お楽しみに") };
     return String((p.teacher ? D.adm.tPost : D.adm.post) || "").replace(/\{(\w+)\}/g, (m, k) => vars[k] != null ? vars[k] : m);
   }
 
@@ -371,7 +371,17 @@
       g.fillText(C.rankLabel(p.rank), rx, ry + 52);
     } else g.fillText("これから！", rx, ry + 52);
 
-    // 講師：担当する生徒（ランクの右に、アイコンつき）
+    // 講師：担当する生徒（ランクの右に、アイコンつき）。まだ決まっていなければ「お楽しみに」
+    if (T && !p.student){
+      const bx = X + 436, bw = W - 84 - bx, scx = bx + 34, scy = ry + 32, sr = 22;
+      rr(g, bx, ry, bw, 64, 16); g.fillStyle = "rgba(201,162,74,.16)"; g.fill();
+      g.beginPath(); g.arc(scx, scy, sr + 3, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(scx, scy, sr, 0, Math.PI * 2); g.fillStyle = "#FBF8EE"; g.fill();
+      g.fillStyle = goldA; g.font = "900 24px " + EN; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("?", scx, scy + 1); g.textBaseline = "alphabetic";
+      g.textAlign = "left"; g.fillStyle = "#9A7426"; g.font = "900 13px " + JP; g.fillText("担当する生徒", bx + 66, ry + 24);
+      g.fillStyle = ink; g.font = "900 22px " + JP; g.fillText(fitText(g, D.adm.tTbd || "お楽しみに", bw - 80), bx + 66, ry + 52);
+    }
     if (T && p.student){
       const bx = X + 436, bw = W - 84 - bx;
       rr(g, bx, ry, bw, 64, 16); g.fillStyle = "rgba(201,162,74,.16)"; g.fill();

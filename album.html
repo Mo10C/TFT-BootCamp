@@ -11,7 +11,7 @@
 <meta name="description" content="クラウドハッシュテイル校 卒業証書 — 合宿の歩みを1人1ページに">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Klee+One:wght@600&display=swap" rel="stylesheet">
 <!-- 「卒業証書」の達筆な文字（毛筆体 Yuji Boku）。使う4文字だけを読み込むので軽い -->
 <link href="https://fonts.googleapis.com/css2?family=Yuji+Boku&text=%E5%8D%92%E6%A5%AD%E8%A8%BC%E6%9B%B8&display=swap" rel="stylesheet" id="brushFont">
 <link rel="stylesheet" href="ui.css?v=5.3">
@@ -116,6 +116,16 @@
 .jr-pt .rkico{--rk-lg:2.8em}
 .jr-arrow{font-size:22px;color:var(--muted)}
 .jr-gain{margin-left:auto;text-align:right}
+/* ---- 寄せ書き（ふせん） ---- */
+.notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-top:4px}
+.nt{position:relative;padding:16px 16px 12px;border-radius:6px 6px 16px 6px;color:#3A3226;min-height:100px;
+  box-shadow:0 6px 16px -10px rgba(0,0,0,.45);transform:rotate(var(--r,0deg))}
+.nt p{font-family:"Klee One","Zen Kaku Gothic New",sans-serif;font-size:15px;line-height:1.75;white-space:pre-wrap;word-break:break-word;margin:0}
+.nt .by{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:10px;font-size:12px;font-weight:900;color:#3A3226;text-decoration:none}
+.nt .by .av{width:22px;height:22px;border-width:2px;border-color:rgba(255,255,255,.8)}
+.nt .by .avf{font-size:10px}
+.nt::before{content:"";position:absolute;top:-7px;left:50%;width:56px;height:14px;transform:translateX(-50%) rotate(-2deg);
+  background:rgba(255,255,255,.55);border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 a.role.mentor-chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:rgba(201,162,74,.18);border-color:rgba(201,162,74,.45);color:#9A7426;padding:3px 12px 3px 4px;vertical-align:middle}
 a.role.mentor-chip .av{width:24px;height:24px;border-width:2px;border-color:#D9B75E;margin:0}
 a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
@@ -272,9 +282,10 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     ensureBrush(album.title + album.tTitle + (album.pTitle || ""));
     const S = album.start, E = album.end;
     const safe = p => p.catch(e => { console.warn(e); return null; });
-    const [lp, snap, exam, vcr, vcc, cards, members] = await Promise.all([
+    const [lp, snap, exam, vcr, vcc, cards, members, yose] = await Promise.all([
       C.loadLpData(), safe(C.loadSnapshot()), safe(C.loadExamScores()),
-      safe(C.loadVcRange(S, E)), safe(C.loadVcCompanions(S, E)), safe(C.loadProfileCards()), safe(C.loadMembers())
+      safe(C.loadVcRange(S, E)), safe(C.loadVcCompanions(S, E)), safe(C.loadProfileCards()), safe(C.loadMembers()),
+      safe(C.loadYosegaki ? C.loadYosegaki() : Promise.resolve({}))
     ]);
     const mem = members || {};
     // 講師＝先生スナップショットで選んだ「先生ロール」を持っている人
@@ -324,7 +335,11 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     const nameOf = id => (byId[id] && byId[id].name) || ((lp.members || {})[id] || {}).name || (mem[id] || {}).name || (vcc && vcc.names[id]) || "—";
     const avatarOf = id => (byId[id] && byId[id].avatar) || ((lp.members || {})[id] || {}).avatar ||
       ((mem[id] || {}).discord || {}).avatar || "";
-    D = { album, lp, list, teachers, byId, nameOf, avatarOf };
+    // 寄せ書き（宛先ごと・古い順）
+    const yoseTo = {};
+    Object.values(yose || {}).forEach(m => { (yoseTo[m.to] = yoseTo[m.to] || []).push(m); });
+    Object.values(yoseTo).forEach(a => a.sort((x, y) => x.at - y.at));
+    D = { album, lp, list, teachers, byId, nameOf, avatarOf, yoseTo };
   }
 
   /* ---- 部品 ---- */
@@ -514,10 +529,11 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
             : '<div class="note">まだ書かれていません（管理者にだけこの欄が見えています）</div>') +
           "</div>" : "") +
 
+        yoseSec(e) +
         '<div class="pg-foot">' +
-          '<button class="xbtn main" id="saveImg">🖼 画像で保存</button>' + pairBtn(e) +
+          '<button class="xbtn main" id="saveImg">🖼 画像で保存</button>' + pairBtn(e) + yoseBtn(e) +
           (navigator.share ? '<button class="xbtn" id="shareImg">📤 シェア</button>' : "") +
-          '<span class="note">画像はXやDiscordにそのまま貼れるサイズ（1200×675）です。</span>' +
+          '<span class="note">画像はXやDiscordにそのまま貼れます（証書は1200×675・色紙は1080×1350）。</span>' +
         "</div>" +
       "</article>" +
       '<div class="shot" id="shot"></div>';
@@ -533,8 +549,33 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     return t ? { t, s: e } : null;
   }
   const pairBtn = e => pairOf(e) ? '<button class="xbtn" id="pairImg" style="border-color:#D9B75E;color:#9A7426">🤝 ' + esc(D.album.pTitle) + "の画像</button>" : "";
+  /* ---- 寄せ書き ---- */
+  const yoseOf = e => D.yoseTo[e.id] || [];
+  const yoseTilt = k => { let h = 0; for (const ch of String(k)) h = (h * 31 + ch.charCodeAt(0)) | 0; return ((Math.abs(h) % 7) - 3) * .6; };
+  function yoseSec(e){
+    const ms = yoseOf(e);
+    const write = D.album.yOpen && e.id !== ME
+      ? '<a class="editlink" href="yosegaki.html?to=' + encodeURIComponent(e.id) + '">💌 寄せ書きを書く</a>' : "";
+    return '<div class="pg-sec"><h3 style="display:flex;align-items:center">みんなからの寄せ書き' +
+        (ms.length ? '<small style="margin-left:6px;letter-spacing:0;color:var(--muted)">' + ms.length + "枚</small>" : "") + write + "</h3>" +
+      (ms.length ? '<div class="notes">' + ms.map(m =>
+          '<div class="nt" style="background:' + C.YOSE_COLORS[m.color] + ";--r:" + yoseTilt(m.key) + 'deg"><p>' + esc(m.text) + "</p>" +
+            '<a class="by" href="?id=' + encodeURIComponent(m.from) + '">' + avatar(D.avatarOf(m.from), D.nameOf(m.from)) + esc(D.nameOf(m.from)) + "</a></div>"
+        ).join("") + "</div>"
+        : '<div class="note">まだ届いていません。</div>') + "</div>";
+  }
+  const yoseBtn = e => yoseOf(e).length ? '<button class="xbtn" id="yoseImg" style="border-color:#F2A7B8;color:#B4506A">🎴 寄せ書き色紙</button>' : "";
+
   function bindImageButtons(e){
     const title = e.teacher ? D.album.tTitle : D.album.title;
+    if ($("yoseImg")) $("yoseImg").onclick = () => makeShikishi(e).then(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "寄せ書き_" + e.name.replace(/[\\/:*?"<>|]/g, "") + ".png";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      showShot(blob);
+    }).catch(err => toast("画像を作れませんでした：" + err.message));
     const pr = pairOf(e);
     if (pr && $("pairImg")) $("pairImg").onclick = () => makePairImage(pr.t, pr.s).then(blob => {
       const a = document.createElement("a");
@@ -611,9 +652,10 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
           (IS_ADMIN ? '<a class="editlink" href="editor.html?tab=p-album&focus=' + encodeURIComponent(e.id) + '">✏️ ことばを編集</a>' : "") + "</h3>" +
           (e.comment ? '<div class="bubble">' + esc(e.comment) + '<span class="sig">— ' + esc(D.album.tSigner) + "</span></div>"
                      : '<div class="note">まだ書かれていません（管理者にだけこの欄が見えています）</div>') + "</div>" : "") +
-        '<div class="pg-foot"><button class="xbtn main" id="saveImg">🖼 画像で保存</button>' + pairBtn(e) +
+        yoseSec(e) +
+        '<div class="pg-foot"><button class="xbtn main" id="saveImg">🖼 画像で保存</button>' + pairBtn(e) + yoseBtn(e) +
           (navigator.share ? '<button class="xbtn" id="shareImg">📤 シェア</button>' : "") +
-          '<span class="note">画像はXやDiscordにそのまま貼れるサイズ（1200×675）です。</span></div>' +
+          '<span class="note">画像はXやDiscordにそのまま貼れます（証書は1200×675・色紙は1080×1350）。</span></div>' +
       "</article>" + '<div class="shot" id="shot"></div>';
     bindImageButtons(e);
     document.title = e.name + " ｜ " + T;
@@ -1163,6 +1205,146 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     g.fillStyle = red; g.font = "400 25px " + BR; g.textAlign = "center";
     g.fillText("師弟", 0, -3); g.fillText("之証", 0, 25);
     g.restore();
+
+    return new Promise((res, rej) => {
+      try { cv.toBlob(b => b ? res(b) : rej(new Error("画像を作れませんでした")), "image/png"); }
+      catch(err){ rej(err); }
+    });
+  }
+
+  /* 寄せ書き色紙（1080×1350・たて長）。まん中に本人、まわりにみんなのふせん */
+  function wrapAll(g, text, maxW){
+    const out = [];
+    String(text || "").split("\n").forEach(par => {
+      let line = "";
+      for (const ch of par){
+        if (line && g.measureText(line + ch).width > maxW){ out.push(line); line = ch; }
+        else line += ch;
+      }
+      out.push(line);
+    });
+    return out;
+  }
+  async function makeShikishi(e){
+    const ms = yoseOf(e);
+    const all = ms.map(m => m.text).join("");
+    const HAND = '"Klee One","Zen Kaku Gothic New",sans-serif';
+    try { await Promise.all([
+      document.fonts.load('900 40px "Zen Kaku Gothic New"'), document.fonts.load('700 20px "Space Grotesk"'),
+      document.fonts.load('600 20px "Klee One"', all + "さんへ人から"),
+      document.fonts.load('400 60px "Yuji Boku"', "寄せ書き")]); } catch(x){}
+    const W = 1080, H = 1350;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    const ink = "#23384D", muted = "#6D8699", leaf = cssColor("var(--leaf)");
+    const JP = '"Zen Kaku Gothic New",sans-serif', BR = '"Yuji Boku",' + JP;
+    const goldA = "#C9A24A", goldB = "#E8CD82";
+
+    // 色紙：クリーム色の紙＋金のふち
+    const bg = g.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, "#FFFCF3"); bg.addColorStop(.55, "#FBF6E8"); bg.addColorStop(1, "#F4F1E4");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    const edge = g.createLinearGradient(0, 0, W, H);
+    edge.addColorStop(0, goldB); edge.addColorStop(.5, goldA); edge.addColorStop(1, goldB);
+    g.strokeStyle = edge; g.lineWidth = 22; g.strokeRect(11, 11, W - 22, H - 22);
+    g.strokeStyle = "rgba(201,162,74,.55)"; g.lineWidth = 2; g.strokeRect(36, 36, W - 72, H - 72);
+    const emb = await loadImg("assets/emblem.png");
+    if (emb){ g.save(); g.globalAlpha = .05; g.drawImage(emb, W / 2 - 260, H / 2 - 240, 520, 520); g.restore(); }
+
+    // 見出し
+    g.textAlign = "center"; g.textBaseline = "alphabetic";
+    g.fillStyle = leaf; g.font = "900 16px " + JP;
+    g.fillText("クラウドハッシュテイル校" + (D.album.term ? "　" + D.album.term : ""), W / 2, 88);
+    g.fillStyle = ink; g.font = "400 62px " + BR;
+    const tt = Array.from("寄せ書き"); let tw = tt.reduce((n, ch) => n + g.measureText(ch).width, 0) + 16 * (tt.length - 1);
+    let tx = W / 2 - tw / 2; g.textAlign = "left";
+    tt.forEach(ch => { g.fillText(ch, tx, 158); tx += g.measureText(ch).width + 16; });
+    g.strokeStyle = goldA; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(W / 2 - 130, 182); g.lineTo(W / 2 - 14, 182); g.moveTo(W / 2 + 14, 182); g.lineTo(W / 2 + 130, 182); g.stroke();
+    g.beginPath(); g.moveTo(W / 2, 177); g.lineTo(W / 2 + 5, 182); g.lineTo(W / 2, 187); g.lineTo(W / 2 - 5, 182); g.closePath();
+    g.fillStyle = goldA; g.fill();
+
+    // ふせんを置くマス：まん中（本人）を空けて、いちばん大きく置ける並べ方を選ぶ
+    const x0 = 66, x1 = W - 66, y0 = 206, y1 = H - 70;
+    const cy = Math.round((y0 + y1) / 2) - 10;
+    const CR = { x: W / 2 - 148, y: cy - 120, w: 296, h: 270 };
+    const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    let best = null, most = null;
+    for (let cols = 2; cols <= 5; cols++) for (let rows = 2; rows <= 10; rows++){
+      const cw = (x1 - x0) / cols, ch = (y1 - y0) / rows;
+      const cells = [];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++){
+        const cell = { x: x0 + c * cw, y: y0 + r * ch, w: cw, h: ch };
+        if (!hit(cell, CR)) cells.push(cell);
+      }
+      const fit = Math.min(cw, ch * 1.25);       // 横長すぎ・縦長すぎを避ける
+      if (cells.length >= ms.length && (!best || fit > best.fit)) best = { cells, fit };
+      if (!most || cells.length > most.cells.length) most = { cells, fit };
+    }
+    best = best || most;     // 多すぎて入りきらないときは、いちばんマスの多い並べ方で「ほか○枚」
+    const dist = c => Math.hypot(c.x + c.w / 2 - W / 2, (c.y + c.h / 2 - cy) * 1.1);
+    const cells = best.cells.slice().sort((a, b) => dist(a) - dist(b));
+    const shown = ms.length > cells.length ? ms.slice(0, cells.length - 1) : ms;
+
+    for (let i = 0; i < shown.length; i++){
+      const m = shown[i], c = cells[i];
+      const pad = 10, cw = Math.min(c.w - pad * 2, 330), chh = c.h - pad * 2 - 4;
+      // 本文（入るいちばん大きい文字で。上限26px）
+      const footH = 28, inner = cw - 30;
+      let fs = Math.min(26, Math.max(14, Math.floor(chh / 6))), lines = [];
+      for (; fs >= 12; fs--){
+        g.font = "600 " + fs + "px " + HAND;
+        lines = wrapAll(g, m.text, inner);
+        if (lines.length * fs * 1.5 <= chh - 22 - footH) break;
+      }
+      const maxL = Math.max(1, Math.floor((chh - 22 - footH) / (fs * 1.5)));
+      if (lines.length > maxL){ lines = lines.slice(0, maxL); lines[maxL - 1] = fitText(g, lines[maxL - 1] + "…", inner); }
+      // ふせんの大きさは中身に合わせる（マスの中で少しずらして置く）
+      const nw = cw, nh = Math.min(chh, Math.max(110, lines.length * fs * 1.5 + 22 + footH + 8));
+      const jx = ((m.key.length * 7) % 13) - 6, jy = ((m.key.charCodeAt(2) * 5) % 11) - 5;
+      const ccx = c.x + c.w / 2 + jx, ccy = c.y + c.h / 2 + jy;
+      g.save();
+      g.translate(ccx, ccy);
+      g.rotate(yoseTilt(m.key) * Math.PI / 180);
+      g.shadowColor = "rgba(0,0,0,.16)"; g.shadowBlur = 12; g.shadowOffsetY = 5;
+      rr(g, -nw / 2, -nh / 2, nw, nh, 8); g.fillStyle = C.YOSE_COLORS[m.color]; g.fill();
+      g.shadowColor = "transparent";
+      g.save(); g.rotate(-.03); g.fillStyle = "rgba(255,255,255,.6)"; g.fillRect(-28, -nh / 2 - 8, 56, 16); g.restore();
+      g.font = "600 " + fs + "px " + HAND;
+      g.fillStyle = "#3A3226"; g.textAlign = "left"; g.textBaseline = "top";
+      lines.forEach((ln, k) => g.fillText(ln, -nw / 2 + 15, -nh / 2 + 15 + k * fs * 1.5));
+      // 書いた人（右下）
+      g.textBaseline = "alphabetic"; g.textAlign = "right"; g.font = "900 13px " + JP;
+      const nm = fitText(g, D.nameOf(m.from), nw - 70);
+      g.fillText(nm, nw / 2 - 12, nh / 2 - 12);
+      const nmw = g.measureText(nm).width;
+      await drawAvatar(g, D.avatarOf(m.from), D.nameOf(m.from), nw / 2 - 12 - nmw - 14, nh / 2 - 17, 9, "#fff");
+      g.restore();
+    }
+    if (shown.length < ms.length){
+      const c = cells[shown.length];
+      g.textAlign = "center"; g.fillStyle = muted; g.font = "900 22px " + JP;
+      g.fillText("ほか " + (ms.length - shown.length) + "枚", c.x + c.w / 2, c.y + c.h / 2 + 8);
+    }
+
+    // まん中：本人
+    const ring = g.createLinearGradient(W / 2 - 90, cy - 110, W / 2 + 90, cy + 70);
+    ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
+    await drawAvatar(g, e.avatar, e.name, W / 2, cy - 22, 84, ring);
+    g.textAlign = "center"; g.fillStyle = ink;
+    let fs = 34; g.font = "900 " + fs + "px " + JP;
+    while (fs > 20 && g.measureText(e.name).width > 200){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
+    const nm = fitText(g, e.name, 200), nw2 = g.measureText(nm).width;
+    g.font = "400 26px " + BR; const sw = g.measureText("さんへ").width;
+    const sx = W / 2 - (nw2 + 8 + sw) / 2;
+    g.textAlign = "left"; g.font = "900 " + fs + "px " + JP; g.fillText(nm, sx, cy + 104);
+    g.font = "400 26px " + BR; g.fillText("さんへ", sx + nw2 + 8, cy + 104);
+    g.textAlign = "center"; g.fillStyle = muted; g.font = "700 15px " + JP;
+    g.fillText(ms.length + "人から" + (e.teacher ? " ・ 講師" : ""), W / 2, cy + 132);
+
+    g.fillStyle = "rgba(109,134,153,.9)"; g.font = "700 15px " + JP; g.textAlign = "center";
+    g.fillText("#TFT合宿", W / 2, H - 46);
 
     return new Promise((res, rej) => {
       try { cv.toBlob(b => b ? res(b) : rej(new Error("画像を作れませんでした")), "image/png"); }

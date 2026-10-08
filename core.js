@@ -1228,7 +1228,8 @@
             { id: "midterm",  icon: "📝", name: "中間試験",            desc: "みんなで一斉に答えるクイズ。",      url: "exam.html", external: false, roleIds: [] },
             { id: "ito",      icon: "🎲", name: "ITO",                 desc: "みんなで遊ぶ ito 風カードゲーム。", url: "", external: true, roleIds: [] },
             { id: "codename", icon: "🕵️", name: "codenameジェネレータ", desc: "コードネームを作るツール。",        url: "", external: true, roleIds: [] },
-            { id: "bloom",    icon: "🌸", name: "Bloom Spire",         desc: "",                                  url: "", external: true, roleIds: [] }
+            { id: "bloom",    icon: "🌸", name: "Bloom Spire",         desc: "",                                  url: "", external: true, roleIds: [] },
+            { id: "nazo",     icon: "🧩", name: "謎解き",              desc: "4人1チームで挑む謎解き。",          url: "nazo.html", external: false, roleIds: [] }
           ] }
       ].map(normTile),
       tools: ((((CFG.home || {}).tools) || []).slice()).map(normTool),
@@ -1312,18 +1313,36 @@
      以降は保存した内容がそのまま使われる（勝手に戻されない）。
      ★ 次にHOMEの構成を総入れ替えしたくなったら、この数字を1つ上げること。 */
   const HOME_LAYOUT = 2;
+  /* 保存済みのHOMEに「1回だけ」足すもの。保存すると addsVersion が書き込まれ、
+     そのあと管理コンソールで消しても復活しない。
+     ★ 新しく足したいものができたら、HOME_ADDS に追加して版を1つ上げる。 */
+  const HOME_ADDS_VERSION = 1;
+  const HOME_ADDS = [
+    { v: 1, tile: "playground", child: { id: "nazo", icon: "🧩", name: "謎解き", desc: "4人1チームで挑む謎解き。", url: "nazo.html", external: false, roleIds: [] } }
+  ];
 
   function normHomeConfig(h) {
     const d = defaultHomeConfig();
     h = h || {};
     const hasTiles = Array.isArray(h.tiles) && h.tiles.length;
     const oldLayout = (Number(h.layoutVersion) || 0) < HOME_LAYOUT;
+    const tiles = (hasTiles && !oldLayout) ? h.tiles.map(normTile) : d.tiles;
+    const addsV = (hasTiles && !oldLayout) ? (Number(h.addsVersion) || 0) : HOME_ADDS_VERSION;
+    HOME_ADDS.forEach(a => {
+      if (a.v <= addsV) return;
+      const t = tiles.find(x => x.id === a.tile);
+      if (!t) return;
+      const kids = t.children || [];
+      if (kids.some(k => k.id === a.child.id || (a.child.url && k.url === a.child.url))) return;
+      t.children = kids.concat([normChild(a.child, kids.length)]);
+    });
     return {
       title: typeof h.title === "string" && h.title.trim() ? h.title.trim() : d.title,
       subtitle: typeof h.subtitle === "string" ? h.subtitle : d.subtitle,
-      tiles: (hasTiles && !oldLayout) ? h.tiles.map(normTile) : d.tiles,
+      tiles,
       tools: Array.isArray(h.tools) ? h.tools.map(normTool) : d.tools.map(normTool),
       layoutVersion: HOME_LAYOUT,
+      addsVersion: HOME_ADDS_VERSION,
       updatedAt: h.updatedAt || 0
     };
   }
@@ -2922,6 +2941,8 @@
       tSigner: "生徒一同より",
       // 先生と生徒のペア画像のタイトル
       pTitle: "師弟の記録",
+      // 寄せ書きの受付（オフにすると新しく書けない。読めるのは卒業証書の公開後）
+      yOpen: true,
       comments: {},
       mentors: {},
       /* 特別賞（後夜祭で発表）。awardsOpen を true にするまで生徒には見えない */
@@ -2972,6 +2993,7 @@
       tBody: String(raw.tBody == null ? d.tBody : raw.tBody).slice(0, 120),
       tSigner: String(raw.tSigner || "").trim().slice(0, 30) || d.tSigner,
       pTitle: String(raw.pTitle || "").trim().slice(0, 10) || d.pTitle,
+      yOpen: raw.yOpen == null ? d.yOpen : !!raw.yOpen,
       comments,
       mentors,
       awardsOpen: !!raw.awardsOpen,
@@ -3098,6 +3120,82 @@
      ・post は X に投稿する文面。{name} {rank} {no} {date} が使える
      ・学籍番号は、メンバー名簿（lboard_index/members）に登録された順
      ============================================================= */
+
+  /* =============================================================
+     寄せ書き
+       lboard_index/yosegaki … { msgs: { "<宛先ID>__<書いた人ID>": { to, from, text, color, at } } }
+     宛先1人につき、書く人1人1枚（書き直すと上書き・空で保存すると消える）。
+     生徒が自分の分だけ書き込む（profile_cards と同じ、merge で1件ずつ）。
+     読めるのは卒業証書を公開してから（画面側で隠す）。
+     ============================================================= */
+  const YOSE_DOC = "yosegaki";
+  const YOSE_LS_KEY = "mcc-lb2-yosegaki";
+  const YOSE_MAX = 140;
+  // ふせんの色（紙に描いても読めるよう、どれも明るめ）
+  const YOSE_COLORS = ["#FFF1A8", "#FFD6DF", "#CDEBFF", "#D7F2CF", "#E6DAFF", "#FFE0BF"];
+  function normYose(raw) {
+    const out = {};
+    Object.entries((raw && raw.msgs) || {}).forEach(([k, m]) => {
+      if (!m || !m.to || !m.from) return;
+      const text = String(m.text || "").trim().slice(0, YOSE_MAX);
+      if (!text) return;
+      out[k] = { key: k, to: String(m.to), from: String(m.from), text,
+        color: Math.abs(m.color | 0) % YOSE_COLORS.length, at: m.at || 0 };
+    });
+    return out;
+  }
+  async function loadYosegaki() {
+    try {
+      const db = openDb();
+      if (db) {
+        const snap = await db.collection("lboard_index").doc(YOSE_DOC).get();
+        return normYose(snap.exists ? snap.data() : null);
+      }
+      return normYose(JSON.parse(localStorage.getItem(YOSE_LS_KEY) || "null"));
+    } catch (e) { console.warn("寄せ書きの読み込みに失敗", e); throw e; }
+  }
+  async function deleteYoseKey(key) {
+    const db = openDb();
+    if (db) {
+      const ref = db.collection("lboard_index").doc(YOSE_DOC);
+      try { await ref.update({ ["msgs." + key]: firebase.firestore.FieldValue.delete(), updatedAt: Date.now() }); }
+      catch (e) { if (!/not-found|No document/i.test(String(e.code || e.message))) throw e; }
+    } else {
+      const raw = JSON.parse(localStorage.getItem(YOSE_LS_KEY) || "null") || { msgs: {} };
+      delete raw.msgs[key];
+      localStorage.setItem(YOSE_LS_KEY, JSON.stringify(raw));
+    }
+  }
+  /* ログイン中の本人として、to さんへの寄せ書きを書く（text が空なら消す） */
+  async function saveYosegaki(to, text, color) {
+    const se = Session.get();
+    if (!se || !se.discord || !se.discord.id) throw new Error("ログインしてから書いてください");
+    const from = "u_" + se.discord.id;
+    to = String(to || "");
+    if (!/^u_\d+$/.test(to)) throw new Error("宛先が正しくありません");
+    if (to === from) throw new Error("自分あてには書けません");
+    const key = to + "__" + from;
+    text = String(text || "").trim().slice(0, YOSE_MAX);
+    if (!text) { await deleteYoseKey(key); return null; }
+    const msg = { to, from, text, color: Math.abs(color | 0) % YOSE_COLORS.length, at: Date.now() };
+    const db = openDb();
+    if (db) {
+      await db.collection("lboard_index").doc(YOSE_DOC)
+        .set({ msgs: { [key]: msg }, updatedAt: Date.now() }, { merge: true });
+    } else {
+      const raw = JSON.parse(localStorage.getItem(YOSE_LS_KEY) || "null") || { msgs: {} };
+      raw.msgs = raw.msgs || {};
+      raw.msgs[key] = msg;
+      localStorage.setItem(YOSE_LS_KEY, JSON.stringify(raw));
+    }
+    return Object.assign({ key }, msg);
+  }
+  /* 管理者：不適切な寄せ書きを消す */
+  async function removeYosegaki(key) {
+    if (!isAdmin()) throw new Error("寄せ書きの削除は管理者のみです");
+    await deleteYoseKey(String(key || ""));
+  }
+
   const ADM_DOC = "admission";
   const ADM_LS_KEY = "mcc-lb2-admission";
   function defaultAdmission() {
@@ -3111,6 +3209,8 @@
       tTitle: "講師任命書",
       tBody: "あなたを本校の講師に\n任命します",
       tPost: "クラウドハッシュテイル校の講師に就任しました🎓\n生徒のみんなと一緒に高め合います！\n#TFT合宿",
+      // 担当の生徒がまだ決まっていないときに出す文字
+      tTbd: "お楽しみに",
       post: "クラウドハッシュテイル校に入学しました🎓\n入学時のランクは {rank}。ここから一緒に高め合います！\n#TFT合宿",
       shareUrl: "",
       updatedAt: 0
@@ -3129,6 +3229,7 @@
       tTitle: String(raw.tTitle || "").trim().slice(0, 12) || d.tTitle,
       tBody: String(raw.tBody == null ? d.tBody : raw.tBody).slice(0, 120),
       tPost: String(raw.tPost == null ? d.tPost : raw.tPost).slice(0, 280),
+      tTbd: String(raw.tTbd == null ? d.tTbd : raw.tTbd).trim().slice(0, 20) || d.tTbd,
       post: String(raw.post == null ? d.post : raw.post).slice(0, 280),
       shareUrl: /^https?:\/\//i.test(url) ? url.slice(0, 300) : "",
       updatedAt: raw.updatedAt || 0
@@ -4053,6 +4154,7 @@
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, loadVcCompanions, loadExamScores, rankOfAbs,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
+    YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
     defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
