@@ -1714,7 +1714,9 @@
   function rolesOf(x) {
     const r = (x && Array.isArray(x.roles)) ? x.roles
       : ((x && x.discord && Array.isArray(x.discord.roles)) ? x.discord.roles : []);
-    return r.filter(v => v && v.id).map(v => ({
+    // ロールは {id, name, color} の形のほか、IDの文字列だけで入っていることもある
+    return r.map(v => (typeof v === "string" || typeof v === "number") ? { id: String(v) } : v)
+      .filter(v => v && v.id).map(v => ({
       id: String(v.id), name: String(v.name || ""), color: v.color | 0 }));
   }
 
@@ -3236,6 +3238,7 @@
     return {
       enabled: true,
       homeBtn: true,            // HOMEのプロフィールの右に「入学許可書を開く」を出す
+      teacherRoleIds: [],       // 講師（先生）のロール。空なら名前に「先生」「講師」が入っているロール
       date: "2026-10-25",
       term: "TFT合宿　SET18",   // 入学許可書のアイコンの下に印字する文字（空欄なら出さない）
       body: "あなたを本校の生徒として\n入学を許可します",
@@ -3258,6 +3261,7 @@
     return {
       enabled: raw.enabled !== false,
       homeBtn: raw.homeBtn !== false,
+      teacherRoleIds: (Array.isArray(raw.teacherRoleIds) ? raw.teacherRoleIds : []).map(x => String(x).trim()).filter(Boolean).slice(0, 20),
       date: /^\d{4}-\d{2}-\d{2}$/.test(String(raw.date || "")) ? String(raw.date) : d.date,
       term: String(raw.term == null ? d.term : raw.term).trim().slice(0, 20),
       body: String(raw.body == null ? d.body : raw.body).slice(0, 120),
@@ -3299,13 +3303,20 @@
     }
     return a;
   }
-  /* 講師かどうか：先生スナップショットで選んだ「先生ロール」を1つでも持っているか。
-       roleIds … loadSnapshot().roleIds
-       who     … 名簿（members）か LP名簿の1人ぶん（roles を持っているもの） */
+  /* 講師かどうか。
+       roleIds … 管理コンソール →「入学許可書」で選んだ「講師（先生）のロール」（loadAdmission().teacherRoleIds）
+                 未選択のときは、名前に「先生」「講師」が入っているロールを講師のロールとみなす
+       who     … 名簿（members）か LP名簿の1人ぶん、またはセッションの discord（roles を持っているもの） */
   function isTeacherOf(who, roleIds) {
-    const ids = (roleIds || []).map(String);
-    if (!ids.length || !who) return false;
-    return rolesOf(who).some(r => ids.indexOf(String(r.id)) >= 0);
+    if (!who) return false;
+    const ids = (roleIds || []).map(String).filter(Boolean);
+    const rs = rolesOf(who);
+    if (ids.length) return rs.some(r => ids.indexOf(String(r.id)) >= 0);
+    return rs.some(r => /先生|講師/.test(r.name || ""));
+  }
+  // 講師のロール（入学許可書の設定から）
+  async function loadTeacherRoleIds() {
+    try { return (await loadAdmission()).teacherRoleIds || []; } catch (e) { return []; }
   }
   /* 学籍番号：名簿に登録された順（運営は除く）。{ "u_…": 1, … } */
   function studentNumbers(members) {
@@ -4191,7 +4202,7 @@
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, loadVcCompanions, loadExamScores, rankOfAbs,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
-    defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf,
+    defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf, loadTeacherRoleIds,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,

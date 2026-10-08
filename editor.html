@@ -1074,7 +1074,9 @@ body.ad-on{overflow:hidden}
 
     <div class="card">
       <h2>🎓 講師用（講師任命書）</h2>
-      <div class="lead">先生スナップショットで選んだ<b>先生ロール</b>を持っている人は、自動でこちらの文面になります（画像のハンコは「講師／任命」）。</div>
+      <div class="lead">下で選んだ<b>講師（先生）のロール</b>を持っている人は、自動でこちらの文面になります（画像のハンコは「講師／任命」）。
+        卒業証書の「感謝状」、HOMEのボタン、寄せ書きの「講師」表示も、このロールで判定します。</div>
+      <div id="admTRoleField" style="margin-bottom:10px"></div>
       <div class="row"><label style="min-width:84px">タイトル</label>
         <input type="text" id="admTTitle" maxlength="10" style="width:220px" placeholder="講師任命書"></div>
       <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">本文</label>
@@ -1135,7 +1137,7 @@ body.ad-on{overflow:hidden}
 
     <div class="card">
       <h2>🎓 講師用（感謝状）</h2>
-      <div class="lead">先生スナップショットで選んだ<b>先生ロール</b>を持っている人は、卒業証書の代わりに感謝状になります。
+      <div class="lead">「入学許可書」タブで選んだ<b>講師（先生）のロール</b>を持っている人は、卒業証書の代わりに感謝状になります。
         「感謝のことば」は下の一覧の<b>講師</b>の欄に書きます。</div>
       <div class="row"><label style="min-width:72px">タイトル</label>
         <input type="text" id="alTTitle" style="width:220px" maxlength="10" placeholder="感謝状"></div>
@@ -3935,7 +3937,7 @@ body.ad-on{overflow:hidden}
       try { alLp = await C.loadLpData(); } catch(e){ alLp = { members: {}, hist: {} }; }
       try {
         const [sn, mb] = await Promise.all([C.loadSnapshot().catch(() => null), C.loadMembers().catch(() => null)]);
-        alTRoles = (sn && sn.roleIds) || []; alMem = mb || {};
+        alTRoles = C.loadTeacherRoleIds ? await C.loadTeacherRoleIds() : []; alMem = mb || {};
       } catch(e){}
       renderAwards();
       renderRows();
@@ -4052,6 +4054,8 @@ body.ad-on{overflow:hidden}
     function fill(){
       $("admOn").checked = !!adEdit.enabled;
       $("admHome").checked = adEdit.homeBtn !== false;
+      roleField($("admTRoleField"), () => adEdit.teacherRoleIds || [], ids => { adEdit.teacherRoleIds = ids; mark(); },
+        "講師（先生）のロール（未選択＝名前に「先生」「講師」が入っているロール）");
       $("admDate").value = adEdit.date;
       $("admTerm").value = adEdit.term;
       $("admBody").value = adEdit.body;

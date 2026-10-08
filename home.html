@@ -390,11 +390,16 @@
      管理コンソール →「入学許可書」の「公開」と「HOMEに出す」が両方オンのときだけ出す（管理者には公開前も出す）。
      先生ロールの人には「講師任命書」として出す。 */
   if (typeof C.loadAdmission === "function"){
-    Promise.all([C.loadAdmission(), C.loadSnapshot ? C.loadSnapshot().catch(() => null) : null]).then(([adm, snap]) => {
+    const ME = "u_" + session.discord.id;
+    Promise.all([C.loadAdmission(), C.loadMembers ? C.loadMembers().catch(() => null) : null,
+                 C.loadAlbum ? C.loadAlbum().catch(() => null) : null]).then(([adm, mem, album]) => {
       if (!adm || adm.homeBtn === false) return;
       const admin = C.isAdmin(session);
       if (!adm.enabled && !admin) return;
-      const teacher = C.isTeacherOf && C.isTeacherOf(session.discord, (snap && snap.roleIds) || []);
+      // 講師：講師のロールを持っている（セッション・名簿のどちらか）か、卒業証書で担当の生徒が決まっている人
+      const roles = adm.teacherRoleIds || [];
+      const teacher = C.isTeacherOf(session.discord, roles) || C.isTeacherOf((mem || {})[ME], roles) ||
+        Object.values((album && album.mentors) || {}).indexOf(ME) >= 0;
       $("meCertTitle").textContent = teacher ? (adm.tTitle || "講師任命書") : "入学許可書";
       $("meCertSeal").innerHTML = teacher ? "講師<br>任命" : "入学<br>許可";
       if (!adm.enabled){

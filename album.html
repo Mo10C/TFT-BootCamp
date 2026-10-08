@@ -288,8 +288,8 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
       safe(C.loadYosegaki ? C.loadYosegaki() : Promise.resolve({}))
     ]);
     const mem = members || {};
-    // 講師＝先生スナップショットで選んだ「先生ロール」を持っている人
-    const teacherRoles = (snap && snap.roleIds) || [];
+    // 講師＝「講師（先生）のロール」を持っている人（管理コンソール →「入学許可書」で選ぶ）
+    const teacherRoles = C.loadTeacherRoleIds ? await C.loadTeacherRoleIds() : [];
     const isT = id => C.isTeacherOf((lp.members || {})[id], teacherRoles) || C.isTeacherOf(mem[id], teacherRoles);
     const order = C.lpGroupOrder(lp);
     const extra = { snap, exam, vcUsers: vcr ? vcr.users : [], vcComp: vcc };

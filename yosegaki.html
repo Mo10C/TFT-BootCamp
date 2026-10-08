@@ -178,7 +178,7 @@
     const [album, lp, members, snap, yose] = await Promise.all([
       C.loadAlbum(), safe(C.loadLpData()), safe(C.loadMembers()), safe(C.loadSnapshot()), C.loadYosegaki()]);
     const mem = members || {}, lpm = (lp && lp.members) || {};
-    const roles = (snap && snap.roleIds) || [];
+    const roles = C.loadTeacherRoleIds ? await C.loadTeacherRoleIds() : [];   // 講師（先生）のロール
     const people = {};
     Object.values(mem).forEach(m => {
       const t = C.isTeacherOf(m, roles);

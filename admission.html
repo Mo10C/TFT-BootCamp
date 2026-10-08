@@ -122,7 +122,7 @@
     const [adm, lp, members, snap, album] = await Promise.all([C.loadAdmission(), safe(C.loadLpData()), safe(C.loadMembers()), safe(C.loadSnapshot()),
       safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null))]);
     const mem = members || {};
-    const teacherRoles = (snap && snap.roleIds) || [];
+    const teacherRoles = adm.teacherRoleIds || [];      // 講師（先生）のロール
     // タイトルを変えていても毛筆体で出るように、使う文字を読み込み直す
     const l = $("brushFont");
     if (l) l.href = "https://fonts.googleapis.com/css2?family=Yuji+Boku&text=" +
