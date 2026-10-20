@@ -90,6 +90,20 @@
 .stage:hover .nav{opacity:1}
 .stage .nav:disabled{display:none}
 .stage .nav.l{left:8px} .stage .nav.r{right:8px}
+.stage img.turn-n{animation:turnN .45s ease}
+.stage img.turn-p{animation:turnP .45s ease}
+@keyframes turnN{from{opacity:0;transform:translateX(6%) rotateY(-12deg)}to{opacity:1;transform:none}}
+@keyframes turnP{from{opacity:0;transform:translateX(-6%) rotateY(12deg)}to{opacity:1;transform:none}}
+.kpg{position:absolute;left:12px;top:12px;z-index:3;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,.5);color:#fff;font-size:12.5px;font-weight:900;letter-spacing:.06em;pointer-events:none}
+.kdots{position:absolute;left:0;right:0;bottom:10px;z-index:3;display:flex;justify-content:center;gap:7px;pointer-events:none}
+.kdots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.45);box-shadow:0 0 0 1.5px rgba(0,0,0,.25)}
+.kdots i.on{background:#fff;width:24px;border-radius:99px}
+.kbar{display:flex;align-items:center;gap:10px;margin-top:12px}
+.kbar .pgn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:14px;min-width:54px;text-align:center}
+.kctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-top:1px dashed var(--border)}
+.kctl img{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0E1E25}
+.kctl .pgn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:16px;min-width:56px;text-align:center}
+.edpg{border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:10px}
 .tin{position:absolute;z-index:4;border:2px solid var(--nzA);border-radius:8px;padding:4px 8px;font:inherit;font-size:15px;font-weight:900;min-width:160px;background:rgba(255,255,255,.95);color:#222}
 .below{border:1.5px solid var(--border);border-radius:16px;background:var(--surface);margin-top:10px;padding:14px 16px}
 .below h2{font-size:19px;font-weight:900;margin-bottom:4px}
@@ -100,6 +114,54 @@
 .ans .xbtn{padding:12px 22px;font-size:14px}
 .ans.ng input{border-color:var(--danger);animation:shake .35s}
 @keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.chs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:12px}
+.ch{position:relative;border:2.5px solid var(--border-strong);border-radius:16px;background:var(--surface);color:var(--ink);font-family:inherit;cursor:pointer;
+  padding:14px 10px 12px;text-align:center;transition:transform .12s,border-color .12s,box-shadow .12s}
+.ch:hover:not(:disabled){transform:translateY(-2px);border-color:var(--nz2)}
+.ch:disabled{cursor:default}
+.ch .ci{width:72px;height:72px;border-radius:50%;margin:0 auto 8px;background:var(--nz2) center/cover no-repeat;display:grid;place-items:center;color:#fff;font-size:28px;font-weight:900}
+.ch b{display:block;font-size:19px;font-weight:900;letter-spacing:.04em;word-break:break-all}
+.ch .ck{position:absolute;top:8px;right:10px;font-size:13px;font-weight:900;color:var(--nzA);opacity:0}
+.ch.on{border-color:var(--nzA);background:color-mix(in srgb,var(--nzA) 14%,var(--surface));box-shadow:0 0 0 4px color-mix(in srgb,var(--nzA) 25%,transparent)}
+.ch.on .ck{opacity:1}
+.ch.dim{opacity:.4}
+.chmsg{margin-top:10px;border-radius:14px;padding:12px 16px;font-size:14px;line-height:1.9;white-space:pre-wrap;background:color-mix(in srgb,var(--nz2) 9%,var(--surface));border:1.5px solid color-mix(in srgb,var(--nz2) 40%,var(--border))}
+.ch.x{border-style:dashed;opacity:.45}
+.ch.x::after{content:"❌ 1回目";position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) rotate(-12deg);font-size:15px;font-weight:900;color:var(--danger);
+  background:var(--surface);border:2px solid var(--danger);border-radius:8px;padding:2px 8px;white-space:nowrap}
+.tries{display:flex;gap:6px;align-items:center;margin-top:10px;font-size:12.5px;font-weight:900}
+.tries i{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-style:normal;font-size:12px;border:2px solid var(--nzA);color:var(--nzA)}
+.tries i.used{background:var(--danger);border-color:var(--danger);color:#fff}
+.miss{margin-top:12px;border-radius:14px;padding:14px 16px;background:color-mix(in srgb,var(--danger) 9%,var(--surface));border:1.5px solid color-mix(in srgb,var(--danger) 40%,var(--border))}
+.win{position:relative;overflow:hidden;text-align:center;padding:26px 18px 20px;border-radius:18px;margin-top:12px;color:#3B2A05;
+  background:linear-gradient(135deg,#FFF3C4,#FFD66E 45%,#F2B544);box-shadow:0 10px 30px rgba(242,181,68,.45),inset 0 0 0 3px rgba(255,255,255,.55)}
+.win::before{content:"";position:absolute;inset:-50%;background:conic-gradient(from 0deg,transparent 0 10deg,rgba(255,255,255,.35) 10deg 20deg,transparent 20deg 40deg);animation:spin 14s linear infinite;pointer-events:none}
+.win>*{position:relative}
+.win .big{font-size:40px;font-weight:900;letter-spacing:.12em;text-shadow:0 2px 0 #fff}
+.win .chmsg{background:rgba(255,255,255,.75);border-color:rgba(160,110,20,.35);color:#3B2A05;text-align:left}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* 正解の演出（全画面） */
+.party{position:fixed;inset:0;z-index:200;display:grid;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(60,40,0,.55),rgba(5,10,20,.92));opacity:0;transition:opacity .35s;cursor:pointer}
+.party.on{opacity:1}
+.party canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.party .rays{position:absolute;left:50%;top:45%;width:180vmax;height:180vmax;margin:-90vmax 0 0 -90vmax;pointer-events:none;
+  background:repeating-conic-gradient(from 0deg,rgba(255,214,110,.20) 0 6deg,transparent 6deg 18deg);animation:spin 18s linear infinite;
+  -webkit-mask:radial-gradient(circle,#000 0,#000 22%,transparent 60%);mask:radial-gradient(circle,#000 0,#000 22%,transparent 60%)}
+.party .card{position:relative;text-align:center;color:#fff;padding:24px 28px;max-width:min(92vw,620px);transform:scale(.3);opacity:0;
+  transition:transform .7s cubic-bezier(.2,1.6,.4,1),opacity .4s}
+.party.on .card{transform:scale(1);opacity:1}
+.party .kick{font-family:"Space Grotesk",sans-serif;font-size:15px;font-weight:700;letter-spacing:.5em;color:#FFE08A}
+.party .ttl{font-size:clamp(56px,13vw,120px);font-weight:900;letter-spacing:.08em;line-height:1.1;margin:6px 0 4px;
+  background:linear-gradient(180deg,#FFF8D8,#FFD15C 55%,#E89A1C);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 4px 0 rgba(120,70,0,.6)) drop-shadow(0 0 28px rgba(255,200,80,.7));animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.06)}}
+.party .who{font-size:20px;font-weight:900;margin-top:4px}
+.party .who b{color:#FFE08A;font-size:28px}
+.party .tm{font-family:"Space Grotesk",sans-serif;font-size:16px;font-weight:700;margin-top:6px;opacity:.9}
+.party .msg{margin-top:14px;padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.12);border:1px solid rgba(255,224,138,.5);font-size:15px;line-height:1.9;white-space:pre-wrap;text-align:left}
+.party .cls{margin-top:16px;font-size:12px;opacity:.7}
+.edch{border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.edch.ok{border-color:color-mix(in srgb,var(--ok) 60%,var(--border));background:color-mix(in srgb,var(--ok) 6%,var(--surface))}
 .fb{margin-top:8px;font-size:13px;font-weight:900;min-height:18px}
 .fb.ng{color:var(--danger)}
 .hint{margin-top:10px;border:1.5px dashed color-mix(in srgb,var(--nzA) 70%,var(--border));border-radius:14px;padding:10px 14px;font-size:13px;line-height:1.85;white-space:pre-wrap;background:color-mix(in srgb,var(--nzA) 9%,var(--surface))}
@@ -276,16 +338,41 @@
 
   /* ---------- 問題の形 ---------- */
   const TEAM_COLORS = ["#E06A5B", "#3F7FC4", "#4F9A55", "#8A5CC6", "#E0A13A", "#2E9C9C"];
+  // 最終回答は4択（管理画面で正解・メッセージを編集）
+  function defaultChoices(){
+    return ["もと", "村上", "にわカモ", "まいける"].map((n, i) => ({ id: "c" + (i + 1), label: n, img: "", ok: false, msgPick: "", msgR1: "", msgR2: "" }));
+  }
+  function normChoices(arr){
+    const src = Array.isArray(arr) && arr.length ? arr : defaultChoices(), used = {};
+    return src.slice(0, 8).map((c, i) => {
+      let id = String((c && c.id) || "c" + (i + 1)).replace(/[^\w-]/g, "").slice(0, 20) || "c" + (i + 1);
+      while (used[id]) id += "x"; used[id] = 1;
+      return { id, label: String((c && c.label) || "選択肢" + (i + 1)).slice(0, 30), img: String((c && c.img) || "").slice(0, 2000),
+        ok: !!(c && c.ok), msgPick: String((c && c.msgPick) || "").slice(0, 600),
+        msgR1: String((c && (c.msgR1 != null ? c.msgR1 : c.msgResult)) || "").slice(0, 600),      // 1回目の結果発表
+        msgR2: String((c && (c.msgR2 != null ? c.msgR2 : c.msgResult)) || "").slice(0, 600) };    // 2回目の結果発表
+    });
+  }
+  const MAX_TRY = 2;     // 回答権
+  const choiceOf = a => a ? (cfg.final.choices.find(c => c.id === a.cid) || cfg.final.choices.find(c => normAns(c.label) === normAns(a.ans)) || null) : null;
   function sampleCfg(){
     const q = (i, title) => ({ id: "q" + i, title, img: "assets/nazo/q" + i + ".png", text: "（ここに問題文や補足を書きます）", hint: "" });
     return {
       title: "クラウドハッシュテイル校の謎", subtitle: "4人1チームで、5つの謎を解き明かせ", open: true, ranking: true, teamSize: 4,
       teams: [1, 2, 3, 4].map(i => ({ id: "t" + i, name: "チーム" + i, color: TEAM_COLORS[i - 1] })),
-      intro: { title: "プロローグ", img: "assets/nazo/intro.png", text: "（ここにイントロのストーリーを書きます）\nある日、校舎に一通の手紙が届いた──。" },
+      // イントロ・アウトロは紙芝居（ページごとに画像＋文章）
+      intro: { title: "プロローグ", pages: [
+        { img: "assets/nazo/intro.png", text: "（1枚目）ある日、校舎に一通の手紙が届いた──。" },
+        { img: "assets/nazo/intro2.png", text: "（2枚目）手紙には、5つの謎が書かれていた。" },
+        { img: "assets/nazo/intro3.png", text: "（3枚目）4人1チームで、謎を解き明かせ！" }] },
       questions: [q(1, "第1の謎"), q(2, "第2の謎"), q(3, "第3の謎"), q(4, "第4の謎"), q(5, "第5の謎")],
       // 答えは最終回答の1つだけ
-      final: { title: "最終回答", img: "", text: "5つの謎のキーワードを組み合わせると、最後の答えが見えてくる。たどり着いた答えを提出しよう。", hint: "", answers: ["こたえ"], hashes: [] },
-      outro: { title: "エピローグ", img: "assets/nazo/outro.png", text: "（ここにアウトロのストーリーを書きます）",
+      final: { title: "最終回答", img: "", text: "5つの謎のキーワードを組み合わせると、犯人が見えてくる。4人の中から1人を選んで提出しよう。", hint: "",
+        choices: defaultChoices() },
+      outro: { title: "エピローグ", pages: [
+        { img: "assets/nazo/outro.png", text: "（1枚目）すべての謎が解けたとき──。" },
+        { img: "assets/nazo/outro2.png", text: "（2枚目）（ここにアウトロのストーリーを書きます）" },
+        { img: "assets/nazo/outro3.png", text: "（3枚目）めでたし、めでたし。" }],
         explain: "（ここに全体の解説を書きます）", explainImg: "" },
       updatedAt: 0
     };
@@ -296,7 +383,10 @@
     const qs = Array.isArray(raw.questions) ? raw.questions : (Array.isArray(raw.puzzles) ? raw.puzzles : d.questions);
     const teams = (Array.isArray(raw.teams) && raw.teams.length ? raw.teams : d.teams).slice(0, 24).map((t, i) => ({
       id: String(t.id || ("t" + (i + 1))).replace(/[^\w-]/g, ""), name: s(t.name, "チーム" + (i + 1), 30), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : TEAM_COLORS[i % TEAM_COLORS.length] }));
-    const io = (o, dd) => ({ title: s((o || {}).title, dd.title, 60), img: s((o || {}).img, dd.img, 2000), text: s((o || {}).text, dd.text) });
+    const io = (o, dd) => { o = o || {};
+      // 古い形（画像1枚＋文章）はページ1枚として読む
+      const src = Array.isArray(o.pages) && o.pages.length ? o.pages : (o.img != null || o.text != null ? [{ img: o.img, text: o.text }] : dd.pages);
+      return { title: s(o.title, dd.title, 60), pages: src.slice(0, 30).map(pg => ({ img: s((pg || {}).img, "", 2000), text: s((pg || {}).text, "", 4000) })) }; };
     const outro = Object.assign(io(raw.outro, d.outro), { explain: s((raw.outro || {}).explain, d.outro.explain), explainImg: s((raw.outro || {}).explainImg, "", 2000) });
     return {
       title: s(raw.title, d.title, 60), subtitle: s(raw.subtitle, "", 100), open: raw.open !== false, ranking: raw.ranking !== false,
@@ -305,8 +395,7 @@
       questions: qs.slice(0, 20).map((p, i) => ({
         id: String(p.id || ("q" + (i + 1))), title: s(p.title, "謎" + (i + 1), 60), img: s(p.img, "", 2000), text: s(p.text, ""), hint: s(p.hint, ""), kwHint: s(p.kwHint, "", 60) })),
       final: (f => ({ title: s(f.title, "最終回答", 60), img: s(f.img, "", 2000), text: s(f.text, ""), hint: s(f.hint, ""),
-        answers: Array.isArray(f.answers) ? f.answers.map(String).filter(Boolean).slice(0, 20) : [],
-        hashes: Array.isArray(f.hashes) ? f.hashes.map(String).filter(x => /^[0-9a-f]{64}$/.test(x)).slice(0, 20) : [] }))(raw.final && typeof raw.final === "object" ? raw.final : d.final),
+        choices: normChoices(f.choices) }))(raw.final && typeof raw.final === "object" ? raw.final : d.final),
       outro, updatedAt: raw.updatedAt || 0
     };
   }
@@ -319,7 +408,8 @@
     return { members, start: raw.start || 0, end: raw.end || 0, hints: Object.assign({}, raw.hints || {}),
       answer: raw.answer && raw.answer.at ? raw.answer : null,            // 提出した最終回答 { ans, by, name, at }
       kw: (k => { const o = {}; Object.entries(k || {}).forEach(([q, v]) => { if (v && v.v) o[q] = { v: String(v.v).slice(0, 40), name: String(v.name || ""), at: v.at || 0 }; }); return o; })(raw.kw),   // 謎ごとのキーワード（チームのメモ・判定なし）
-      result: raw.result && raw.result.at ? { ok: !!raw.result.ok, at: raw.result.at } : null,   // 管理者が開示した結果
+      result: raw.result && raw.result.at ? { ok: !!raw.result.ok, at: raw.result.at, n: raw.result.n === 2 ? 2 : 1 } : null,   // 管理者が開示した最終結果（n：何回目で決まったか）
+      try1: raw.try1 && raw.try1.at ? raw.try1 : null,       // 1回目に不正解だった回答 { ans, cid, name, at, rat }
       cur: String(raw.cur || "intro"), memo: String(raw.memo || ""), memoBy: String(raw.memoBy || ""), memoAt: raw.memoAt || 0, ink };
   }
 
@@ -329,11 +419,27 @@
   const tSubs = {};
   let slide = "intro", follow = true, tool = matchMedia("(pointer:fine)").matches ? "pen" : "none", color = "#E5484D", inkOn = true;
   let gm = false, gmTab = "edit", edit = null, dirty = false, spectate = "";
-  let lastKey = "", memoTimer = null, resubmit = false;
+  let lastKey = "", memoTimer = null, resubmit = false, pick = "";   // pick：最終回答で選んでいる選択肢（提出前）
   let eSize = "m", hoverP = null;   // 消しゴム（大きさ・カーソル位置）
   // 全チーム共通の進行。管理者が切り替える： prologue（待機）→ play（謎解き中）→ epilogue
   let S = { phase: "prologue", startAt: 0, at: 0 };
-  const normState = raw => ({ phase: ["prologue", "play", "epilogue"].indexOf((raw || {}).phase) >= 0 ? raw.phase : "prologue", startAt: (raw || {}).startAt || 0, at: (raw || {}).at || 0 });
+  const normState = raw => ({ phase: ["prologue", "play", "epilogue"].indexOf((raw || {}).phase) >= 0 ? raw.phase : "prologue", startAt: (raw || {}).startAt || 0, at: (raw || {}).at || 0,
+    introPg: Math.max(0, (raw || {}).introPg | 0), outroPg: Math.max(0, (raw || {}).outroPg | 0) });     // 紙芝居：管理者がめくっているページ
+  // 紙芝居のいまのページ（自分の画面）。管理者がめくると全員ここが動く
+  const pg = { intro: 0, outro: 0 };
+  let turnDir = "";
+  const isKami = k => k === "intro" || k === "outro";
+  const kPages = k => (cfg[k] && cfg[k].pages && cfg[k].pages.length ? cfg[k].pages : [{ img: "", text: "" }]);
+  const kPg = k => Math.max(0, Math.min(kPages(k).length - 1, pg[k] | 0));
+  const inkKey = () => isKami(slide) && kPg(slide) > 0 ? slide + "_p" + kPg(slide) : slide;   // 書き込みはページごと
+  function flip(d){                                   // 紙芝居をめくる。端まで来たら前後のスライドへ
+    if (isKami(slide)){
+      const n = kPg(slide) + d;
+      if (n >= 0 && n < kPages(slide).length){ pg[slide] = n; turnDir = d > 0 ? "n" : "p"; lastKey = ""; render(); return; }
+    }
+    const l = slides(), i = l.findIndex(x => x.key === slide) + d;
+    if (l[i] && unlockedKey(team(), l[i].key)){ if (isKami(l[i].key)) pg[l[i].key] = d > 0 ? 0 : kPages(l[i].key).length - 1; go(l[i].key); }
+  }
   const playing = () => S.phase !== "prologue";
   let stReady = false;
 
@@ -351,7 +457,8 @@
     if (key === "outro") return S.phase === "epilogue";
     return !!t && playing() && slides().some(s => s.key === key);
   }
-  const statusText = t => !t || !playing() ? "スタート前" : t.result ? (t.result.ok ? "🏆 正解" : "❌ 不正解") : t.answer ? "📨 提出済み・発表待ち" : "挑戦中";
+  const statusText = t => !t || !playing() ? "スタート前" : t.result ? (t.result.ok ? "🏆 正解" + (t.result.n === 2 ? "（2回目）" : "") : "❌ 不正解")
+    : t.answer ? "📨 提出済み・発表待ち" + (t.try1 ? "（2回目）" : "") : t.try1 ? "❌ 1回目不正解・あと1回" : "挑戦中";
   const fmt = ms => { ms = Math.max(0, ms); const s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
     return (h ? h + ":" + String(m % 60).padStart(2, "0") : m) + ":" + String(s % 60).padStart(2, "0"); };
   function avatar(u){
@@ -379,7 +486,8 @@
       if (follow && before && before.cur !== t.cur && t.cur !== slide && unlockedKey(t, t.cur)) slide = t.cur;
       if (before && !spectate){
         if (t.answer && (!before.answer || before.answer.at !== t.answer.at) && t.answer.by !== me.id) toast("📨 " + t.answer.name + " さんが最終回答「" + t.answer.ans + "」を提出しました");
-        if (t.result && !before.result){ toast(t.result.ok ? "🎉 結果発表：正解！" : "結果発表：残念…不正解でした"); if (follow){ slide = "final"; } }
+        if (t.result && !before.result){ if (t.result.ok) celebrate(id); else toast("結果発表：残念…不正解でした"); if (follow){ slide = "final"; } }
+        if (t.try1 && !before.try1 && !t.result){ toast("1回目の結果：不正解… あと1回答えられます"); pick = ""; if (follow){ slide = "final"; } }
       }
     }
     if (gm && gmTab === "edit") return;      // 編集中は入力をじゃましない
@@ -454,19 +562,23 @@
     const tid = viewTeamId(), t = T[tid], tc = teamCfg(tid);
     if (!slides().some(s => s.key === slide) || !unlockedKey(t, slide)) slide = "intro";
     const sl = slides().find(s => s.key === slide);
-    const key = JSON.stringify([tid, slide, sl.kind === "final" || sl.kind === "outro" ? t.kw : 0, !!t.hints[slide], t.answer ? t.answer.at : 0, t.result ? [t.result.ok, t.result.at] : 0, S.phase, resubmit, Object.keys(t.members).sort(), spectate, cfg.updatedAt,
+    const key = JSON.stringify([tid, slide, sl.kind === "final" || sl.kind === "outro" ? t.kw : 0, !!t.hints[slide], t.answer ? t.answer.at : 0, t.result ? [t.result.ok, t.result.at] : 0, t.try1 ? t.try1.rat : 0, S.phase, resubmit, Object.keys(t.members).sort(), spectate, cfg.updatedAt, isKami(slide) ? kPg(slide) : 0,
       slides().map(s => unlockedKey(t, s.key))]);
     if (key === lastKey){ drawInk(); updateSide(); updateKw(); return; }
     lastKey = key;
     const list = slides(), idx = list.findIndex(s => s.key === slide);
-    const img = sl.kind === "intro" ? cfg.intro.img : sl.kind === "outro" ? cfg.outro.img : sl.kind === "final" ? cfg.final.img : sl.q.img;
+    const kp = isKami(sl.kind) ? kPg(sl.kind) : 0, kn = isKami(sl.kind) ? kPages(sl.kind).length : 0, page = isKami(sl.kind) ? kPages(sl.kind)[kp] : null, lastPg = !kn || kp === kn - 1;
+    const img = page ? page.img : sl.kind === "final" ? cfg.final.img : sl.q.img;
+    const kbar = kn > 1 ? '<div class="kbar"><button class="xbtn sm" data-flip="-1"' + (kp ? "" : " disabled") + '>◀ 前</button><span class="pgn">' + (kp + 1) + " / " + kn + "</span>" +
+      '<button class="xbtn sm' + (lastPg ? "" : " main") + '" data-flip="1"' + (lastPg ? " disabled" : "") + ">次 ▶</button>" +
+      (!lastPg ? '<span class="note">← → キーや画像の左右でもめくれます</span>' : "") + "</div>" : "";
     const title = sl.kind === "intro" ? cfg.intro.title : sl.kind === "outro" ? cfg.outro.title : sl.kind === "final" ? cfg.final.title : sl.q.title;
     const ro = !!spectate;
     let below = "";
     if (sl.kind === "intro"){
-      below = '<div class="no">PROLOGUE</div><h2>' + esc(cfg.intro.title) + '</h2><div class="txt">' + esc(cfg.intro.text) + "</div>" +
+      below = '<div class="no">PROLOGUE' + (kn > 1 ? " ・ " + (kp + 1) + " / " + kn : "") + '</div><h2>' + esc(cfg.intro.title) + '</h2><div class="txt">' + esc(page.text) + "</div>" + kbar +
         (!playing() ? '<div class="exp" style="text-align:center;margin-top:14px"><b>⏳ スタートの合図を待っています</b><div class="note">管理者がスタートすると、全チームいっせいに第1の謎が開きます</div></div>'
-                    : (cfg.questions[0] ? '<div class="row" style="margin-top:12px"><button class="xbtn main" data-go="' + esc(cfg.questions[0].id) + '">第1の謎へ →</button></div>' : ""));
+                    : (cfg.questions[0] && lastPg ? '<div class="row" style="margin-top:12px"><button class="xbtn main" data-go="' + esc(cfg.questions[0].id) + '">第1の謎へ →</button></div>' : ""));
     } else if (sl.kind === "q"){
       const q = sl.q, hinted = t.hints[q.id], next = list[idx + 1];
       below = '<div class="no">QUESTION ' + (sl.i + 1) + " / " + cfg.questions.length + "</div><h2>" + esc(q.title) + "</h2>" + (q.text ? '<div class="txt">' + esc(q.text) + "</div>" : "") +
@@ -478,31 +590,51 @@
         '<div class="row" style="margin-top:12px">' + (next && next.kind === "q" ? '<button class="xbtn" data-go="' + esc(next.key) + '">次の謎へ →</button>' : "") +
           '<button class="xbtn gold" data-go="final">🔑 最終回答へ</button></div>';
     } else if (sl.kind === "final"){
-      const f = cfg.final, a = t.answer, r = t.result, hinted = t.hints.final;
-      const form = '<form class="ans" id="ansF"><input id="ansIn" autocomplete="off" placeholder="最終回答を入力" maxlength="60"' + (ro ? " disabled" : "") +
-          (a ? ' value="' + esc(a.ans) + '"' : "") + '><button class="xbtn main" type="submit"' + (ro ? " disabled" : "") + ">📨 提出する</button></form>" +
-        '<div class="note" style="margin-top:6px">提出すると、管理者が結果を発表するまで 正解かどうかは分かりません（発表までは何度でも提出しなおせます）</div>';
+      const f = cfg.final, a = t.answer, r = t.result, hinted = t.hints.final, mine = choiceOf(a);
+      const card = (c, on, dim, dis) => { const x = t.try1 && t.try1.cid === c.id; return '<button type="button" class="ch' + (on ? " on" : "") + (dim && !x ? " dim" : "") + (x ? " x" : "") + '" data-ch="' + esc(c.id) + '"' + (dis || x ? " disabled" : "") + ">" +
+        '<span class="ck">✔ 選択中</span><div class="ci"' + (c.img ? ' style="background-image:url(\'' + esc(c.img).replace(/'/g, "") + '\')">' : ">" + esc(c.label.slice(0, 1))) + "</div><b>" + esc(c.label) + "</b></button>"; };
+      const picking = !r && (!a || resubmit);
+      const t1c = choiceOf(t.try1), resMsg = (c, n) => c ? (n === 2 ? c.msgR2 : c.msgR1) : "";
+      const triesBar = r ? "" : '<div class="tries">回答権 ' + Array.from({ length: MAX_TRY }, (_, i) => "<i" + (i < (t.try1 ? 1 : 0) ? ' class="used">✕' : ">" + (i + 1)) + "</i>").join("") +
+        '<span class="note">' + (t.try1 ? "のこり1回（ラストチャンス）" : "2回まで答えられます") + "</span></div>";
+      const missBox = !r && t.try1 ? '<div class="miss"><b style="color:var(--danger)">❌ 1回目は「' + esc(t.try1.ans) + "」で不正解…</b>" +
+        (resMsg(t1c, 1) ? '<div class="chmsg">' + esc(resMsg(t1c, 1)) + "</div>" : "") +
+        '<div class="note" style="margin-top:6px">あと1回、答えられます。</div></div>' : "";
+      const pickMsg = c => c.msgPick ? '<div class="chmsg">' + esc(c.msgPick) + "</div>" : "";
       below = '<div class="no">FINAL ANSWER</div><h2>' + esc(f.title) + "</h2>" + (f.text ? '<div class="txt">' + esc(f.text) + "</div>" : "") +
         kwGrid(t) +
-        (r ? (r.ok ? '<div class="ok" style="text-align:center;padding:18px"><div style="font-size:34px">⭕</div><b style="font-size:24px">正解！</b>'
-                   : '<div class="ok" style="text-align:center;padding:18px;background:color-mix(in srgb,var(--danger) 10%,var(--surface));border-color:color-mix(in srgb,var(--danger) 45%,var(--border))"><div style="font-size:34px">❌</div><b style="font-size:24px;color:var(--danger)">残念…不正解</b>') +
-              '<div style="margin-top:6px">あなたのチームの回答：<b>' + esc(a ? a.ans : "（未提出）") + "</b></div>" +
-              '<div class="row" style="margin-top:12px;justify-content:center"><button class="xbtn main" data-go="outro">エピローグへ →</button></div></div>'
-           : a && !resubmit ? '<div class="exp"><div style="font-size:13px;font-weight:900">📨 提出済み</div>' +
-                '<div style="font-size:22px;font-weight:900;margin:4px 0">「' + esc(a.ans) + "」</div>" +
+        (r ? (r.ok ? '<div class="win"><div style="font-size:44px">🏆</div><div class="big">正解！</div>' +
+                     '<div style="font-weight:900;margin-top:4px">' + (r.n === 2 ? "2回目で" : "1回目で") + "見事、真相にたどり着いた！</div>" +
+                     '<div style="margin-top:8px">あなたのチームの回答：<b style="font-size:20px">' + esc(a ? a.ans : "") + "</b>" +
+                     (a && S.startAt ? ' <span style="font-family:Space Grotesk,sans-serif;font-weight:700">（' + fmt(a.at - S.startAt) + "）</span>" : "") + "</div>" +
+                     (resMsg(mine, r.n) ? '<div class="chmsg">' + esc(resMsg(mine, r.n)) + "</div>" : "") +
+                     '<div class="row" style="margin-top:14px;justify-content:center"><button class="xbtn" id="partyBtn">🎉 もう一度お祝い</button><button class="xbtn main" data-go="outro">エピローグへ →</button></div></div>'
+                   : '<div class="miss" style="text-align:center"><div style="font-size:34px">❌</div><b style="font-size:24px;color:var(--danger)">残念…不正解</b>' +
+                     (t.try1 ? '<div class="note" style="margin-top:6px">1回目：' + esc(t.try1.ans) + " ／ 2回目：" + esc(a ? a.ans : "") + "</div>"
+                             : '<div style="margin-top:6px">あなたのチームの回答：<b>' + esc(a ? a.ans : "（未提出）") + "</b></div>") +
+                     (resMsg(mine, r.n) ? '<div class="chmsg" style="text-align:left">' + esc(resMsg(mine, r.n)) + "</div>" : "") +
+                     '<div class="row" style="margin-top:12px;justify-content:center"><button class="xbtn main" data-go="outro">エピローグへ →</button></div></div>')
+           : !picking ? missBox + triesBar + '<div class="chs">' + f.choices.map(c => card(c, mine && mine.id === c.id, !(mine && mine.id === c.id), true)).join("") + "</div>" +
+                (mine ? pickMsg(mine) : "") +
+                '<div class="exp"><div style="font-size:13px;font-weight:900">📨 「' + esc(a.ans) + "」で提出済み" + (t.try1 ? "（2回目）" : "") + "</div>" +
                 '<div class="note">' + esc(a.name) + " さんが " + new Date(a.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + " に提出 ・ 結果の発表を待っています…</div>" +
-                (ro ? "" : '<button class="xbtn sm" id="resubBtn" style="margin-top:10px">✏️ 提出しなおす</button>') + "</div>"
-           : form + (resubmit ? '<button class="xbtn sm" id="resubCancel" style="margin-top:8px">やめる</button>' : "")) +
+                (ro ? "" : '<button class="xbtn sm" id="resubBtn" style="margin-top:10px">✏️ 選びなおす</button>') + "</div>"
+           : missBox + triesBar + '<div class="chs" id="chs">' + f.choices.map(c => card(c, pick === c.id, false, ro)).join("") + "</div>" +
+                '<div id="pickMsg">' + (pick && f.choices.find(c => c.id === pick) ? pickMsg(f.choices.find(c => c.id === pick)) : "") + "</div>" +
+                '<div class="row" style="margin-top:12px"><button class="xbtn main" id="chSubmit"' + (ro || !pick ? " disabled" : "") + '>📨 この答えで提出する</button>' +
+                (resubmit ? '<button class="xbtn sm" id="resubCancel">やめる</button>' : "") + "</div>" +
+                '<div class="note" style="margin-top:6px">1つ選んで提出してください。管理者が結果を発表するまで、正解かどうかは分かりません（発表までは選びなおせます）</div>') +
         '<div class="fb" id="fb"></div>' +
         (!r && f.hint ? (hinted ? '<div class="hint">💡 ' + esc(f.hint) + "</div>" : (ro ? "" : '<button class="xbtn sm" id="hintBtn" style="margin-top:8px">💡 ヒントを見る（チーム全員に出ます）</button>')) : "");
     } else {
       const o = cfg.outro;
-      below = '<div class="no">EPILOGUE</div><h2>' + esc(o.title) + '</h2><div class="txt">' + esc(o.text) + "</div>" +
+      below = '<div class="no">EPILOGUE' + (kn > 1 ? " ・ " + (kp + 1) + " / " + kn : "") + '</div><h2>' + esc(o.title) + '</h2><div class="txt">' + esc(page.text) + "</div>" + kbar +
+        (!lastPg ? "" :                                   // 結果と解説は最後のページで
         (Object.keys(t.kw).length ? '<div class="note" style="margin-top:12px;font-weight:900">あなたのチームのキーワード' + (t.answer ? " ・ 最終回答「" + esc(t.answer.ans) + "」" : "") + "</div>" + kwGrid(t) : "") +
         (cleared(t) ? '<div class="clear"><div style="font-size:34px">🏆</div><h3>全問クリア！</h3><div style="font-weight:900">提出までのタイム ' + fmt(t.answer.at - S.startAt) + "</div></div>"
                     : revealed(t) ? '<div class="exp" style="text-align:center"><b>あと一歩…！</b><div class="note">解説を読んで、謎の答えをたしかめよう</div></div>' : "") +
         (o.explain || o.explainImg ? '<div class="exp"><b>📖 解説</b><div class="txt" style="margin-top:4px">' + esc(o.explain) + "</div>" +
-          (o.explainImg ? '<img src="' + esc(o.explainImg) + '" alt="" class="zoomable">' : "") + "</div>" : "");
+          (o.explainImg ? '<img src="' + esc(o.explainImg) + '" alt="" class="zoomable">' : "") + "</div>" : ""));
     }
 
     $("view").innerHTML =
@@ -521,9 +653,10 @@
           '<button class="tb" id="zoomBtn" title="画像を大きく見る">⛶</button>' +
         "</div>" +
         '<div class="stage ' + (ro ? "" : tool) + '" id="stage">' +
-          (img ? '<img id="simg" src="' + esc(img) + '" alt="">' : '<div class="lock" style="background:linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B);font-size:30px;letter-spacing:.12em">🔑 ' + esc(title) + "</div>") + '<canvas id="ink"></canvas>' +
-          '<button class="nav l" data-step="-1"' + (idx > 0 ? "" : " disabled") + ">‹</button>" +
-          '<button class="nav r" data-step="1"' + (idx < list.length - 1 && unlockedKey(t, list[idx + 1].key) ? "" : " disabled") + ">›</button>" +
+          (img ? '<img id="simg"' + (turnDir && isKami(sl.kind) ? ' class="turn-' + turnDir + '"' : "") + ' src="' + esc(img) + '" alt="">' : '<div class="lock" style="background:linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B);font-size:30px;letter-spacing:.12em">🔑 ' + esc(title) + "</div>") + '<canvas id="ink"></canvas>' +
+          (kn > 1 ? '<span class="kpg">📖 ' + (kp + 1) + " / " + kn + '</span><div class="kdots">' + Array.from({ length: kn }, (_, i) => "<i" + (i === kp ? ' class="on"' : "") + "></i>").join("") + "</div>" : "") +
+          '<button class="nav l" data-step="-1"' + (idx > 0 || kp > 0 ? "" : " disabled") + ">‹</button>" +
+          '<button class="nav r" data-step="1"' + (!lastPg || (idx < list.length - 1 && unlockedKey(t, list[idx + 1].key)) ? "" : " disabled") + ">›</button>" +
         "</div>" +
         '<div class="below">' + below + "</div>" +
       "</div>" +
@@ -585,7 +718,9 @@
   function bindGame(){
     const tid = viewTeamId(), t = T[tid];
     document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
-    document.querySelectorAll("[data-step]").forEach(b => b.onclick = () => { const l = slides(), i = l.findIndex(s => s.key === slide) + Number(b.dataset.step); if (l[i]) go(l[i].key); });
+    document.querySelectorAll("[data-step]").forEach(b => b.onclick = () => flip(Number(b.dataset.step)));
+    document.querySelectorAll("[data-flip]").forEach(b => b.onclick = () => flip(Number(b.dataset.flip)));
+    turnDir = "";
     if ($("specOff")) $("specOff").onclick = () => { spectate = ""; gm = true; gmTab = "prog"; render(); };
     const setTool = v => {
       tool = v; hoverP = null;
@@ -630,21 +765,30 @@
     };
     if ($("kwSave")) $("kwSave").onclick = saveKw;
     if ($("kwIn")) $("kwIn").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); saveKw(); $("kwIn").blur(); } };
-    if ($("ansF")) $("ansF").onsubmit = async ev => {
-      ev.preventDefault();
-      const v = $("ansIn").value.trim();
-      if (slide !== "final" || !v || t.result) return;
+    document.querySelectorAll("#chs [data-ch]").forEach(b => b.onclick = () => {
+      if (spectate) return;
+      pick = b.dataset.ch;
+      document.querySelectorAll("#chs [data-ch]").forEach(x => x.classList.toggle("on", x === b));
+      const c = cfg.final.choices.find(x => x.id === pick);
+      $("pickMsg").innerHTML = c && c.msgPick ? '<div class="chmsg">' + esc(c.msgPick) + "</div>" : "";
+      if ($("chSubmit")) $("chSubmit").disabled = false;
+    });
+    if ($("chSubmit")) $("chSubmit").onclick = async () => {
+      const c = cfg.final.choices.find(x => x.id === pick);
+      if (slide !== "final" || !c || T[tid].result) return;
       if (S.phase !== "play") return toast("いまは提出できません");
-      if (!confirm("「" + v + "」をチームの最終回答として提出しますか？")) return;
+      if (T[tid].try1 && T[tid].try1.cid === c.id) return toast("1回目と同じ答えは選べません");
+      if (!confirm("「" + c.label + "」をチームの最終回答として提出しますか？" + (T[tid].try1 ? "\n※ これがラストチャンス（2回目）です" : "\n※ 回答権は2回です（これが1回目）"))) return;
       const now = Date.now();
       try {
-        await store.merge(TDOC(tid), { answer: { ans: v.slice(0, 60), by: me.id, name: me.name, at: now }, end: now });
-        resubmit = false; lastKey = ""; render();
+        await store.merge(TDOC(tid), { answer: { ans: c.label, cid: c.id, by: me.id, name: me.name, at: now }, end: now });
+        resubmit = false; pick = ""; lastKey = ""; render();
         toast("📨 提出しました。結果の発表を待ってください");
       } catch(e){ toast("提出できませんでした：" + e.message); }
     };
-    if ($("resubBtn")) $("resubBtn").onclick = () => { resubmit = true; lastKey = ""; render(); setTimeout(() => $("ansIn") && $("ansIn").select(), 50); };
-    if ($("resubCancel")) $("resubCancel").onclick = () => { resubmit = false; lastKey = ""; render(); };
+    if ($("partyBtn")) $("partyBtn").onclick = () => celebrate(tid);
+    if ($("resubBtn")) $("resubBtn").onclick = () => { resubmit = true; pick = (choiceOf(t.answer) || {}).id || ""; lastKey = ""; render(); };
+    if ($("resubCancel")) $("resubCancel").onclick = () => { resubmit = false; pick = ""; lastKey = ""; render(); };
     const ta = $("memo");
     if (ta && !spectate) ta.oninput = () => {
       clearTimeout(memoTimer);
@@ -653,13 +797,13 @@
     };
     if ($("undoBtn")) $("undoBtn").onclick = () => {
       const t = T[tid] || {};                                   // 最新のデータで（画面を作ったときのものは古いことがある）
-      const items = Object.entries((t.ink || {})[slide] || {}).filter(([k, v]) => v.by === me.id).sort((a, b) => b[1].at - a[1].at);
-      if (items.length) store.del(TDOC(tid), "ink." + slide + "." + items[0][0]).catch(e => toast(e.message));
+      const items = Object.entries((t.ink || {})[inkKey()] || {}).filter(([k, v]) => v.by === me.id).sort((a, b) => b[1].at - a[1].at);
+      if (items.length) store.del(TDOC(tid), "ink." + inkKey() + "." + items[0][0]).catch(e => toast(e.message));
     };
     if ($("clearBtn")) $("clearBtn").onclick = () => {
       const t = T[tid] || {};
-      if (!Object.keys((t.ink || {})[slide] || {}).length) return;
-      if (confirm("このスライドの書き込みを、チーム全員の分まで全部消しますか？")) store.del(TDOC(tid), "ink." + slide).catch(e => toast(e.message));
+      if (!Object.keys((t.ink || {})[inkKey()] || {}).length) return;
+      if (confirm("このスライドの書き込みを、チーム全員の分まで全部消しますか？")) store.del(TDOC(tid), "ink." + inkKey()).catch(e => toast(e.message));
     };
     bindInk();
   }
@@ -682,7 +826,7 @@
     if (!inkOn) return;
     const t = team(); if (!t) return;
     const R = imgRect(), X = v => R.x + v / 1000 * R.w, Y = v => R.y + v / 1000 * R.h;
-    const items = Object.entries((t.ink || {})[slide] || {}).sort((a, b) => a[1].at - b[1].at);
+    const items = Object.entries((t.ink || {})[inkKey()] || {}).sort((a, b) => a[1].at - b[1].at);
     if (drawing) items.push(["_d", drawing]);
     const line = (pts, lw) => {
         if (!pts.length) return;
@@ -750,13 +894,13 @@
                                    : { t: "l", c: drawing.c, w: 1, p: drawing.p, by: me.id, at: Date.now() };
       drawing = null;
       const id = "i" + uid();
-      const t = team(); t.ink[slide] = t.ink[slide] || {}; t.ink[slide][id] = it;      // 先に手元に描いておく
+      const t = team(), ik = inkKey(); t.ink[ik] = t.ink[ik] || {}; t.ink[ik][id] = it;      // 先に手元に描いておく
       drawInk();
-      store.merge(TDOC(tid), { ink: { [slide]: { [id]: it } } }).catch(er => toast("書き込みを保存できませんでした：" + er.message));
+      store.merge(TDOC(tid), { ink: { [ik]: { [id]: it } } }).catch(er => toast("書き込みを保存できませんでした：" + er.message));
     };
   }
   function hitTest(p){
-    const t = team(); const items = Object.entries((t.ink || {})[slide] || {}).sort((a, b) => b[1].at - a[1].at);
+    const t = team(); const items = Object.entries((t.ink || {})[inkKey()] || {}).sort((a, b) => b[1].at - a[1].at);
     for (const [k, it] of items){
       if (it.t === "l"){
         const pts = String(it.p).split(" ").map(s => s.split(",").map(Number));
@@ -786,17 +930,59 @@
       const s = inp.value.trim(); inp.remove();
       if (!s) return;
       const it = { t: "x", c: color, x: p[0], y: p[1], s, by: me.id, at: Date.now() }, id = "i" + uid();
-      const t = team(); t.ink[slide] = t.ink[slide] || {}; t.ink[slide][id] = it; drawInk();
-      store.merge(TDOC(viewTeamId()), { ink: { [slide]: { [id]: it } } }).catch(er => toast(er.message));
+      const t = team(), ik = inkKey(); t.ink[ik] = t.ink[ik] || {}; t.ink[ik][id] = it; drawInk();
+      store.merge(TDOC(viewTeamId()), { ink: { [ik]: { [id]: it } } }).catch(er => toast(er.message));
     };
     inp.onkeydown = ev => { if (ev.key === "Enter"){ ev.preventDefault(); commit(); } else if (ev.key === "Escape"){ done = true; inp.remove(); } };
     inp.onblur = commit;
   }
   document.addEventListener("keydown", e => {
     if (gm || !team() || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return;
-    if (e.key === "ArrowRight" || e.key === "ArrowLeft"){ const l = slides(), i = l.findIndex(s => s.key === slide) + (e.key === "ArrowRight" ? 1 : -1); if (l[i]) go(l[i].key); }
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") flip(e.key === "ArrowRight" ? 1 : -1);
   });
   $("zoom").onclick = () => $("zoom").classList.remove("on");
+
+  /* ---------- 正解の演出 ---------- */
+  function celebrate(tid){
+    const t = T[tid]; if (!t || !t.result || !t.result.ok) return;
+    const old = document.querySelector(".party"); if (old) old.remove();
+    const c = choiceOf(t.answer), n = t.result.n, msg = c ? (n === 2 ? c.msgR2 : c.msgR1) : "", tc = teamCfg(tid);
+    const el = document.createElement("div"); el.className = "party";
+    el.innerHTML = '<div class="rays"></div><canvas></canvas><div class="card"><div class="kick">CONGRATULATIONS</div><div class="ttl">正解！</div>' +
+      '<div class="who">' + esc(tc.name) + " の答え <b>" + esc(t.answer ? t.answer.ans : "") + "</b></div>" +
+      '<div class="tm">' + (n === 2 ? "2回目で正解" : "1回目で正解") + (t.answer && S.startAt ? " ・ タイム " + fmt(t.answer.at - S.startAt) : "") + "</div>" +
+      (msg ? '<div class="msg">' + esc(msg) + "</div>" : "") + '<div class="cls">タップで閉じる</div></div>';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add("on"));
+    const cv = el.querySelector("canvas"), g = cv.getContext("2d"), dpr = window.devicePixelRatio || 1;
+    const size = () => { cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0); }; size();
+    const COLS = ["#FFD15C", "#FF6B6B", "#4FC3F7", "#81C784", "#BA68C8", "#FFFFFF", "#F2B544"], P = [];
+    const burst = (x, y, k, sp) => { for (let i = 0; i < k; i++){ const a = Math.random() * Math.PI * 2, v = sp * (.35 + Math.random());
+      P.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - sp * .35, r: 4 + Math.random() * 6, c: COLS[i % COLS.length], rot: Math.random() * 6, vr: (Math.random() - .5) * .4, life: 1, kind: Math.random() < .25 ? "s" : "p" }); } };
+    const W = () => innerWidth, H = () => innerHeight;
+    burst(W() / 2, H() * .45, 180, 13);
+    const timers = [400, 900, 1400, 2000, 2700, 3400].map((ms, i) => setTimeout(() => burst(W() * (.15 + Math.random() * .7), H() * (.2 + Math.random() * .4), 90, 10), ms));
+    const rain = setInterval(() => { for (let i = 0; i < 6; i++) P.push({ x: Math.random() * W(), y: -10, vx: (Math.random() - .5) * 2, vy: 2 + Math.random() * 3, r: 4 + Math.random() * 5, c: COLS[(Math.random() * COLS.length) | 0], rot: Math.random() * 6, vr: (Math.random() - .5) * .3, life: 1, kind: "p" }); }, 60);
+    let alive = true;
+    const tick = () => {
+      if (!alive) return;
+      g.clearRect(0, 0, W(), H());
+      for (let i = P.length - 1; i >= 0; i--){
+        const q = P[i]; q.vy += .18; q.vx *= .99; q.x += q.vx; q.y += q.vy; q.rot += q.vr; if (q.vy > 0 && q.kind === "s") q.life -= .012;
+        if (q.y > H() + 30 || q.life <= 0){ P.splice(i, 1); continue; }
+        g.save(); g.globalAlpha = Math.max(0, q.life); g.translate(q.x, q.y); g.rotate(q.rot); g.fillStyle = q.c;
+        if (q.kind === "s"){ g.beginPath(); for (let k = 0; k < 10; k++){ const rr = k % 2 ? q.r * .45 : q.r * 1.3, a = k * Math.PI / 5; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.fill(); }
+        else g.fillRect(-q.r / 2, -q.r / 4, q.r, q.r / 2);
+        g.restore();
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+    const close = () => { alive = false; timers.forEach(clearTimeout); clearInterval(rain); el.classList.remove("on"); setTimeout(() => el.remove(), 350); removeEventListener("resize", size); };
+    addEventListener("resize", size);
+    el.onclick = close;
+    setTimeout(() => clearInterval(rain), 6000);
+  }
 
   /* =========================================================
      編集・進行（管理者のみ）
@@ -816,27 +1002,35 @@
             '<button class="xbtn' + (S.phase === "play" ? " main" : "") + '" data-phase="play">▶ 謎解きスタート</button>' +
             '<button class="xbtn' + (S.phase === "epilogue" ? " main" : "") + '" data-phase="epilogue">🌙 エピローグを開く</button>' +
           "</div>" +
-          '<div class="note" style="margin-top:8px">プロローグ：全チームがプロローグの画面で待機（謎は開きません）／ 謎解きスタート：全チームが第1の謎へ移動し、タイム計測開始 ／ エピローグ：全チームがエピローグへ移動（提出は締め切り）' +
+          ["intro", "outro"].map(k => { const n = kPages(k).length, v = Math.min(S[k + "Pg"], n - 1), pgx = kPages(k)[v];
+            return '<div class="kctl"><b style="min-width:150px">📖 ' + (k === "intro" ? "プロローグ" : "エピローグ") + "の紙芝居</b>" +
+              (pgx.img ? '<img src="' + esc(pgx.img) + '" alt="">' : "") +
+              '<button class="xbtn sm" data-kpg="' + k + '|-1"' + (v > 0 ? "" : " disabled") + '>◀</button><span class="pgn">' + (v + 1) + " / " + n + "</span>" +
+              '<button class="xbtn sm main" data-kpg="' + k + '|1"' + (v < n - 1 ? "" : " disabled") + ">▶ めくる</button>" +
+              '<button class="xbtn sm" data-kpg="' + k + '|0">1枚目へ</button>' +
+              '<span class="note" style="flex-basis:100%;margin-left:158px">' + esc((pgx.text || "").slice(0, 60)) + ((pgx.text || "").length > 60 ? "…" : "") + "</span></div>"; }).join("") +
+          '<div class="note" style="margin-top:8px">紙芝居：◀ ▶ でめくると、全チームの画面が同じページに動きます（チームは自分でもめくれます）<br>プロローグ：全チームがプロローグの画面で待機（謎は開きません）／ 謎解きスタート：全チームが第1の謎へ移動し、タイム計測開始 ／ エピローグ：全チームがエピローグへ移動（提出は締め切り）' +
             (waiting ? '<br><b style="color:var(--danger)">発表していないチームが ' + waiting + " チームあります</b>" : "") + "</div></div></div>";
       html += '<div class="panel"><div class="phead"><h2>📊 チームの進行</h2></div><div class="pbody" style="overflow:auto"><table class="tbl"><tr><th>チーム</th><th>メンバー</th>' +
-        "<th>キーワード</th><th>最終回答（提出）</th><th>自動判定</th><th>結果の発表</th><th>ヒント</th><th>タイム</th><th></th></tr>" +
+        "<th>キーワード</th><th>最終回答（提出）</th><th>判定</th><th>結果の発表</th><th>ヒント</th><th>タイム</th><th></th></tr>" +
         cfg.teams.map(tc => { const t = T[tc.id] || normTeam(null);
           return '<tr><td><b style="color:' + tc.color + '">■</b> <b>' + esc(tc.name) + "</b></td><td>" +
             Object.entries(t.members).map(([k, m]) => esc(m.name) + ' <button class="xbtn sm danger" data-kick="' + esc(tc.id) + "|" + esc(k) + '" title="外す">×</button>').join("<br>") + "</td>" +
             '<td style="font-size:11.5px;line-height:1.7">' + (Object.keys(t.members).length ? cfg.questions.map((q, i) => "Q" + (i + 1) + "：" + (t.kw[q.id] ? "<b>" + esc(t.kw[q.id].v) + "</b>" : '<span class="note">—</span>')).join("<br>") : "—") + "</td>" +
-            "<td>" + (t.answer ? "<b>「" + esc(t.answer.ans) + '」</b><br><span class="note">' + esc(t.answer.name) + " ・ " + new Date(t.answer.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + "</span>" : playing() && Object.keys(t.members).length ? "挑戦中" : "—") + "</td>" +
-            "<td>" + (t.answer ? (autoJudge(t.answer.ans) == null ? "…" : autoJudge(t.answer.ans) ? '<b style="color:var(--ok)">⭕ 正解</b>' : '<b style="color:var(--danger)">❌ 不正解</b>') : "—") + "</td>" +
-            '<td style="white-space:nowrap">' + (t.result ? (t.result.ok ? "⭕ 正解で発表済み" : "❌ 不正解で発表済み") + ' <button class="xbtn sm" data-unrev="' + esc(tc.id) + '">取り消す</button>'
+            "<td>" + (t.try1 ? '<span class="note">1回目：' + esc(t.try1.ans) + " ❌</span><br>" : "") + (t.answer ? (t.try1 ? '<span class="note">2回目：</span>' : "") + "<b>「" + esc(t.answer.ans) + '」</b><br><span class="note">' + esc(t.answer.name) + " ・ " + new Date(t.answer.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) + "</span>" : playing() && Object.keys(t.members).length ? "挑戦中" : "—") + "</td>" +
+            "<td>" + (t.answer ? (autoJudge(t.answer) ? '<b style="color:var(--ok)">⭕ 正解</b>' : '<b style="color:var(--danger)">❌ 不正解</b>') : "—") + "</td>" +
+            '<td style="white-space:nowrap">' + (t.result ? (t.result.ok ? "⭕ 正解で発表済み" : "❌ 不正解で発表済み") + (t.result.n === 2 ? "（2回目）" : "") + ' <button class="xbtn sm" data-unrev="' + esc(tc.id) + '">取り消す</button>'
+              : t.try1 && !t.answer ? '❌ 1回目を発表済み<br><span class="note">2回目の提出待ち</span> <button class="xbtn sm" data-unrev="' + esc(tc.id) + '">取り消す</button>'
               : t.answer ? '<button class="xbtn sm main" data-rev="' + esc(tc.id) + '|auto">📣 発表</button> <button class="xbtn sm" data-rev="' + esc(tc.id) + '|1" title="正解として発表">⭕</button> <button class="xbtn sm" data-rev="' + esc(tc.id) + '|0" title="不正解として発表">❌</button>' : "—") + "</td>" +
             "<td>" + (Object.keys(t.hints).length ? "💡" + Object.keys(t.hints).length : "—") + "</td>" +
             "<td>" + (t.answer && S.startAt ? fmt(t.answer.at - S.startAt) : "—") + "</td>" +
             '<td style="white-space:nowrap"><button class="xbtn sm" data-spec="' + esc(tc.id) + '">👀 画面を見る</button> <button class="xbtn sm danger" data-treset="' + esc(tc.id) + '">リセット</button></td></tr>';
         }).join("") + "</table>" +
-        '<div class="note" style="margin-top:8px">「📣 発表」は自動判定のとおりに結果を出します。表記ゆれなどで判定を変えたいときは ⭕ / ❌ で発表してください。<br>「画面を見る」で、チームのスライド・メモ・書き込みをそのまま見られます</div>' +
+        '<div class="note" style="margin-top:8px">「📣 発表」は「問題の編集」でつけた ⭕ のとおりに結果を出します。判定を変えたいときは ⭕ / ❌ で発表してください。<br>回答権は2回：1回目が ❌ のチームは、もう1回選んで提出できます（2回目の提出をまた発表します）。<br>「画面を見る」で、チームのスライド・メモ・書き込みをそのまま見られます</div>' +
         '<div class="row" style="margin-top:12px"><button class="xbtn main" id="revAll">📣 提出済みのチームをまとめて発表（自動判定）</button></div>' +
         '<div class="row" style="margin-top:12px"><div class="spacer"></div><button class="xbtn sm danger" id="resetAll">🗑 全チームをリセット（メンバーも外す）</button></div></div></div>';
     } else {
-      if (!edit){ edit = JSON.parse(JSON.stringify(cfg)); edit.final._new = edit.final.answers.join("、"); dirty = false; }
+      if (!edit){ edit = JSON.parse(JSON.stringify(cfg)); dirty = false; }
       const imgRow = (path, val, ph) => '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(val) + '\')"></span>' +
         '<div style="flex:1;min-width:200px"><label>画像（ファイルの場所かURL）</label><input data-p="' + path + '" value="' + esc(val) + '" placeholder="' + ph + '"></div></div>';
       html += '<div class="panel ed"><div class="phead"><h2>📘 基本</h2></div><div class="pbody">' +
@@ -849,9 +1043,15 @@
           edit.teams.map((t, i) => '<div class="row" style="margin-bottom:6px"><input type="color" data-tc="' + i + '" value="' + t.color + '"><input data-tn="' + i + '" value="' + esc(t.name) + '" maxlength="30" style="flex:1">' +
             '<button class="xbtn sm danger" data-tdel="' + i + '">削除</button></div>').join("") +
           '<button class="xbtn sm" id="tadd">＋ チームを足す</button></div></div>' +
-        '<div class="panel ed"><div class="phead"><h2>🌅 イントロ（ストーリー＋画像）</h2></div><div class="pbody">' +
-          '<label>見出し</label><input data-p="intro.title" value="' + esc(edit.intro.title) + '">' + imgRow("intro.img", edit.intro.img, "assets/nazo/intro.png") +
-          '<label>ストーリー</label><textarea data-p="intro.text" style="min-height:140px">' + esc(edit.intro.text) + "</textarea></div></div>" +
+        '<div class="panel ed"><div class="phead"><h2>🌅 イントロ（紙芝居）</h2><span class="sub">ページごとに画像＋文章。プロローグ中は「チームの進行」から全チームいっせいにめくれます</span></div><div class="pbody">' +
+          '<label>見出し</label><input data-p="intro.title" value="' + esc(edit.intro.title) + '">' +
+          edit.intro.pages.map((pg, i) => '<div class="edpg" data-pk="intro" data-pi="' + i + '"><div class="row"><b style="font-size:13px">📖 ' + (i + 1) + '枚目</b><div class="spacer"></div>' +
+              '<button class="xbtn sm" data-pm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-pm="1"' + (i < edit.intro.pages.length - 1 ? "" : " disabled") + ">▼</button>" +
+              '<button class="xbtn sm danger" data-pdel' + (edit.intro.pages.length <= 1 ? " disabled" : "") + ">削除</button></div>" +
+            '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(pg.img) + '\')"></span><div style="flex:1;min-width:200px"><label>画像</label><input data-pf="img" value="' + esc(pg.img) + '" placeholder="assets/nazo/intro' + (i ? i + 1 : "") + '.png"></div></div>' +
+            '<label>文章（画像の下に出ます）</label><textarea data-pf="text" style="min-height:80px">' + esc(pg.text) + "</textarea></div>").join("") +
+          '<button class="xbtn sm" data-padd="intro">＋ ページを足す</button>' +
+          "</div></div>" +
         '<div class="panel ed"><div class="phead"><h2>🧩 問題</h2><span class="sub">画像は 16:9（例 1600×900）がおすすめ</span></div><div class="pbody">' +
           edit.questions.map((q, i) => '<div class="edc" data-qi="' + i + '"><div class="row"><b style="font-size:13px">問題 ' + (i + 1) + '</b><div class="spacer"></div>' +
               '<button class="xbtn sm" data-qm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-qm="1"' + (i < edit.questions.length - 1 ? "" : " disabled") + ">▼</button>" +
@@ -862,17 +1062,32 @@
             '<label>キーワード欄の説明（任意・例：ひらがな3文字）</label><input data-qf="kwHint" value="' + esc(q.kwHint || "") + '" maxlength="60">' +
             '<label>ヒント（任意）</label><textarea data-qf="hint" style="min-height:60px">' + esc(q.hint) + "</textarea></div>").join("") +
           '<button class="xbtn sm" id="qadd">＋ 問題を足す</button></div></div>' +
-        '<div class="panel ed"><div class="phead"><h2>🔑 最終回答</h2><span class="sub">答えはここの1つだけ。チームが提出 → 管理者が「チームの進行」で結果を発表すると、アウトロが開きます</span></div><div class="pbody">' +
+        '<div class="panel ed"><div class="phead"><h2>🔑 最終回答</h2><span class="sub">4択から1つ選んで提出（回答権は2回）→ 管理者が「チームの進行」で結果を発表します</span></div><div class="pbody">' +
           '<label>見出し</label><input data-p="final.title" value="' + esc(edit.final.title) + '">' + imgRow("final.img", edit.final.img, "（任意）assets/nazo/final.png") +
           '<label>説明（任意）</label><textarea data-p="final.text">' + esc(edit.final.text) + "</textarea>" +
-          '<label>答え（「、」区切りで複数OK。ひらがな/カタカナ/大文字小文字/空白は区別しません）</label>' +
-          '<input data-p="final._new" value="' + esc(edit.final._new || "") + '" placeholder="' + (edit.final.hashes.length ? "登録済み " + edit.final.hashes.length + "個（暗号化して保存中）。変えるときだけ入力" : "例：ひかり、光") + '">' +
-          '<div class="row" style="margin-top:6px"><input id="fchk" placeholder="答えの確認：ここに入れて▶" style="flex:1;min-width:160px"><button class="xbtn sm" id="fchkBtn" type="button">▶ 判定</button><span class="note" id="fchkR"></span></div>' +
+          '<label>選択肢（チームはこの中から1つ選んで提出します）</label>' +
+          edit.final.choices.map((c, i) => '<div class="edch' + (c.ok ? " ok" : "") + '" data-ci="' + i + '"><div class="row">' +
+              '<b style="font-size:13px;min-width:20px">' + (i + 1) + "</b>" +
+              '<input data-cf="label" value="' + esc(c.label) + '" maxlength="30" placeholder="名前" style="flex:1;min-width:120px;font-weight:900">' +
+              '<label class="chk" style="font-size:13px;font-weight:900;color:' + (c.ok ? "var(--ok)" : "var(--muted)") + '"><input type="checkbox" data-cok' + (c.ok ? " checked" : "") + "> ⭕ 正解</label>" +
+              '<button class="xbtn sm" data-cm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-cm="1"' + (i < edit.final.choices.length - 1 ? "" : " disabled") + ">▼</button>" +
+              '<button class="xbtn sm danger" data-cdel' + (edit.final.choices.length <= 2 ? " disabled" : "") + ">削除</button></div>" +
+            '<label>アイコン画像（任意・ファイルの場所かURL）</label><input data-cf="img" value="' + esc(c.img) + '" placeholder="assets/nazo/c' + (i + 1) + '.png">' +
+            '<label>選んだときのメッセージ（提出前〜発表待ちのあいだ、そのチームに出ます）</label><textarea data-cf="msgPick" maxlength="600" style="min-height:56px" placeholder="例：本当にこの人が犯人…？">' + esc(c.msgPick) + "</textarea>" +
+            '<div class="row" style="align-items:flex-start;gap:10px"><div style="flex:1;min-width:220px"><label>1回目に選んで発表されたときのメッセージ</label><textarea data-cf="msgR1" maxlength="600" style="min-height:64px" placeholder="' + (c.ok ? "例：一発で真犯人を見抜いた！見事！" : "例：この人にはアリバイが…。あと1回チャンスがある！") + '">' + esc(c.msgR1) + "</textarea></div>" +
+            '<div style="flex:1;min-width:220px"><label>2回目に選んで発表されたときのメッセージ</label><textarea data-cf="msgR2" maxlength="600" style="min-height:64px" placeholder="' + (c.ok ? "例：ギリギリで真相にたどり着いた！" : "例：残念…真犯人は別にいた。解説を見てみよう") + '">' + esc(c.msgR2) + "</textarea></div></div></div>").join("") +
+          '<button class="xbtn sm" id="cadd"' + (edit.final.choices.length >= 8 ? " disabled" : "") + ">＋ 選択肢を足す</button>" +
+          '<div class="note" style="margin-top:6px">⭕ をつけた選択肢を選んだチームが正解になります（複数につけてもOK）。「📣 発表」でこの設定どおりに結果が出ます</div>' +
           '<label>ヒント（任意）</label><textarea data-p="final.hint" style="min-height:60px">' + esc(edit.final.hint) + "</textarea></div></div>" +
-        '<div class="panel ed"><div class="phead"><h2>🌙 アウトロ（ストーリー＋解説＋画像）</h2><span class="sub">全問正解したチームにだけ開きます</span></div><div class="pbody">' +
-          '<label>見出し</label><input data-p="outro.title" value="' + esc(edit.outro.title) + '">' + imgRow("outro.img", edit.outro.img, "assets/nazo/outro.png") +
-          '<label>ストーリー</label><textarea data-p="outro.text" style="min-height:120px">' + esc(edit.outro.text) + "</textarea>" +
-          '<label>解説</label><textarea data-p="outro.explain" style="min-height:140px">' + esc(edit.outro.explain) + "</textarea>" +
+        '<div class="panel ed"><div class="phead"><h2>🌙 アウトロ（紙芝居＋解説）</h2><span class="sub">エピローグで開きます。結果と解説は最後のページの下に出ます</span></div><div class="pbody">' +
+          '<label>見出し</label><input data-p="outro.title" value="' + esc(edit.outro.title) + '">' +
+          edit.outro.pages.map((pg, i) => '<div class="edpg" data-pk="outro" data-pi="' + i + '"><div class="row"><b style="font-size:13px">📖 ' + (i + 1) + '枚目</b><div class="spacer"></div>' +
+              '<button class="xbtn sm" data-pm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-pm="1"' + (i < edit.outro.pages.length - 1 ? "" : " disabled") + ">▼</button>" +
+              '<button class="xbtn sm danger" data-pdel' + (edit.outro.pages.length <= 1 ? " disabled" : "") + ">削除</button></div>" +
+            '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(pg.img) + '\')"></span><div style="flex:1;min-width:200px"><label>画像</label><input data-pf="img" value="' + esc(pg.img) + '" placeholder="assets/nazo/outro' + (i ? i + 1 : "") + '.png"></div></div>' +
+            '<label>文章（画像の下に出ます）</label><textarea data-pf="text" style="min-height:80px">' + esc(pg.text) + "</textarea></div>").join("") +
+          '<button class="xbtn sm" data-padd="outro">＋ ページを足す</button>' +
+          '<label style="margin-top:14px">解説</label><textarea data-p="outro.explain" style="min-height:140px">' + esc(edit.outro.explain) + "</textarea>" +
           '<label>解説の画像（任意）</label><input data-p="outro.explainImg" value="' + esc(edit.outro.explainImg) + '" placeholder="assets/nazo/explain.png"></div></div>' +
         '<div class="savebar' + (dirty ? " dirty" : "") + '"><b style="font-size:12.5px">謎解き</b><span class="note">' + (dirty ? "未保存の変更があります" : "保存済み") + '</span><div class="spacer"></div>' +
           '<button class="xbtn sm" id="erev">もとに戻す</button><button class="xbtn main sm" id="esave">💾 保存</button></div>';
@@ -880,29 +1095,28 @@
     $("view").innerHTML = html;
     bindGm();
   }
-  // 自動判定（答えの暗号と照らし合わせる。結果はキャッシュ）
-  const judgeCache = {};
-  function autoJudge(ans){
-    const k = normAns(ans);
-    if (k in judgeCache) return judgeCache[k];
-    judgeCache[k] = null;
-    hashAns("final", ans).then(h => {
-      judgeCache[k] = cfg.final.hashes.includes(h) || cfg.final.answers.some(a => normAns(a) === k);
-      if (gm && gmTab === "prog") render();
-    });
-    return null;
-  }
+  // 自動判定：提出した選択肢に ⭕ がついているか
+  function autoJudge(a){ const c = choiceOf(a); return c ? c.ok : false; }
+  // 1回目が不正解 → try1 に移して回答権をもう1回。正解か2回目なら最終結果
   async function reveal(tid, mode){
-    const t = T[tid]; if (!t || !t.answer) return;
-    let ok = mode === "1";
-    if (mode === "auto"){ const h = await hashAns("final", t.answer.ans); ok = cfg.final.hashes.includes(h) || cfg.final.answers.some(a => normAns(a) === normAns(t.answer.ans)); }
-    await store.merge(TDOC(tid), { result: { ok, at: Date.now() } });
+    const t = T[tid]; if (!t || !t.answer || t.result) return;
+    const ok = mode === "auto" ? autoJudge(t.answer) : mode === "1", now = Date.now(), n = t.try1 ? 2 : 1;
+    if (!ok && n < MAX_TRY){
+      await store.patch(TDOC(tid), { try1: Object.assign({}, t.answer, { rat: now }) }, ["answer"]);
+      return;
+    }
+    await store.merge(TDOC(tid), { result: { ok, at: now, n } });
   }
   function bindGm(){
     document.querySelectorAll("[data-gt]").forEach(b => b.onclick = () => { gmTab = b.dataset.gt; render(); });
     $("toPlayer").onclick = () => { if (dirty && !confirm("未保存の変更を捨てますか？")) return; gm = false; edit = null; dirty = false; render(); };
     document.querySelectorAll("[data-spec]").forEach(b => b.onclick = () => { spectate = b.dataset.spec; gm = false; slide = (T[spectate] && T[spectate].cur) || "intro"; lastKey = ""; render(); });
     document.querySelectorAll("[data-kick]").forEach(b => b.onclick = () => { const [tid, k] = b.dataset.kick.split("|"); if (confirm("このメンバーをチームから外しますか？")) store.del(TDOC(tid), "members." + k).catch(e => toast(e.message)); });
+    document.querySelectorAll("[data-kpg]").forEach(b => b.onclick = async () => {
+      const [k, d] = b.dataset.kpg.split("|"), n = kPages(k).length;
+      const v = d === "0" ? 0 : Math.max(0, Math.min(n - 1, Math.min(S[k + "Pg"], n - 1) + Number(d)));
+      try { await store.merge(DOC_ST, { [k + "Pg"]: v }); } catch(e){ toast(e.message); }
+    });
     document.querySelectorAll("[data-phase]").forEach(b => b.onclick = async () => {
       const ph = b.dataset.phase;
       if (ph === S.phase) return;
@@ -922,7 +1136,9 @@
     });
     document.querySelectorAll("[data-unrev]").forEach(b => b.onclick = async () => {
       if (!confirm("発表を取り消して、発表前にもどしますか？")) return;
-      store.del(TDOC(b.dataset.unrev), "result").catch(e => toast(e.message));
+      const id = b.dataset.unrev, t = T[id];
+      if (t && t.result) store.del(TDOC(id), "result").catch(e => toast(e.message));
+      else if (t && t.try1 && !t.answer){ const a = Object.assign({}, t.try1); delete a.rat; store.patch(TDOC(id), { answer: a }, ["try1"]).catch(e => toast(e.message)); }
     });
     if ($("revAll")) $("revAll").onclick = async () => {
       const ids = cfg.teams.map(x => x.id).filter(id => T[id] && T[id].answer && !T[id].result);
@@ -963,26 +1179,36 @@
       box.querySelectorAll("[data-qm]").forEach(b => b.onclick = () => { const j = i + Number(b.dataset.qm); const x = edit.questions[i]; edit.questions[i] = edit.questions[j]; edit.questions[j] = x; dirty = true; render(); });
       box.querySelector("[data-qdel]").onclick = () => { if (confirm("この問題を削除しますか？")){ edit.questions.splice(i, 1); dirty = true; render(); } };
     });
-    $("fchkBtn").onclick = async () => {
-      const f = edit.final, v = $("fchk").value, r = $("fchkR");
-      const news = String(f._new || "").split(/[、,，\n]/).map(x => x.trim()).filter(Boolean);
-      const ok = news.length ? news.some(a => normAns(a) === normAns(v)) : f.hashes.includes(await hashAns("final", v));
-      r.textContent = ok ? "⭕ 正解になります" : "✖ 不正解になります"; r.style.color = ok ? "var(--ok)" : "var(--danger)";
-    };
+    document.querySelectorAll("[data-ci]").forEach(box => {
+      const i = +box.dataset.ci, c = edit.final.choices[i];
+      box.querySelectorAll("[data-cf]").forEach(el => el.oninput = () => { c[el.dataset.cf] = el.value; mark(); });
+      box.querySelector("[data-cok]").onchange = e => { c.ok = e.target.checked; dirty = true; render(); };
+      box.querySelectorAll("[data-cm]").forEach(b => b.onclick = () => { const j = i + Number(b.dataset.cm), L = edit.final.choices; [L[i], L[j]] = [L[j], L[i]]; dirty = true; render(); });
+      box.querySelector("[data-cdel]").onclick = () => { if (confirm("「" + c.label + "」を削除しますか？")){ edit.final.choices.splice(i, 1); dirty = true; render(); } };
+    });
+    $("cadd").onclick = () => { const n = edit.final.choices.length + 1; edit.final.choices.push({ id: "c" + uid(), label: "選択肢" + n, img: "", ok: false, msgPick: "", msgR1: "", msgR2: "" }); dirty = true; render(); };
+    document.querySelectorAll("[data-pi]").forEach(box => {
+      const k = box.dataset.pk, i = +box.dataset.pi, L = edit[k].pages, pgx = L[i];
+      box.querySelectorAll("[data-pf]").forEach(el => el.oninput = () => {
+        pgx[el.dataset.pf] = el.value; mark();
+        if (el.dataset.pf === "img") box.querySelector(".pv").style.backgroundImage = "url('" + el.value.replace(/'/g, "") + "')";
+      });
+      box.querySelectorAll("[data-pm]").forEach(b => b.onclick = () => { const j = i + Number(b.dataset.pm); [L[i], L[j]] = [L[j], L[i]]; dirty = true; render(); });
+      box.querySelector("[data-pdel]").onclick = () => { if (confirm((i + 1) + "枚目を削除しますか？")){ L.splice(i, 1); dirty = true; render(); } };
+    });
+    document.querySelectorAll("[data-padd]").forEach(b => b.onclick = () => { const k = b.dataset.padd, L = edit[k].pages; L.push({ img: "assets/nazo/" + k + (L.length + 1) + ".png", text: "" }); dirty = true; render(); });
     $("qadd").onclick = () => { const n = edit.questions.length + 1; edit.questions.push({ id: "q" + uid(), title: "第" + n + "の謎", img: "assets/nazo/q" + n + ".png", text: "", hint: "", kwHint: "" }); dirty = true; render(); };
     $("erev").onclick = () => { if (!dirty || confirm("編集中の内容を捨てますか？")){ edit = null; render(); } };
     $("esave").onclick = async () => {
       try {
         const out = JSON.parse(JSON.stringify(edit));
         const f = out.final;
-        const news = String(f._new || "").split(/[、,，\n]/).map(x => x.trim()).filter(Boolean);
-        if (news.length) f.hashes = await Promise.all(news.map(a => hashAns("final", a)));
-        if (!f.hashes.length) throw new Error("最終回答の答えが入っていません");
-        f.answers = []; delete f._new;              // 答えそのものは保存しない
+        if (f.choices.some(c => !String(c.label).trim())) throw new Error("名前が空の選択肢があります");
+        if (!f.choices.some(c => c.ok)) throw new Error("最終回答の選択肢に ⭕ 正解 を1つ以上つけてください");
         if (!out.teams.length) throw new Error("チームを1つ以上作ってください");
         const next = normCfg(Object.assign(out, { updatedAt: Date.now() }));
         await store.put(DOC_CFG, next);
-        edit = null; dirty = false; toast("保存しました（答えは暗号化して保存）"); render();
+        edit = null; dirty = false; toast("保存しました"); render();
       } catch(e){ toast("保存できませんでした：" + e.message); }
     };
   }
@@ -995,11 +1221,15 @@
   window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
   store.sub(DOC_ST, raw => {
     const before = S, first = !stReady; S = normState(raw); stReady = true;
+    ["intro", "outro"].forEach(k => {                  // 管理者が紙芝居をめくった → 全員そのページへ
+      const v = S[k + "Pg"];
+      if (first || before[k + "Pg"] !== v){ if (!first && slide === k && v !== pg[k]) turnDir = v > pg[k] ? "n" : "p"; pg[k] = v; }
+    });
     if (!first && before.phase !== S.phase){
       // 管理者の切り替えで、全員の画面を動かす
       if (S.phase === "play" && cfg.questions[0] && (slide === "intro" || slide === "outro")) slide = cfg.questions[0].id;
-      if (S.phase === "epilogue") slide = "outro";
-      if (S.phase === "prologue") slide = "intro";
+      if (S.phase === "epilogue"){ slide = "outro"; pg.outro = S.outroPg; }
+      if (S.phase === "prologue"){ slide = "intro"; pg.intro = S.introPg; }
       if (!gm) toast(S.phase === "play" ? "🔍 謎解きスタート！" : S.phase === "epilogue" ? "🌙 エピローグが始まりました" : "🌅 プロローグにもどりました");
     } else if (first && S.phase === "epilogue") slide = "outro";
     lastKey = "";

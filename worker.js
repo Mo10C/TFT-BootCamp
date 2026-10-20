@@ -283,6 +283,63 @@ async function fsPatch(env, path, obj) {
   return true;
 }
 
+/* 「members.u_123.rank」のような入れ子の場所だけを書きかえる（ほかのメンバーの情報は消さない） */
+async function fsPatchPaths(env, path, flat) {
+  const root = {};
+  Object.entries(flat).forEach(([k, v]) => {
+    const ps = k.split("."); let o = root;
+    for (let i = 0; i < ps.length - 1; i++) o = (o[ps[i]] = o[ps[i]] || {});
+    o[ps[ps.length - 1]] = v;
+  });
+  const fields = {};
+  Object.entries(root).forEach(([k, v]) => { fields[k] = fsEncode(v); });
+  const q = s => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(s) ? s : "`" + s.replace(/`/g, "\\`") + "`");
+  const mask = Object.keys(flat).map(k => "updateMask.fieldPaths=" + encodeURIComponent(k.split(".").map(q).join("."))).join("&");
+  const r = await fetch(fsBase(env) + "/" + path + "?key=" + env.FIREBASE_API_KEY + "&" + mask, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fields })
+  });
+  if (!r.ok) throw new Error("Firestore書き込み失敗 " + r.status + " " + (await r.text()).slice(0, 200));
+  return true;
+}
+
+/* Riot からいまのランクを1人ぶん取る（ランクなし・取れないときは null） */
+async function riotRankW(env, platform, puuid) {
+  try {
+    const r = await fetch("https://" + platform + ".api.riotgames.com/tft/league/v1/by-puuid/" + enc(puuid),
+      { headers: { "X-Riot-Token": env.RIOT_API_KEY } });
+    if (!r.ok) return null;
+    const entries = await r.json();
+    const pick = q => (Array.isArray(entries) ? entries.find(e => e.queueType === q) : null);
+    const e = pick("RANKED_TFT") || pick("RANKED_TFT_DOUBLE_UP") || (Array.isArray(entries) ? entries[0] : null);
+    if (!e || !e.tier) return null;
+    return { tier: e.tier, division: e.rank || "", lp: e.leaguePoints | 0 };
+  } catch (e) { return null; }
+}
+
+/* プロフィール（lboard_index/members）のランクを、LPの一斉集計と同じタイミングで更新する。
+   LPの集計で取ったランクはそのまま使い、LPに登録していない人だけ Riot に聞きに行く。 */
+async function syncMemberRanks(env, cache, platform) {
+  const doc = await fsGet(env, "lboard_index/members");
+  const mem = (doc && doc.members) || {};
+  const flat = {}, now = Date.now();
+  let n = 0;
+  for (const [id, m] of Object.entries(mem)) {
+    if (!m || !m.puuid) continue;
+    let r = cache[m.puuid];
+    if (r === undefined) {
+      r = await riotRankW(env, platform, m.puuid);
+      cache[m.puuid] = r;
+      await new Promise(res => setTimeout(res, 120));   // Riotのレート制限に配慮
+    }
+    if (!r) continue;
+    flat["members." + id + ".rank"] = r;
+    flat["members." + id + ".rankAt"] = now;
+    n++;
+  }
+  if (n) await fsPatchPaths(env, "lboard_index/members", flat);
+  return n;
+}
+
 async function collectLp(env) {
   if (!env.RIOT_API_KEY) throw new Error("RIOT_API_KEY 未設定");
   const doc = await fsGet(env, "lboard_index/lp");
@@ -292,9 +349,12 @@ async function collectLp(env) {
   if (!ids.length) return { ok: true, note: "メンバーがまだいません", updated: 0 };
 
   const today = jstDayKey();
+  // ★ 集計開始日（管理画面でリセットしたとき）より前は hist に書かない。ランクと名簿は更新する
+  const beforeStart = !!(doc && doc.collectFrom && today < doc.collectFrom);
   const platform = env.RIOT_PLATFORM || "jp1";
   const nextMembers = {}, nextHist = {};
   const promotions = [];
+  const rankCache = {};   // puuid → いまのランク（プロフィールの更新にも使う）
   let ok = 0, ng = 0, skip = 0;
 
   for (const id of ids) {
@@ -313,6 +373,7 @@ async function collectLp(env) {
     if (!e || !e.tier) { skip++; continue; }
 
     const tier = e.tier, division = e.rank || "", lp = e.leaguePoints | 0;
+    rankCache[m.puuid] = { tier, division, lp };
     const abs = absLpW(tier, division, lp);
     if (abs == null) { skip++; continue; }
 
@@ -324,7 +385,7 @@ async function collectLp(env) {
     }
 
     nextMembers[id] = Object.assign({}, m, { tier, division, lp, abs, updatedAt: Date.now() });
-    nextHist[id] = Object.assign({}, hist[id] || {}, { [today]: abs });
+    nextHist[id] = beforeStart ? (hist[id] || {}) : Object.assign({}, hist[id] || {}, { [today]: abs });
     ok++;
     await new Promise(r => setTimeout(r, 120));   // Riotのレート制限に配慮
   }
@@ -338,9 +399,15 @@ async function collectLp(env) {
     lastCollect: today, lastCollectAt: Date.now()
   });
 
+  // ★ プロフィール（メンバー名簿）のランクも同じタイミングで更新
+  let profiles = 0, profileError = "";
+  try { profiles = await syncMemberRanks(env, rankCache, platform); }
+  catch (e) { profileError = String(e.message || e); console.warn("プロフィールのランク更新に失敗", e); }
+
   let announced = 0;
   if (promotions.length) announced = await announcePromotions(env, promotions);
-  return { ok: true, date: today, updated: ok, failed: ng, skipped: skip, promotions: promotions.length, announced };
+  return { ok: true, date: today, updated: ok, failed: ng, skipped: skip, promotions: promotions.length, announced,
+           profiles, profileError: profileError || undefined };
 }
 
 /* ---- ランクアップを Discord へ投稿（既定は連絡事項）---- */

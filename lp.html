@@ -813,6 +813,12 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     if (!box) return;
     box.className = "rolewarn";          // 毎回いったん警告の見た目に戻す
     const today = C.dayKey();
+    if (lp.collectFrom && today < lp.collectFrom){     // 集計開始日の前
+      const [, m, d] = lp.collectFrom.split("-").map(Number);
+      box.style.display = ""; box.className = "okbox";
+      box.innerHTML = "📅 <b>LPの集計は " + m + "/" + d + " から始まります。</b>その日の23:45の記録が最初の点（基準）になります。";
+      return;
+    }
     const last  = lp.lastCollect || "";
     const at    = lp.lastCollectAt ? new Date(lp.lastCollectAt + 9*3600*1000) : null;
     const p = n => String(n).padStart(2,"0");

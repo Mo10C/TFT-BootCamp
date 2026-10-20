@@ -1563,12 +1563,15 @@
           }))
         : [],
       // ★ 最後に自動集計(23:45)が走った日と時刻。集計が動いているか確認するために表示する
+      // ★ 集計開始日。この日より前は 23:45 の集計でも手動集計でも hist に書かない（リセットして始めなおすとき用）
+      collectFrom: /^\d{4}-\d{2}-\d{2}$/.test(raw.collectFrom) ? raw.collectFrom : "",
       lastCollect: /^\d{4}-\d{2}-\d{2}$/.test(raw.lastCollect) ? raw.lastCollect : "",
       lastCollectAt: raw.lastCollectAt || 0,
       updatedAt: raw.updatedAt || 0
     };
   }
 
+  let lpCollectFrom = "";      // 最後に読んだ集計開始日（recordLp で使う）
   async function loadLpData() {
     // ★ openDb() も try の中に入れる。
     //    ここで例外が飛ぶと「読み込み失敗」になり、原因が分からなくなるため。
@@ -1576,10 +1579,10 @@
       const db = openDb();
       if (db) {
         const snap = await db.collection("lboard_index").doc(LP_DOC).get();
-        if (snap.exists) return normLp(snap.data());
+        if (snap.exists){ const d = normLp(snap.data()); lpCollectFrom = d.collectFrom; return d; }
       } else {
         const raw = localStorage.getItem(LP_LS_KEY);
-        if (raw) return normLp(JSON.parse(raw));
+        if (raw){ const d = normLp(JSON.parse(raw)); lpCollectFrom = d.collectFrom; return d; }
       }
     } catch (e) { console.warn("LP履歴の読み込みに失敗", e); }
     return normLp(null);
@@ -1615,7 +1618,8 @@
       entry.rankAt = Date.now();
     }
     const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
-    if (withHistory && abs != null) patch.hist = { [player.id]: { [today]: abs } };
+    const beforeStart = !!(lpCollectFrom && today < lpCollectFrom);   // 集計開始日より前は記録しない
+    if (withHistory && abs != null && !beforeStart) patch.hist = { [player.id]: { [today]: abs } };
 
     const db = openDb();
     try {
@@ -1623,7 +1627,7 @@
       else {
         const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
         cur.members[player.id] = Object.assign({}, cur.members[player.id] || {}, entry);
-        if (withHistory && abs != null) {
+        if (withHistory && abs != null && !beforeStart) {
           cur.hist[player.id] = cur.hist[player.id] || {};
           cur.hist[player.id][today] = abs;
         }
@@ -1657,6 +1661,27 @@
       localStorage.setItem(LP_LS_KEY, JSON.stringify(raw));
     }
     return removed;
+  }
+
+  /* LPの記録（hist）を全部消して、集計を start の日から始めなおす。
+     名簿（members）と並び順はそのまま。基準日も start にそろえる。
+     戻り値は消す前のデータ（バックアップ用）。 */
+  async function resetLpHistory(start) {
+    if (!isAdmin()) throw new Error("LPのリセットは管理者のみです");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start || "")) throw new Error("開始日を選んでください");
+    const before = await loadLpData();
+    const db = openDb();
+    const w = { hist: {}, baseline: start, collectFrom: start, updatedAt: Date.now() };
+    if (db) {
+      // update はマップを丸ごと置き換える（set merge では消せない）
+      await db.collection("lboard_index").doc(LP_DOC).update(w);
+    } else {
+      const raw = JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}");
+      Object.assign(raw, w);
+      localStorage.setItem(LP_LS_KEY, JSON.stringify(raw));
+    }
+    lpCollectFrom = start;
+    return before;
   }
 
   /* 「集計を実行した」印を残す（管理画面から手動で回したとき用）。
@@ -4186,7 +4211,7 @@
     normChild, noLink,
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
-    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, setLpBaseline, lpSeries, lpStats,
+    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, updateGlobalMember, removeGlobalMember,

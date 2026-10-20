@@ -270,6 +270,20 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 .admprev .ht{color:#1d9bf0}
 .alrow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border)}
 .alrow:last-child{border-bottom:none}
+.mtrow{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1.3fr);gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.mtrow:last-child{border-bottom:none}
+.mtrow .who{display:flex;align-items:center;gap:10px;min-width:0}
+.mtrow .who b{font-size:13.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mtrow .who small{font-size:11px;color:var(--muted)}
+.mtrow .av{flex:none;width:42px;height:42px;border-radius:999px;object-fit:cover;background:var(--surface-2);display:grid;place-items:center;font-weight:900;color:var(--muted)}
+.mtrow .av.t{box-shadow:0 0 0 2px var(--gold)}
+.mtrow .arr{color:var(--gold);font-weight:900;text-align:center}
+.mtrow select{flex:1;min-width:0;font-size:13px}
+.mtrow .lk{display:flex;gap:10px;font-size:11px;margin-top:3px}
+.mtrow.none .av:not(.t){opacity:.35}
+.mtfree{display:flex;flex-wrap:wrap;gap:6px}
+.mtfree span{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border)}
+@media (max-width:640px){.mtrow{grid-template-columns:1fr}.mtrow .arr{display:none}}
 .alrow .av{width:44px;height:44px;border-radius:999px;object-fit:cover;background:var(--surface-2);display:grid;place-items:center;
   font-weight:900;color:#fff;background-color:var(--leaf)}
 .alrow .hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
@@ -456,6 +470,7 @@ body.ad-on{overflow:hidden}
       <button class="tab" data-panel="p-boards"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.3l2 2.2h8.7A1.5 1.5 0 0 1 21 8.7V18a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z"/></svg><span>大会の管理</span></button>
       <div class="ad-grp">メンバー</div>
       <button class="tab" data-panel="p-members"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5c.8-4 3.8-6.3 7.5-6.3s6.7 2.3 7.5 6.3"/></svg><span>メンバー</span></button>
+      <button class="tab" data-panel="p-mentor"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="8" r="3"/><circle cx="16.5" cy="8" r="3"/><path d="M2.5 19.5c.5-3.2 2.5-5 5-5s4.5 1.8 5 5M11.5 19.5c.5-3.2 2.5-5 5-5s4.5 1.8 5 5M10.5 8h3"/></svg><span>担当（先生と生徒）</span></button>
       <button class="tab" data-panel="p-lp"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17M5.5 16l4.5-5 3.5 3.5L19 8M19 8h-4M19 8v4"/></svg><span>LP</span></button>
       <button class="tab" data-panel="p-snap"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="15" r="5"/><path d="M9 2.5 12 10l3-7.5M12 13v4"/></svg><span>先生スナップショット</span></button>
       <div class="ad-grp">Discord</div>
@@ -671,6 +686,21 @@ body.ad-on{overflow:hidden}
         <select id="lpFixDay" style="min-width:180px"></select>
         <button class="mini" id="lpFixDel">🗑 この日の記録を消す</button>
       </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+      <h2 style="font-size:13px">🧹 記録をリセットして、集計を始めなおす</h2>
+      <div class="lead">
+        <b>いままでのLPの記録（全員・全日）を消して</b>、選んだ日から集計を始めなおします。<br>
+        ・選んだ日が<b>基準日</b>になり、その日の23:45の集計が最初の点になります<br>
+        ・それまでの毎晩の集計では<b>記録しません</b>（ランクと名簿だけ更新）<br>
+        ・メンバー・並び順・ランクはそのまま残ります<br>
+        ・押すと、消す前の記録を<b>バックアップ（JSON）として自動でダウンロード</b>します。<b>消した記録は戻せません。</b>
+      </div>
+      <div class="row">
+        <label>集計開始日</label>
+        <input type="date" id="lpResetDate">
+        <button class="mini danger" id="lpReset">🧹 記録をリセット</button>
+      </div>
+      <div class="hint" id="lpResetHint"></div>
     </div>
 
     <div class="card">
@@ -720,6 +750,33 @@ body.ad-on{overflow:hidden}
       <div class="tw">
         <table id="memberTable"></table>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= 担当（先生と生徒） ================= -->
+  <div class="panel" id="p-mentor">
+    <div class="card">
+      <h2>担当（先生と生徒） <span class="hint" id="mtCount"></span></h2>
+      <div class="lead">
+        講師（先生）1人につき、生徒を1人選びます。決めた担当は次の3か所に出ます。<br>
+        <b>講師任命書</b>の「担当する生徒」（未設定のあいだは「お楽しみに」）／<b>感謝状</b>の生徒の歩み／生徒の<b>卒業証書</b>の「担当：○○先生」。<br>
+        ほかの先生の担当になっている生徒を選ぶと、その先生からこちらへ付け替わります。
+      </div>
+      <div class="hint" id="mtRoleHint" style="margin:-4px 0 10px"></div>
+      <div id="mtRows"><div class="hint">読み込み中…</div></div>
+    </div>
+    <div class="card">
+      <h2>まだ担当の先生がいない生徒 <span class="hint" id="mtFreeCount"></span></h2>
+      <div class="mtfree" id="mtFree"></div>
+    </div>
+    <div class="sticky-save" id="mtSave">
+      <span class="dirty-dot"></span>
+      <b style="font-size:12.5px">担当</b>
+      <span class="hint" id="mtState">—</span>
+      <div class="spacer" style="flex:1"></div>
+      <button class="mini" id="mtClear" type="button">すべて解除</button>
+      <button class="mini" id="mtReset" type="button">もとに戻す</button>
+      <button class="mini grad" id="mtApply" type="button">💾 保存</button>
     </div>
   </div>
 
@@ -1183,7 +1240,7 @@ body.ad-on{overflow:hidden}
     <div class="card">
       <h2>生徒ごとの「ひとこと」と担当の先生 <span class="hint" id="alCount"></span></h2>
       <div class="lead">ひとことは1人ずつのページの一番下と、保存した画像に載ります（300文字まで・画像には2行ぶん）。空欄の人は、その欄を出しません。<br>
-        講師の欄で<b>担当の生徒</b>を選ぶと、その生徒の卒業証書に「担当：○○先生」と入り、先生の感謝状にはその生徒の歩みが載ります。</div>
+        先生と生徒の担当は<a href="#" onclick="document.querySelector('[data-panel=&quot;p-mentor&quot;]').click();return false">「担当（先生と生徒）」タブ</a>で決めます。</div>
       <div class="hint" id="alMentorSum" style="margin:-4px 0 10px;font-weight:700;color:var(--gold)"></div>
       <div class="row">
         <input type="text" id="alFilter" placeholder="名前でしぼりこむ" style="width:220px">
@@ -2132,6 +2189,7 @@ body.ad-on{overflow:hidden}
     try { lpData = await C.loadLpData(); }
     catch(e){ toast("LPデータの読み込みに失敗: " + e.message); return; }
     $("lpBaseline").value = lpData.baseline || "";
+    if (!$("lpResetDate").value) $("lpResetDate").value = lpData.collectFrom && lpData.collectFrom >= C.dayKey() ? lpData.collectFrom : C.dayKey();
     renderLpStat();
   }
   function renderLpStat(){
@@ -2151,6 +2209,11 @@ body.ad-on{overflow:hidden}
            ? " ⚠️ 実際の記録は " + sorted[0] + " からです。それ以前は空白になります。" : ""))
       : "基準日は未設定です（グラフは直近30日・「基準」列は出ません）。";
     renderCollectStat();
+    $("lpResetHint").innerHTML = lpData.collectFrom
+      ? (lpData.collectFrom > C.dayKey()
+          ? "📅 集計開始日：<b>" + lpData.collectFrom + "</b>（この日の23:45から記録します。それまでは記録しません）"
+          : "📅 集計開始日：" + lpData.collectFrom + "（記録中）")
+      : "";
     fillFixDays(sorted);
     renderLpRoles();
   }
@@ -2211,6 +2274,30 @@ body.ad-on{overflow:hidden}
       await loadLp();
       toast(d + " の記録を " + n + "件 消しました");
     } catch(e){ toast("消せませんでした: " + e.message); }
+    btn.disabled = false;
+  };
+
+  $("lpReset").onclick = async () => {
+    const d = $("lpResetDate").value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)){ toast("集計開始日を選んでください"); return; }
+    const days = new Set(); Object.values(lpData.hist || {}).forEach(h => Object.keys(h).forEach(k => days.add(k)));
+    const typed = prompt("LPの記録（" + Object.keys(lpData.hist || {}).length + "人・" + days.size + "日ぶん）をすべて消して、" + d +
+      " から集計を始めなおします。\n消す前の記録はバックアップとしてダウンロードされます。\n\nよろしければ「リセット」と入力してください。");
+    if (typed == null) return;
+    if (typed.trim() !== "リセット"){ toast("「リセット」と入力されなかったので、やめました"); return; }
+    const btn = $("lpReset"); btn.disabled = true;
+    try {
+      const before = await C.loadLpData();
+      // 先にバックアップを保存してから消す
+      const blob = new Blob([JSON.stringify({ savedAt: new Date().toISOString(), lp: before }, null, 1)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "lp-backup-" + C.dayKey() + ".json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      await C.resetLpHistory(d);
+      await loadLp();
+      toast("LPの記録をリセットしました（" + d + " から集計します）");
+    } catch(e){ toast("リセットできませんでした: " + e.message); }
     btn.disabled = false;
   };
 
@@ -3892,25 +3979,13 @@ body.ad-on{overflow:hidden}
               (e.gain != null ? '<span class="g" style="color:' + (e.gain > 0 ? "var(--ok)" : e.gain < 0 ? "var(--danger)" : "var(--muted)") + '">' +
                 (e.gain > 0 ? "+" : "") + e.gain + "LP</span>" : "") +
               (e.start && e.end ? "<small>" + esc(C.rankLabel(e.start.rank)) + " → " + esc(C.rankLabel(e.end.rank)) + "</small>" : "") +
-              (isTeacher ? '<label class="hint" style="display:inline-flex;align-items:center;gap:4px">担当の生徒' +
-                '<select class="mentor" style="font-size:12px;padding:3px 6px;height:auto;width:auto;min-width:0"><option value="">未設定</option>' +
-                stuIds.map(st => '<option value="' + esc(st) + '"' + (stuOf(id) === st ? " selected" : "") + ">" + esc(tName(st)) +
-                  (alEdit.mentors[st] && alEdit.mentors[st] !== id && tIds.indexOf(alEdit.mentors[st]) >= 0 ? "（" + esc(tName(alEdit.mentors[st])) + "）" : "") +
-                  "</option>").join("") +
-                "</select></label>"
+              (isTeacher ? '<small style="color:var(--gold);font-weight:900">担当 ' + (stuOf(id) ? esc(tName(stuOf(id))) : "未設定") + "</small>"
               : (tIds.indexOf(alEdit.mentors[id]) >= 0 ? '<small style="color:var(--gold);font-weight:900">担当 ' + esc(tName(alEdit.mentors[id])) + "先生</small>" : "")) +
               '<a class="hint" style="margin-left:auto" href="album.html?id=' + encodeURIComponent(id) + '" target="_blank" rel="noopener">ページを見る ↗</a>' +
             "</div>" +
             '<textarea maxlength="300" placeholder="' + (isTeacher ? "この先生への感謝のことば（任意）" : "この人へのひとこと（任意）") + '"></textarea>' +
             '<div class="cnt"></div>' +
           "</div>";
-        const ms = row.querySelector("select.mentor");
-        if (ms) ms.onchange = () => {
-          // 先生1人につき生徒1人：この先生の前の担当を外してから付け替える
-          Object.keys(alEdit.mentors).forEach(k => { if (alEdit.mentors[k] === id) delete alEdit.mentors[k]; });
-          if (ms.value) alEdit.mentors[ms.value] = id;
-          markAl(); renderRows();
-        };
         const ta = row.querySelector("textarea"), cnt = row.querySelector(".cnt");
         ta.value = text;
         cnt.textContent = text.length + " / 300";
@@ -4022,6 +4097,8 @@ body.ad-on{overflow:hidden}
     $("alApply").onclick = async () => {
       const btn = $("alApply"); btn.disabled = true;
       try {
+        // 担当は「担当」タブで管理：保存されている最新の担当を引き継ぐ
+        try { const cur = await C.loadAlbum(); alEdit.mentors = (cur && cur.mentors) || {}; } catch(e){}
         alData = await C.saveAlbum(alEdit);
         alEdit = JSON.parse(JSON.stringify(alData));
         clearAl(); fillForm(); renderAwards(); renderRows();
@@ -4036,10 +4113,107 @@ body.ad-on{overflow:hidden}
     };
     window.addEventListener("beforeunload", e => { if (alDirty){ e.preventDefault(); e.returnValue = ""; } });
 
+    // 「担当」タブで保存されたら表示だけ更新（ほかの未保存の編集はそのまま）
+    window.addEventListener("mentors-saved", ev => {
+      const m = ev.detail || {};
+      if (alData) alData.mentors = JSON.parse(JSON.stringify(m));
+      if (alEdit){ alEdit.mentors = JSON.parse(JSON.stringify(m)); renderRows(); }
+    });
     // タブを開いたときに初めて読み込む
     const t = document.querySelector('[data-panel="p-album"]');
     if (t) t.addEventListener("click", boot);
     if ($("p-album").classList.contains("on")) boot();
+  })();
+
+  /* =============================================================
+     担当（先生と生徒）：album.mentors {生徒ID: 先生ID}
+     ============================================================= */
+  (function(){
+    if (typeof C.loadAlbum !== "function" || !$("p-mentor")) return;
+    let saved = {}, edit = {}, dirty = false, booted = false, lp = null, mem = {}, roles = [];
+    const mark = () => { dirty = true; $("mtSave").classList.add("dirty"); $("mtState").textContent = "未保存の変更があります"; };
+    const clear = () => { dirty = false; $("mtSave").classList.remove("dirty"); $("mtState").textContent = "保存済み"; };
+    const info = id => { const a = (lp && lp.members || {})[id] || {}, b = mem[id] || {};
+      return { name: a.name || b.name || "—", avatar: a.avatar || (b.discord && b.discord.avatar) || "" }; };
+    const isT = id => C.isTeacherOf && (C.isTeacherOf((lp && lp.members || {})[id], roles) || C.isTeacherOf(mem[id], roles));
+    const av = (id, t) => { const m = info(id), ini = esc(String(m.name).slice(0, 1));
+      return m.avatar ? '<img class="av' + (t ? " t" : "") + '" src="' + esc(m.avatar) + '" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;av' + (t ? " t" : "") + '&quot;>' + ini + '</span>\'">'
+                      : '<span class="av' + (t ? " t" : "") + '">' + ini + "</span>"; };
+    function lists(){
+      const all = Array.from(new Set(Object.keys(lp && lp.members || {}).concat(Object.keys(mem))));
+      const tIds = all.filter(isT).sort((a, b) => info(a).name.localeCompare(info(b).name, "ja"));
+      const order = lp && C.lpGroupOrder ? C.lpGroupOrder(lp) : null;
+      const gi = id => order && C.lpGroupIndex ? C.lpGroupIndex(lp.members[id], order) : 0;
+      const sIds = Object.keys(lp && lp.members || {}).filter(id => tIds.indexOf(id) < 0)
+        .sort((a, b) => (gi(a) - gi(b)) || info(a).name.localeCompare(info(b).name, "ja"));
+      return { tIds, sIds };
+    }
+    function render(){
+      const { tIds, sIds } = lists();
+      const stuOf = t => sIds.find(id => edit[id] === t) || "";
+      const done = tIds.filter(stuOf).length;
+      $("mtCount").textContent = tIds.length ? "決定 " + done + " / " + tIds.length + "人" : "";
+      $("mtRoleHint").innerHTML = (roles.length ? "講師は「入学許可書」タブで選んだロールの人です。" : "講師は名前に「先生」「講師」が入ったロールの人です（「入学許可書」タブでロールを指定できます）。") +
+        (tIds.length ? "" : '<br><b style="color:var(--danger)">講師が見つかりません。</b>ロールの設定と、メンバーの「ロールを再取得」を確認してください。');
+      const box = $("mtRows"); box.innerHTML = tIds.length ? "" : '<div class="hint">—</div>';
+      tIds.forEach(t => {
+        const st = stuOf(t);
+        const row = document.createElement("div");
+        row.className = "mtrow" + (st ? "" : " none");
+        row.innerHTML =
+          '<div class="who">' + av(t, true) + '<div style="min-width:0"><b>' + esc(info(t).name) + '</b><small style="color:var(--gold);font-weight:900">🎓 講師</small>' +
+            '<div class="lk"><a href="admission.html?id=' + encodeURIComponent(t) + '" target="_blank" rel="noopener">任命書 ↗</a>' +
+            '<a href="album.html?id=' + encodeURIComponent(t) + '" target="_blank" rel="noopener">感謝状 ↗</a></div></div></div>' +
+          '<div class="arr">→</div>' +
+          '<div class="who">' + (st ? av(st) : '<span class="av">？</span>') +
+            '<select><option value="">未設定（お楽しみに）</option>' +
+            sIds.map(s2 => { const o = edit[s2] && edit[s2] !== t && tIds.indexOf(edit[s2]) >= 0 ? edit[s2] : "";
+              return '<option value="' + esc(s2) + '"' + (st === s2 ? " selected" : "") + ">" + esc(info(s2).name) +
+                (o ? "（" + esc(info(o).name) + "先生の担当）" : "") + "</option>"; }).join("") +
+            "</select></div>";
+        row.querySelector("select").onchange = ev => {
+          Object.keys(edit).forEach(k => { if (edit[k] === t) delete edit[k]; });   // 先生1人に生徒1人
+          if (ev.target.value) edit[ev.target.value] = t;
+          mark(); render();
+        };
+        box.appendChild(row);
+      });
+      const free = sIds.filter(id => tIds.indexOf(edit[id]) < 0);
+      $("mtFreeCount").textContent = free.length + "人";
+      $("mtFree").innerHTML = free.length ? free.map(id => "<span>" + esc(info(id).name) + "</span>").join("")
+                                          : '<div class="hint">全員に担当の先生がいます。</div>';
+    }
+    async function boot(){
+      if (booted) return; booted = true;
+      try {
+        const [al, l, mb] = await Promise.all([C.loadAlbum().catch(() => null), C.loadLpData().catch(() => null), C.loadMembers().catch(() => null)]);
+        saved = (al && al.mentors) || {}; lp = l || { members: {} }; mem = mb || {};
+        roles = C.loadTeacherRoleIds ? await C.loadTeacherRoleIds().catch(() => []) : [];
+      } catch(e){ lp = lp || { members: {} }; }
+      edit = JSON.parse(JSON.stringify(saved)); clear(); render();
+    }
+    $("mtApply").onclick = async () => {
+      const btn = $("mtApply"); btn.disabled = true;
+      try {
+        const cur = await C.loadAlbum();              // 卒業証書のほかの設定は最新のまま
+        cur.mentors = JSON.parse(JSON.stringify(edit));
+        const res = await C.saveAlbum(cur);
+        saved = (res && res.mentors) || cur.mentors; edit = JSON.parse(JSON.stringify(saved));
+        clear(); render();
+        window.dispatchEvent(new CustomEvent("mentors-saved", { detail: saved }));
+        toast("担当を保存しました");
+      } catch(e){ toast(e.message); }
+      btn.disabled = false;
+    };
+    $("mtReset").onclick = () => { edit = JSON.parse(JSON.stringify(saved)); clear(); render(); };
+    $("mtClear").onclick = () => {
+      if (!confirm("すべての担当を外しますか？（保存するまで反映されません）")) return;
+      edit = {}; mark(); render();
+    };
+    window.addEventListener("beforeunload", e => { if (dirty){ e.preventDefault(); e.returnValue = ""; } });
+    const tb = document.querySelector('[data-panel="p-mentor"]');
+    if (tb) tb.addEventListener("click", boot);
+    if ($("p-mentor").classList.contains("on")) boot();
   })();
 
   /* =============================================================
@@ -4177,6 +4351,7 @@ body.ad-on{overflow:hidden}
     "p-teams":   ["ダブルアップのペア分け", "index.html" + bq, "大会ページ"],
     "p-boards":  ["大会（ボード）の一覧・切り替え・削除", "boards.html", "大会一覧"],
     "p-members": ["メンバーの登録・ロール・表示名", "members.html", "メンバー紹介"],
+    "p-mentor":  ["講師1人に生徒1人の担当（任命書・感謝状・卒業証書に反映）", "album.html", "卒業証書"],
     "p-lp":      ["LPランキングの基準日・記録・並び順", "lp.html", "LPランキング"],
     "p-snap":    ["先生スナップショットの実施日・ポイント・結果", "lp.html", "LPランキング"],
     "p-msg":     ["Discordへ自動投稿する文面（投稿先はすべて連絡事項）", null],
