@@ -2558,19 +2558,18 @@ body.ad-on{overflow:hidden}
     btn.disabled = false;
   };
 
+  // ★ LPランキングに載っている全員のロールを Discord から取り直す（大会のメンバー表に入っていない人も）
   $("lpSyncRoles").onclick = async () => {
-    const targets = (store.state.roster || []).filter(p => p && p.id);
-    if (!targets.length){ toast("このボードにメンバーがいません"); return; }
-    const btn = $("lpSyncRoles");
+    const btn = $("lpSyncRoles"), label = btn.textContent;
     btn.disabled = true;
     try {
-      const n = await C.syncLpRoles(targets);
+      const r = await C.refreshLpRolesFromDiscord((d, n) => { btn.textContent = "👥 取得中 " + d + "/" + n; });
       await loadLp();
       gOrder = [];
       renderLpRoles();
-      toast(n + "人のロール情報を更新しました");
+      toast("ロールを更新しました：成功 " + r.ok + "人" + (r.gone ? " / サーバーにいない " + r.gone + "人" : "") + (r.ng ? " / 失敗 " + r.ng + "人" : ""));
     } catch(e){ toast(e.message); }
-    btn.disabled = false;
+    btn.disabled = false; btn.textContent = label;
   };
 
   /* ---- 行のドラッグ&ドロップ（LPタブの並び順）----

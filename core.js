@@ -1706,8 +1706,33 @@
         ・数値がおかしくなる ・グラフの線が飛ぶ ・23:45の集計が上書きされる
         という不具合になっていたため。
         実際のLPは毎日23:45の自動集計だけが書き込む。 */
+  /* 自分のDiscordロールを1日1回、Bot経由で取り直してセッションに入れる。
+     ★ これまではログインした時点のロールのままだったので、あとから「生徒」ロールを付けた人が
+        LPランキングで「その他」に入ったままになっていた。 */
+  let myRolesP = null;
+  function refreshMyRoles(session) {
+    if (myRolesP) return myRolesP;
+    myRolesP = (async () => {
+      session = session || Session.get();
+      if (!session || !session.discord || !session.discord.id) return session;
+      const flag = "mcc-lb2-roles-fresh-" + session.discord.id + "-" + dayKey();
+      try { if (localStorage.getItem(flag)) return session; } catch (e) { }
+      try {
+        const m = await Promise.race([DiscordAuth.guildMember(session.discord.id), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000))]);
+        if (m && m.inGuild && Array.isArray(m.roles)) {
+          const cur = Session.get() || session;
+          cur.discord = Object.assign({}, cur.discord, { roles: m.roles });
+          Session.set(cur); session = cur;
+          try { localStorage.setItem(flag, "1"); } catch (e) { }
+        }
+      } catch (e) { console.warn("ロールの再取得に失敗（ログイン時のロールを使います）", e); }
+      return session;
+    })();
+    return myRolesP;
+  }
+
   async function registerLpMember(session) {
-    session = session || Session.get();
+    session = await refreshMyRoles(session || Session.get());
     const p = Session.toPlayer(session);
     if (!p) return false;
     const flag = "mcc-lb2-lp-roster-" + p.id + "-" + dayKey();
@@ -1848,6 +1873,45 @@
       throw new Error("ロール情報を保存できませんでした（" + (e.code || e.message) + "）");
     }
     return list.length;
+  }
+
+  /* LPランキングに載っている全員のロールを、Bot経由でDiscordから取り直して保存する（管理者）。
+     大会のメンバー表に入っていない人も対象。メンバー名簿（members）のロールも合わせて更新する。
+     onProgress(done, total) で進み具合を知らせる。 */
+  async function refreshLpRolesFromDiscord(onProgress) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const lp = await loadLpData();
+    const ids = Object.keys(lp.members || {}).filter(id => /^u_\d+$/.test(id));
+    const lpPatch = {}, memPatch = {};
+    let ok = 0, gone = 0, ng = 0, done = 0;
+    for (const id of ids) {
+      try {
+        const m = await DiscordAuth.guildMember(id.slice(2));
+        if (m && m.inGuild) { lpPatch[id] = { roles: m.roles || [] }; memPatch[id] = { roles: m.roles || [] }; ok++; }
+        else if (m && m.inGuild === false) gone++;
+        else ng++;
+      } catch (e) { ng++; if (!done && /Worker URL/.test(e.message || "")) throw e; }
+      done++;
+      if (onProgress) try { onProgress(done, ids.length); } catch (e) { }
+      await new Promise(r => setTimeout(r, 150));
+    }
+    if (ok) {
+      const db = openDb();
+      try {
+        if (db) {
+          await db.collection("lboard_index").doc(LP_DOC).set({ members: lpPatch, updatedAt: Date.now() }, { merge: true });
+          // 名簿に登録済みの人だけ（いない人を作らない）
+          const mem = await loadMembers();
+          const mp = {}; Object.keys(memPatch).forEach(id => { if (mem[id]) mp[id] = memPatch[id]; });
+          if (Object.keys(mp).length) await db.collection("lboard_index").doc(MEMBERS_DOC).set({ members: mp, updatedAt: Date.now() }, { merge: true });
+        } else {
+          const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
+          Object.keys(lpPatch).forEach(id => { if (cur.members[id]) cur.members[id].roles = lpPatch[id].roles; });
+          localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+        }
+      } catch (e) { throw new Error("ロール情報を保存できませんでした（" + (e.code || e.message) + "）"); }
+    }
+    return { total: ids.length, ok, gone, ng };
   }
 
   async function setLpBaseline(date) {
@@ -2298,7 +2362,7 @@
   }
 
   async function registerMember(session, force) {
-    session = session || Session.get();
+    session = await refreshMyRoles(session || Session.get());
     const p = Session.toPlayer(session);
     if (!p) return false;
     syncMyRank(session).catch(() => {});
@@ -4211,7 +4275,7 @@
     normChild, noLink,
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
-    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, setLpBaseline, lpSeries, lpStats,
+    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, updateGlobalMember, removeGlobalMember,
