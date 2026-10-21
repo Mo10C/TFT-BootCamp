@@ -1014,7 +1014,14 @@ async function guildMember(url, env) {
       roles = m.roles.map(id => ({ id, name: null, color: 0 }));
     }
   }
-  return json({ inGuild: true, nick: (m.nick || null), roles });
+  // ★ いまのアイコンのURLも返す。Discordでアイコンを変えると古いURLは見られなくなるため
+  const u = m.user || {};
+  const uid = u.id || userId;
+  const avatar = m.avatar
+    ? `https://cdn.discordapp.com/guilds/${env.DISCORD_GUILD_ID}/users/${uid}/avatars/${m.avatar}.png?size=128`
+    : u.avatar ? `https://cdn.discordapp.com/avatars/${uid}/${u.avatar}.png?size=128`
+    : `https://cdn.discordapp.com/embed/avatars/${Number(BigInt(uid) >> 22n) % 6}.png`;
+  return json({ inGuild: true, nick: (m.nick || null), name: (m.nick || u.global_name || u.username || null), avatar, roles });
 }
 
 /* =============================================================

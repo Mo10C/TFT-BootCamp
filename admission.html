@@ -155,18 +155,23 @@
     if (!p) return null;
     const rank = C.admissionRank(D.lp, id, D.adm.date, p.rank || (id === ME ? session.riot && session.riot.rank : null));
     const no = D.nums[id] || (Object.keys(D.nums).length + 1);
-    let student = null;
+    let student = null, mentor = null;
     if (p.teacher){
       const sid = Object.keys(D.mentors).find(k => D.mentors[k] === id && D.people[k]);
       if (sid) student = { id: sid, name: D.people[sid].name || "—", avatar: D.people[sid].avatar };
+    } else {
+      // 生徒：ペアの先生（管理コンソール →「担当（先生と生徒）」で決めたもの）
+      const tid = D.mentors[id];
+      if (tid && D.people[tid]) mentor = { id: tid, name: D.people[tid].name || "—", avatar: D.people[tid].avatar };
     }
-    return { id, name: p.name || "—", avatar: p.avatar, rank, no, teacher: !!p.teacher, student };
+    return { id, name: p.name || "—", avatar: p.avatar, rank, no, teacher: !!p.teacher, student, mentor };
   }
   // 講師なら「講師任命書」、生徒なら「入学許可書」
   const docTitle = p => p.teacher ? D.adm.tTitle : "入学許可書";
   function postText(p){
     const vars = { name: p.name, rank: p.rank ? C.rankLabel(p.rank) : "ランクなし", no: pad3(p.no), date: jdate(D.adm.date),
-      student: p.student ? p.student.name : (D.adm.tTbd || "お楽しみに") };
+      student: p.student ? p.student.name : (D.adm.tTbd || "お楽しみに"),
+      teacher: p.mentor ? p.mentor.name + "先生" : (D.adm.tTbd || "お楽しみに") };
     return String((p.teacher ? D.adm.tPost : D.adm.post) || "").replace(/\{(\w+)\}/g, (m, k) => vars[k] != null ? vars[k] : m);
   }
 
@@ -371,6 +376,23 @@
       g.fillText(C.rankLabel(p.rank), rx, ry + 52);
     } else g.fillText("これから！", rx, ry + 52);
 
+    // 生徒：担当の先生（ランクの右に、アイコンつき）。まだ決まっていなければ「お楽しみに」
+    if (!T){
+      const bx = X + 436, bw = W - 84 - bx, scx = bx + 34, scy = ry + 32, sr = 22, mt = p.mentor;
+      rr(g, bx, ry, bw, 64, 16); g.fillStyle = "rgba(201,162,74,.16)"; g.fill();
+      const ta = mt ? await loadImg(mt.avatar) : null;
+      g.save(); g.beginPath(); g.arc(scx, scy, sr + 3, 0, Math.PI * 2); g.fillStyle = goldA; g.fill();
+      g.beginPath(); g.arc(scx, scy, sr, 0, Math.PI * 2);
+      if (ta){ g.clip(); g.drawImage(ta, scx - sr, scy - sr, sr * 2, sr * 2); }
+      else if (mt){ g.fillStyle = leaf; g.fill(); g.fillStyle = "#fff"; g.font = "900 20px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(String(mt.name).slice(0, 1), scx, scy + 1); g.textBaseline = "alphabetic"; }
+      else { g.fillStyle = "#FBF8EE"; g.fill(); g.fillStyle = goldA; g.font = "900 24px " + EN; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText("?", scx, scy + 1); g.textBaseline = "alphabetic"; }
+      g.restore();
+      g.textAlign = "left"; g.fillStyle = "#9A7426"; g.font = "900 13px " + JP; g.fillText("担当の先生", bx + 66, ry + 24);
+      g.fillStyle = ink; g.font = "900 22px " + JP;
+      g.fillText(fitText(g, mt ? mt.name + " 先生" : (D.adm.tTbd || "お楽しみに"), bw - 80), bx + 66, ry + 52);
+    }
     // 講師：担当する生徒（ランクの右に、アイコンつき）。まだ決まっていなければ「お楽しみに」
     if (T && !p.student){
       const bx = X + 436, bw = W - 84 - bx, scx = bx + 34, scy = ry + 32, sr = 22;

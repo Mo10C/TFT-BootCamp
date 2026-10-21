@@ -1721,7 +1721,8 @@
         const m = await Promise.race([DiscordAuth.guildMember(session.discord.id), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 6000))]);
         if (m && m.inGuild && Array.isArray(m.roles)) {
           const cur = Session.get() || session;
-          cur.discord = Object.assign({}, cur.discord, { roles: m.roles });
+          // ロールと一緒にアイコンも最新に（Discordでアイコンを変えると古いURLは見られなくなる）
+          cur.discord = Object.assign({}, cur.discord, { roles: m.roles }, m.avatar ? { avatar: m.avatar } : {});
           Session.set(cur); session = cur;
           try { localStorage.setItem(flag, "1"); } catch (e) { }
         }
@@ -1875,7 +1876,7 @@
     return list.length;
   }
 
-  /* LPランキングに載っている全員のロールを、Bot経由でDiscordから取り直して保存する（管理者）。
+  /* LPランキングに載っている全員のロールとアイコンを、Bot経由でDiscordから取り直して保存する（管理者）。
      大会のメンバー表に入っていない人も対象。メンバー名簿（members）のロールも合わせて更新する。
      onProgress(done, total) で進み具合を知らせる。 */
   async function refreshLpRolesFromDiscord(onProgress) {
@@ -1887,7 +1888,11 @@
     for (const id of ids) {
       try {
         const m = await DiscordAuth.guildMember(id.slice(2));
-        if (m && m.inGuild) { lpPatch[id] = { roles: m.roles || [] }; memPatch[id] = { roles: m.roles || [] }; ok++; }
+        if (m && m.inGuild) {
+          lpPatch[id] = Object.assign({ roles: m.roles || [] }, m.avatar ? { avatar: m.avatar } : {});
+          memPatch[id] = Object.assign({ roles: m.roles || [] }, m.avatar ? { discord: { avatar: m.avatar } } : {});
+          ok++;
+        }
         else if (m && m.inGuild === false) gone++;
         else ng++;
       } catch (e) { ng++; if (!done && /Worker URL/.test(e.message || "")) throw e; }
@@ -1906,7 +1911,7 @@
           if (Object.keys(mp).length) await db.collection("lboard_index").doc(MEMBERS_DOC).set({ members: mp, updatedAt: Date.now() }, { merge: true });
         } else {
           const cur = normLp(JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}"));
-          Object.keys(lpPatch).forEach(id => { if (cur.members[id]) cur.members[id].roles = lpPatch[id].roles; });
+          Object.keys(lpPatch).forEach(id => { if (cur.members[id]) Object.assign(cur.members[id], lpPatch[id]); });
           localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
         }
       } catch (e) { throw new Error("ロール情報を保存できませんでした（" + (e.code || e.message) + "）"); }

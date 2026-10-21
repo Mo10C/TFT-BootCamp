@@ -717,7 +717,7 @@ body.ad-on{overflow:hidden}
       </div>
       <div class="row">
         <button class="mini" id="lpLoadRoles">🔄 Discordのロールを読み込む</button>
-        <button class="mini" id="lpSyncRoles">👥 メンバーのロール情報を更新</button>
+        <button class="mini" id="lpSyncRoles">👥 メンバーのロール・アイコンを更新</button>
         <span class="hint" id="lpRoleHint">—</span>
       </div>
       <div id="lpGroupList" style="margin-top:12px"></div>
@@ -1122,6 +1122,7 @@ body.ad-on{overflow:hidden}
         <button class="vbtn" type="button" data-v="{name}"><code>{name}</code>名前</button>
         <button class="vbtn" type="button" data-v="{rank}"><code>{rank}</code>入学時ランク</button>
         <button class="vbtn" type="button" data-v="{date}"><code>{date}</code>入学日</button>
+        <button class="vbtn" type="button" data-v="{teacher}"><code>{teacher}</code>担当の先生</button>
         <span class="hint" id="admLen" style="margin-left:auto"></span>
       </div>
       <div class="row" style="margin-top:12px"><label style="min-width:84px">添えるURL</label>
@@ -1140,7 +1141,7 @@ body.ad-on{overflow:hidden}
         <textarea id="admTBody" maxlength="120" style="flex:1;min-height:64px;font-family:inherit;font-size:13px;line-height:1.8"></textarea></div>
       <div class="row"><label style="min-width:84px">担当が未定</label>
         <input type="text" id="admTTbd" maxlength="20" style="width:220px" placeholder="お楽しみに">
-        <span class="hint">担当の生徒がまだ決まっていないとき「担当する生徒」の欄に出す文字</span></div>
+        <span class="hint">担当がまだ決まっていないとき、講師の「担当する生徒」と生徒の「担当の先生」の欄に出す文字</span></div>
       <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">X投稿文</label>
         <div style="flex:1;min-width:0">
           <textarea id="admTPost" maxlength="280" style="width:100%;min-height:84px;font-family:inherit;font-size:13px;line-height:1.8"></textarea>
@@ -2567,7 +2568,7 @@ body.ad-on{overflow:hidden}
       await loadLp();
       gOrder = [];
       renderLpRoles();
-      toast("ロールを更新しました：成功 " + r.ok + "人" + (r.gone ? " / サーバーにいない " + r.gone + "人" : "") + (r.ng ? " / 失敗 " + r.ng + "人" : ""));
+      toast("ロールとアイコンを更新しました：成功 " + r.ok + "人" + (r.gone ? " / サーバーにいない " + r.gone + "人" : "") + (r.ng ? " / 失敗 " + r.ng + "人" : ""));
     } catch(e){ toast(e.message); }
     btn.disabled = false; btn.textContent = label;
   };
@@ -4223,7 +4224,7 @@ body.ad-on{overflow:hidden}
     let adData = null, adEdit = null, adDirty = false, adBooted = false;
     const mark = () => { adDirty = true; $("admSave").classList.add("dirty"); $("admState").textContent = "未保存の変更があります"; };
     const clear = () => { adDirty = false; $("admSave").classList.remove("dirty"); };
-    const SAMPLE = { name: "もと", rank: "DIAMOND III 50LP", no: "007", date: "2026年10月25日", student: "ひよこ" };
+    const SAMPLE = { name: "もと", rank: "DIAMOND III 50LP", no: "007", date: "2026年10月25日", student: "ひよこ", teacher: "もと先生" };
     function fill(){
       $("admOn").checked = !!adEdit.enabled;
       $("admHome").checked = adEdit.homeBtn !== false;
