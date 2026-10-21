@@ -26,6 +26,8 @@
      FIREBASE_API_KEY     config.js の apiKey と同じ値
      VC_MIN_SEC           これより短い滞在は捨てる（既定: 10秒）
      VC_PUSH_MIN          Firestore へ送る間隔・分（既定: 5）
+     VC_RESEND_ALL        1 にすると、起動時に生ログの全日ぶんを Firestore へ送り直す
+                          （古い版から更新したとき、過去の日の「同時にいた時間」を埋めるために1回だけ使う）
    ============================================================= */
 "use strict";
 
@@ -155,6 +157,7 @@ function rollupDay(day) {
   const ch = {};
   const names = {};
   const ranges = {};
+  const bySlice = {};   // VCごとの {u, a, b}（同時にいた時間を出すため）
   store.sessions.concat(live).forEach(s => {
     daySlices(s).forEach(x => {
       if (x.day !== day) return;
@@ -165,11 +168,31 @@ function rollupDay(day) {
       ch[s.c].sec += sec;
       ch[s.c].u[s.u] = (ch[s.c].u[s.u] || 0) + sec;
       ranges[s.c].push({ a: x.a, b: x.b });
+      (bySlice[s.c] || (bySlice[s.c] = [])).push({ u: s.u, a: x.a, b: x.b });
       names[s.u] = s.n;
     });
   });
   Object.keys(ch).forEach(id => ch[id].up = unionSec(ranges[id]));
-  return { ch, names };
+
+  /* 同じVCに同時にいた時間（2人の組ごと）。卒業アルバムの「いっしょに過ごした仲間」に使う。
+     キーは "<小さいID>_<大きいID>"。1分未満は記録しない。 */
+  const pairs = {};
+  Object.keys(bySlice).forEach(cid => {
+    const list = bySlice[cid];
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j];
+      if (a.u === b.u) continue;
+      const ov = Math.min(a.b, b.b) - Math.max(a.a, b.a);
+      if (ov <= 0) continue;
+      const k = a.u < b.u ? a.u + "_" + b.u : b.u + "_" + a.u;
+      pairs[k] = (pairs[k] || 0) + ov;
+    }
+  });
+  Object.keys(pairs).forEach(k => {
+    pairs[k] = Math.round(pairs[k] / 1000);
+    if (pairs[k] < 60) delete pairs[k];
+  });
+  return { ch, names, pairs };
 }
 
 /* =============================================================
@@ -215,13 +238,16 @@ async function pushToFirestore(days) {
   list.forEach(d => (byMonth[monthKey(d)] = byMonth[monthKey(d)] || []).push(d));
 
   for (const [m, ds] of Object.entries(byMonth)) {
-    const obj = { days: {}, names: {}, updatedAt: Date.now() };
+    const obj = { days: {}, pairs: {}, names: {}, updatedAt: Date.now() };
     const mask = ["updatedAt", "names"];
     ds.forEach(d => {
       const r = rollupDay(d);
       obj.days[d] = r.ch;
+      obj.pairs[d] = r.pairs;
       Object.assign(obj.names, r.names);
-      mask.push("days." + d);
+      /* ★ 日付キーは「-」を含むので、Firestore のフィールドパスではバッククォートで囲む必要がある。
+           囲まないと updateMask が不正になり、書き込みが失敗する。 */
+      mask.push("days.`" + d + "`", "pairs.`" + d + "`");
     });
     // 月の名前表は、その月に出てくる人を毎回まとめて入れ直す
     try {
@@ -246,7 +272,9 @@ function startVcTracker(client) {
   load();
   if (!fsReady()) console.warn("[vc] FIREBASE_PROJECT_ID / FIREBASE_API_KEY が未設定です。記録はしますが画面には出ません");
 
+  let started = false;
   const onReady = async () => {
+    if (started) return; started = true;    // ready と clientReady の両方が来ても1回だけ
     for (const guild of client.guilds.cache.values()) {
       try { await guild.channels.fetch(); } catch (e) { }
       for (const vs of guild.voiceStates.cache.values()) {
@@ -259,7 +287,13 @@ function startVcTracker(client) {
     save();
     // 落ちていた間の取りこぼしを直すため、直近3日を送り直す
     const t = Date.now();
-    await pushToFirestore([dayKey(t), dayKey(t - 86400000), dayKey(t - 2 * 86400000)]);
+    const days = [dayKey(t), dayKey(t - 86400000), dayKey(t - 2 * 86400000)];
+    // VC_RESEND_ALL=1 のときは、生ログにある全部の日を送り直す（過去の pairs を埋める用）
+    if (process.env.VC_RESEND_ALL === "1") {
+      store.sessions.forEach(s => daySlices(s).forEach(x => days.push(x.day)));
+      console.log("[vc] VC_RESEND_ALL：生ログの全日ぶんを送り直します（終わったら変数を消してください）");
+    }
+    await pushToFirestore(days);
   };
   client.once("clientReady", onReady);   // discord.js v15
   client.once("ready", onReady);         // discord.js v14

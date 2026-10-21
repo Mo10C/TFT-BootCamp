@@ -1,0 +1,16 @@
+{
+  "name": "chc-vc-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DiscordのVC滞在時間を記録して Firestore に日次集計を送るBot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3"
+  }
+}
