@@ -3542,7 +3542,9 @@
       out[k] = {
         head: typeof a.head === "string" ? a.head : d[k].head,
         line: (typeof a.line === "string" && a.line.trim()) ? a.line : d[k].line,
-        foot: typeof a.foot === "string" ? a.foot : d[k].foot
+        foot: typeof a.foot === "string" ? a.foot : d[k].foot,
+        // この日まで投稿しない（その日を含む・日本時間）。空なら止めない
+        pause: /^\d{4}-\d{2}-\d{2}$/.test(a.pause || "") ? a.pause : ""
       };
       out.channels[k] = "notice";
     });

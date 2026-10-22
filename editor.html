@@ -3126,6 +3126,27 @@ body.ad-on{overflow:hidden}
         '<div style="font-size:12.5px;font-weight:900">📣 連絡事項</div>';
       card.appendChild(chRow);
 
+      // ⏸ 一時停止：この日まで（その日を含む）投稿しない
+      const ps = document.createElement("div");
+      ps.className = "mfield";
+      const today = C.dayKey();
+      const paintPause = () => {
+        const v = msgEdit[key].pause || "";
+        const on = v && v >= today;
+        ps.innerHTML = '<div class="mlbl">投稿を一時停止<span class="tip">選んだ日（その日を含む）まで、このメッセージをDiscordに投稿しません。日本時間</span></div>' +
+          '<div class="row" style="gap:8px;align-items:center">' +
+          '<input type="date" class="pdate" value="' + esc(v) + '" min="' + today + '">' +
+          '<button class="mini ptoday" type="button">⏸ 今日だけ止める</button>' +
+          '<button class="mini poff" type="button"' + (v ? "" : " disabled") + '>▶ 解除</button>' +
+          '<span class="hint" style="font-weight:900;color:' + (on ? "var(--danger)" : "var(--muted)") + '">' +
+            (on ? (v === today ? "⏸ 今日は投稿しません" : "⏸ " + v + " まで投稿しません") : "投稿します") + "</span></div>";
+        ps.querySelector(".pdate").onchange = e => { msgEdit[key].pause = e.target.value || ""; markMsgDirty(); paintPause(); };
+        ps.querySelector(".ptoday").onclick = () => { msgEdit[key].pause = today; markMsgDirty(); paintPause(); toast("「保存」を押すと反映されます"); };
+        ps.querySelector(".poff").onclick = () => { msgEdit[key].pause = ""; markMsgDirty(); paintPause(); };
+      };
+      paintPause();
+      card.appendChild(ps);
+
       [["head", "見出し", "いちばん上の行。空にすると出ません"],
        ["line", "明細（件数ぶん繰り返し）", "1件につき1行。ここは空にできません"],
        ["foot", "しめの一言", "いちばん下の行。空にすると出ません"]].forEach(([f, label, tip]) => {
@@ -3176,7 +3197,7 @@ body.ad-on{overflow:hidden}
       rb.textContent = "このメッセージを既定に戻す";
       rb.onclick = () => {
         const d = C.defaultMessages()[key];
-        msgEdit[key] = { head: d.head, line: d.line, foot: d.foot };
+        msgEdit[key] = { head: d.head, line: d.line, foot: d.foot, pause: msgEdit[key].pause || "" };
         if (!msgEdit.channels) msgEdit.channels = {};
         msgEdit.channels[key] = "notice";
         markMsgDirty(); renderMsgs();
@@ -4143,8 +4164,10 @@ body.ad-on{overflow:hidden}
       const all = Array.from(new Set(Object.keys(lp && lp.members || {}).concat(Object.keys(mem))));
       const tIds = all.filter(isT).sort((a, b) => info(a).name.localeCompare(info(b).name, "ja"));
       const order = lp && C.lpGroupOrder ? C.lpGroupOrder(lp) : null;
-      const gi = id => order && C.lpGroupIndex ? C.lpGroupIndex(lp.members[id], order) : 0;
-      const sIds = Object.keys(lp && lp.members || {}).filter(id => tIds.indexOf(id) < 0)
+      const gi = id => order && C.lpGroupIndex ? C.lpGroupIndex((lp.members || {})[id] || mem[id], order) : 0;
+      // 生徒＝LPランキングの名簿＋メンバー名簿（運営は除く）。LPのページを開いたことがない人も入れる
+      const sIds = all.filter(id => tIds.indexOf(id) < 0 &&
+          ((lp && lp.members || {})[id] || (mem[id] && (!C.isParticipant || C.isParticipant(mem[id])))))
         .sort((a, b) => (gi(a) - gi(b)) || info(a).name.localeCompare(info(b).name, "ja"));
       return { tIds, sIds };
     }
