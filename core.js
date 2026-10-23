@@ -3489,18 +3489,21 @@
     return out;
   }
   /* 入学時のランク：入学日以前の最後の記録。無ければ最初の記録、それも無ければ今のランク */
+  /* 入学時（講師は着任時）のランク
+     ・入学日（例 10/25）の 23:45 の記録ができるまで … いまのランク（毎晩の集計・手動集計で変わる）
+     ・その記録ができたあと                       … 入学日の記録で固定
+     入学日に記録が無い人は、入学日より前の最後の記録 → それも無ければ入学日より後の最初の記録。 */
   function admissionRank(lp, id, date, fallback) {
     const h = ((lp && lp.hist) || {})[id] || {};
     const keys = Object.keys(h).sort();
-    const le = keys.filter(k => k <= date);
-    const k = le.length ? le[le.length - 1] : keys[0];
-    if (k != null) {
-      const m = ((lp && lp.members) || {})[id] || {};
-      const latest = keys[keys.length - 1];
-      if (k === latest && m.tier) return { tier: m.tier, division: m.division || "", lp: m.lp | 0 };
-      return rankOfAbs(h[k]);
-    }
-    return fallback || null;
+    const m = ((lp && lp.members) || {})[id] || {};
+    const now = () => latestRankOf(id, m.tier ? { tier: m.tier, division: m.division || "", lp: m.lp | 0 } : (fallback || null));
+    const fixed = date && (h[date] != null || dayKey() > date);   // 入学日の記録ができた（または入学日を過ぎた）
+    if (!fixed) return now();
+    if (h[date] != null) return rankOfAbs(h[date]);
+    const le = keys.filter(k => k <= date), ge = keys.filter(k => k > date);
+    const k = le.length ? le[le.length - 1] : ge[0];
+    return k != null ? rankOfAbs(h[k]) : now();
   }
 
   /* =============================================================

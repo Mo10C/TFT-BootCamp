@@ -120,7 +120,8 @@
   async function loadAll(){
     const safe = p => p.catch(e => { console.warn(e); return null; });
     const [adm, lp, members, snap, album] = await Promise.all([C.loadAdmission(), safe(C.loadLpData()), safe(C.loadMembers()), safe(C.loadSnapshot()),
-      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null))]);
+      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null)),
+      safe(C.loadLatestRanks ? C.loadLatestRanks() : Promise.resolve(null))]);   // 入学日まではいまのランクを出すため
     const mem = members || {};
     const teacherRoles = adm.teacherRoleIds || [];      // 講師（先生）のロール
     // タイトルを変えていても毛筆体で出るように、使う文字を読み込み直す
