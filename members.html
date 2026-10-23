@@ -460,7 +460,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       kana: c.kana || "",
       avatar: dc.avatar || "",
       riotId: m.riotId || "",
-      rank: m.rank || null,
+      rank: (C.latestRankOf ? C.latestRankOf(id, m.rank) : m.rank) || null,   // 毎晩の集計・手動集計の新しいほう
       roles: Array.isArray(m.roles) ? m.roles : [],
       card: c,
       score: c.score,
@@ -1262,7 +1262,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
 
   Promise.all([
     C.loadMembers().catch(e => { showErr("メンバー名簿の読み込み", e); return {}; }),
-    C.loadProfileCards().catch(e => { showErr("プロフィール一覧の読み込み", e); return {}; })
+    C.loadProfileCards().catch(e => { showErr("プロフィール一覧の読み込み", e); return {}; }),
+    C.loadLatestRanks ? C.loadLatestRanks().catch(() => null) : null
   ]).then(([m, p]) => {
     members = m || {};
     pcards = p || {};

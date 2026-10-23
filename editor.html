@@ -2149,7 +2149,7 @@ body.ad-on{overflow:hidden}
     btn.disabled = true;
     let ok = 0, ng = 0;
     for (const p of targets){
-      try { store.updatePlayer(p.id, { rank: await C.Riot.rank(p.puuid) }); ok++; }
+      try { store.updatePlayer(p.id, { rank: await C.Riot.rank(p.puuid), rankAt: Date.now() }); ok++; }
       catch(e){ ng++; console.warn(p.name, e); }
       btn.textContent = `🔄 取得中 ${ok+ng}/${targets.length}`;
       await new Promise(r => setTimeout(r, 250));
@@ -2331,7 +2331,7 @@ body.ad-on{overflow:hidden}
     for (const p of targets){
       try {
         const rank = await C.Riot.rank(p.puuid);
-        store.updatePlayer(p.id, { rank });
+        store.updatePlayer(p.id, { rank, rankAt: Date.now() });
         await C.recordLp(Object.assign({}, p, { rank }));
         ok++;
       } catch(e){ ng++; console.warn(p.name, e); }

@@ -38,8 +38,12 @@
     session = session || C.Session.get();
     // ★ どのページを開いても、ログイン済みなら全体名簿に登録する（1日1回）。
     //   これで大会ボードを開いていない人も、管理コンソールのメンバー一覧に並ぶ。
+    //   ついでに、毎晩23:45の集計（先生スナップショットと同じタイミング）で更新された
+    //   自分のランクを取り込む（core.js の syncMyRank）。
     if (session && typeof C.registerMember === "function") {
       C.registerMember(session).catch(() => { });
+    } else if (session && typeof C.syncMyRank === "function") {
+      C.syncMyRank(session).catch(() => { });
     }
     const isAdmin = C.isAdmin(session);
     const adminSet = C.isAdminConfigured();
@@ -75,14 +79,17 @@
     if ($("meRiot")) $("meRiot").textContent = C.Session.riotIdOf(session);
     if ($("meRank")) {
       const rk = $("meRank");
-      const rank = session.riot && session.riot.rank;
-      rk.innerHTML = C.rankIconLabel(rank, { cls: "sm" });
-      // 管理コンソールでアイコンを差し替えたら描き直す
-      window.addEventListener("lb-rankicons", () => {
+      let rank = session.riot && session.riot.rank;
+      const draw = () => {
         try { rk.innerHTML = C.rankIconLabel(rank, { cls: "sm" }); } catch (e) { }
-      });
-      rk.style.color = C.rankColor(rank);
-      rk.style.borderColor = C.rankColor(rank);
+        rk.style.color = C.rankColor(rank);
+        rk.style.borderColor = C.rankColor(rank);
+      };
+      draw();
+      // 管理コンソールでアイコンを差し替えたら描き直す
+      window.addEventListener("lb-rankicons", draw);
+      // ★ 毎晩の集計で新しいランクが取れたら、ページを開いたまま描き直す
+      window.addEventListener("lb-rank-sync", e => { if (e && e.detail && e.detail.tier) { rank = e.detail; draw(); } });
     }
     if ($("meRoles")) {
       const box = $("meRoles");

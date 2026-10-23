@@ -111,6 +111,7 @@
         riotId: s.riot.gameName + "#" + s.riot.tagLine,
         puuid: s.riot.puuid,
         rank: s.riot.rank || null,
+        rankAt: s.riot.rankAt || s.loggedInAt || 0,   // いつのランクか（新しいほうを表示に使う）
         discord: { id: s.discord.id, name: s.discord.name, username: s.discord.username, avatar: s.discord.avatar },
         roles: Array.isArray(s.discord.roles) ? s.discord.roles : [],
         staff: isStaffRoles(s.discord.roles),
@@ -335,7 +336,12 @@
       const p = new URLSearchParams(location.search);
       return p.get("board") || "default";
     }
-    function emit() { listeners.forEach(fn => { try { fn(state); } catch (e) { console.error(e); } }); }
+    function emit() {
+      // ★ 大会の名簿のランクも、毎晩の集計（スナップショットと同じ）・手動集計の新しいほうで表示する
+      if (latestRanks && state && state.roster) applyLatestRanks(state.roster, latestRanks);
+      listeners.forEach(fn => { try { fn(state); } catch (e) { console.error(e); } });
+    }
+    const pullLatestRanks = () => { loadLatestRanks().then(() => emit()).catch(() => { }); };
     function onChange(fn) { listeners.push(fn); return () => { listeners = listeners.filter(x => x !== fn); }; }
 
     /* ---- 権限 ---- */
@@ -379,6 +385,7 @@
             emit();
           }, err => console.error("onSnapshot", err));
           upsertIndex();
+          pullLatestRanks();
           return { mode, boardId };
         } catch (e) { console.error("Firebase init failed, falling back to local:", e); }
       }
@@ -396,6 +403,7 @@
       });
       emit();
       upsertIndex();
+      pullLatestRanks();
       return { mode, boardId };
     }
 
@@ -2336,29 +2344,89 @@
 
   /* ログインした本人を名簿に登録する。1日1回でじゅうぶん。
      home-common.js の boot() から呼ばれるので、どのページを開いても登録される。 */
-  /* 毎日の自動集計（Worker・23:45）で更新された自分のランクを、ログイン中のセッションにも反映する。
-     HOMEのプロフィール帯などはセッションのランクを表示しているので、次に開いたページから新しいランクになる。
-     3時間に1回まで。 */
+  /* =============================================================
+     いちばん新しいランク（全ページ共通）
+     毎晩23:45の集計（先生スナップショットと同じ）か、管理画面からの手動集計で取ったランクのうち新しいほう。
+       ・LPの名簿   lboard_index/lp       members.<id> { tier, division, lp, rankAt }
+       ・メンバー名簿 lboard_index/members  members.<id> { rank, rankAt } / { rankLogin, rankLoginAt }
+     { <id>: { rank:{tier,division,lp}, at } } を返す。1ページにつき1回だけ読む（force で読み直し）。
+     ============================================================= */
+  let latestRanks = null, latestRanksP = null;
+  function loadLatestRanks(force) {
+    if (latestRanksP && !force) return latestRanksP;
+    latestRanksP = (async () => {
+      let lpm = {}, mem = {};
+      try {
+        const db = openDb();
+        if (db) {
+          const [ls, ms] = await Promise.all([
+            db.collection("lboard_index").doc(LP_DOC).get().catch(() => null),
+            db.collection("lboard_index").doc(MEMBERS_DOC).get().catch(() => null)]);
+          lpm = (ls && ls.exists && ls.data().members) || {};
+          mem = (ms && ms.exists && ms.data().members) || {};
+        } else {
+          lpm = (JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}").members) || {};
+          mem = (JSON.parse(localStorage.getItem(MEMBERS_LS_KEY) || "{}").members) || {};
+        }
+      } catch (e) { console.warn("最新ランクを読めませんでした", e); }
+      const out = {};
+      const put = (id, r, at) => {
+        if (!id || !r || !r.tier || !at) return;
+        if (out[id] && out[id].at >= at) return;
+        out[id] = { rank: { tier: String(r.tier), division: String(r.division || ""), lp: r.lp | 0 }, at };
+      };
+      Object.entries(lpm).forEach(([id, m]) => { if (m) put(id, m, m.rankAt); });
+      Object.entries(mem).forEach(([id, m]) => { if (m) { put(id, m.rank, m.rankAt); put(id, m.rankLogin, m.rankLoginAt); } });
+      latestRanks = out;
+      try { window.dispatchEvent(new CustomEvent("lb-ranks-latest", { detail: out })); } catch (e) { }
+      return out;
+    })();
+    return latestRanksP;
+  }
+  /* list（{id, rank, rankAt?} の配列）のランクを、より新しいものに置きかえる。表示用（保存はしない） */
+  function applyLatestRanks(list, map) {
+    map = map || latestRanks || {};
+    (list || []).forEach(x => {
+      const L = x && map[x.id];
+      if (L && L.at > (x.rankAt || 0)) { x.rank = L.rank; x.rankAt = L.at; }
+    });
+    return list;
+  }
+  const latestRankOf = (id, fallback) => (latestRanks && latestRanks[id] ? latestRanks[id].rank : (fallback || null));
+
+  /* 毎日の自動集計（Worker・23:45。先生スナップショットと同じタイミング）で更新された自分のランクを、
+     ログイン中のセッションにも反映する。HOMEのプロフィール帯などはセッションのランクを表示している。
+     ★ 見るのは2か所の新しいほう：
+        ・LPの名簿（lboard_index/lp の members.<id>）… スナップショットが使うのと同じ値
+        ・メンバー名簿（lboard_index/members の members.<id>.rank）
+     ★ 10分に1回まで。変わったら "lb-rank-sync" を出すので、開いている画面もその場で描き直せる。 */
   async function syncMyRank(session) {
     session = session || Session.get();
     if (!Session.isComplete(session)) return false;
     const id = "u_" + session.discord.id;
     const flag = "mcc-lb2-ranksync-" + id;
-    try { if (Date.now() - Number(localStorage.getItem(flag) || 0) < 3 * 3600 * 1000) return false; } catch (e) { }
-    try { localStorage.setItem(flag, String(Date.now())); } catch (e) { }
-    let m = null;
+    try { if (Date.now() - Number(localStorage.getItem(flag) || 0) < 10 * 60 * 1000) return false; } catch (e) { }
+    const db = openDb();
+    if (!db) return false;
+    let mm = null, lm = null;
     try {
-      const db = openDb();
-      if (!db) return false;
-      const snap = await db.collection("lboard_index").doc(MEMBERS_DOC).get();
-      m = snap.exists ? ((snap.data().members || {})[id] || null) : null;
+      const [ms, ls] = await Promise.all([
+        db.collection("lboard_index").doc(MEMBERS_DOC).get().catch(() => null),
+        db.collection("lboard_index").doc(LP_DOC).get().catch(() => null)]);
+      mm = ms && ms.exists ? ((ms.data().members || {})[id] || null) : null;
+      lm = ls && ls.exists ? ((ls.data().members || {})[id] || null) : null;
     } catch (e) { return false; }
-    if (!m || !m.rank || !m.rank.tier || !m.rankAt) return false;
+    try { localStorage.setItem(flag, String(Date.now())); } catch (e) { }   // 読めたときだけ間隔をあける
+    const cands = [];
+    if (mm && mm.rank && mm.rank.tier && mm.rankAt) cands.push({ at: mm.rankAt, r: mm.rank });
+    if (lm && lm.tier && lm.rankAt) cands.push({ at: lm.rankAt, r: { tier: lm.tier, division: lm.division, lp: lm.lp } });
+    if (!cands.length) return false;
+    const best = cands.sort((a, b) => b.at - a.at)[0];
     const mine = session.riot.rankAt || session.loggedInAt || 0;
-    if (m.rankAt <= mine) return false;
-    const r = { tier: String(m.rank.tier), division: String(m.rank.division || ""), lp: m.rank.lp | 0 };
+    if (!best.at || best.at <= mine) return false;
+    const r = { tier: String(best.r.tier), division: String(best.r.division || ""), lp: best.r.lp | 0 };
     const cur = session.riot.rank || {};
-    session.riot.rankAt = m.rankAt;
+    session.riot.rankAt = best.at;
     if (cur.tier === r.tier && (cur.division || "") === r.division && (cur.lp | 0) === r.lp){ Session.set(session); return false; }
     session.riot.rank = r;
     Session.set(session);
@@ -4285,7 +4353,7 @@
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
-    loadMembers, registerMember, syncMyRank, updateGlobalMember, removeGlobalMember,
+    loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,
     PROFILE_THEMES, PROFILE_PATTERNS,
     PROFILE_MAX_FREE, PROFILE_MAX_GALLERY, PROFILE_MAX_BYTES,
     PROFILE_REQUIRED, PROFILE_CATS, missingRequired, tacticsUrlFor,

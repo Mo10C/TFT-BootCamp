@@ -386,8 +386,11 @@ body.viewer .pop{cursor:default}
   /* ---- 自分のプロフィール表示 ---- */
   $("meAvatar").src = session.discord.avatar || "";
   $("meName").textContent = session.discord.name;
-  $("meRank").innerHTML = C.rankIconLabel(session.riot.rank, { cls: "sm" });
-  $("meRank").style.color = C.rankColor(session.riot.rank);
+  const drawMeRank = r => { $("meRank").innerHTML = C.rankIconLabel(r, { cls: "sm" }); $("meRank").style.color = C.rankColor(r); };
+  drawMeRank(session.riot.rank);
+  // ★ 毎晩の集計（スナップショットと同じ）・手動集計で更新されたランクに、その場で描き直す
+  window.addEventListener("lb-rank-sync", e => { if (e.detail && e.detail.tier) drawMeRank(e.detail); });
+  if (C.syncMyRank) C.syncMyRank(session).catch(() => {});
   $("logoutBtn").onclick = () => {
     if (!confirm("ログアウトしますか？（ボード上の登録は残ります）")) return;
     C.Session.clear();
