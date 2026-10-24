@@ -3023,6 +3023,38 @@
       }
     };
   }
+  /* ---- VC画面の見た目（vc.html と管理画面で共通）---- */
+  const VC_COLORS = ["#FF8A5B", "#4FA8FF", "#9B7BFF", "#2FC48D", "#FFB627", "#FF6FA8", "#22BFC3", "#6F86FF"];
+  // 名前から毎回同じ色を選ぶ
+  function vcColor(key) {
+    let h = 0; String(key || "").split("").forEach(ch => { h = (h * 31 + ch.charCodeAt(0)) >>> 0; });
+    return VC_COLORS[h % VC_COLORS.length];
+  }
+  // VCの名前からアイコンを選ぶ（当てはまらなければ 🔊）
+  function vcIcon(name) {
+    const n = String(name || "").toLowerCase();
+    const rules = [
+      [/雑談|おしゃべり|談話|chat|talk|lounge|ラウンジ/, "💬"], [/アリーナ|arena|ゲーム|game|tft|ランク|rank|対戦|大会/, "🎮"],
+      [/作業|勉強|もくもく|study|work|座学|講義|授業|教室/, "📚"], [/音楽|music|歌|カラオケ/, "🎵"],
+      [/配信|stream|live|観戦|見る/, "📺"], [/会議|ミーティング|meeting|運営|相談/, "🗣️"],
+      [/村|家|home|room|部屋|ハウス/, "🏡"], [/寝|おやすみ|afk|休憩|放置/, "😴"], [/コーチ|coach|先生|指導/, "🎓"]
+    ];
+    const hit = rules.find(r => r[0].test(n));
+    return hit ? hit[1] : "🔊";
+  }
+  // DiscordのユーザーID → アイコンURL（メンバー名簿とLPの名簿から）
+  let vcAvatarP = null;
+  function vcAvatars() {
+    if (vcAvatarP) return vcAvatarP;
+    vcAvatarP = Promise.all([loadMembers().catch(() => ({})), loadLpData().catch(() => ({ members: {} }))]).then(([mem, lp]) => {
+      const out = {};
+      Object.entries((lp && lp.members) || {}).forEach(([id, m]) => { if (m && m.avatar) out[id.replace(/^u_/, "")] = m.avatar; });
+      Object.entries(mem || {}).forEach(([id, m]) => { const a = m && m.discord && m.discord.avatar; if (a) out[id.replace(/^u_/, "")] = a; });
+      return out;
+    });
+    return vcAvatarP;
+  }
+
   // 「◯時間◯分」の表示に使う
   function vcHm(sec) {
     sec = Math.max(0, Math.round(sec || 0));
@@ -4366,7 +4398,7 @@
     safeUrl, safeImg,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
-    loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, loadVcCompanions, loadExamScores, rankOfAbs,
+    loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, vcColor, vcIcon, vcAvatars, loadVcCompanions, loadExamScores, rankOfAbs,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
     defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf, loadTeacherRoleIds,

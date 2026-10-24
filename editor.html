@@ -247,6 +247,55 @@ body.gdragging, body.gdragging *{cursor:grabbing !important;user-select:none !im
 .vctag{font-size:9.5px;color:var(--muted);background:var(--surface-2);
   border:1px solid var(--border);border-radius:999px;padding:1px 7px}
 .vcempty{padding:24px 6px;text-align:center;font-size:12px;color:var(--muted);line-height:1.9}
+/* ---- VC稼働（POP版）---- */
+.vcp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:12px 0 14px}
+.vcp-kpi{position:relative;overflow:hidden;border-radius:20px;padding:14px 16px 13px;color:#fff;
+  background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 12px 26px -16px var(--c2);
+  animation:vcpPop .45s cubic-bezier(.2,1.4,.4,1) both}
+.vcp-kpi:nth-child(2){animation-delay:.05s}.vcp-kpi:nth-child(3){animation-delay:.1s}.vcp-kpi:nth-child(4){animation-delay:.15s}
+.vcp-kpi .bg{position:absolute;right:-8px;bottom:-18px;font-size:72px;opacity:.22;transform:rotate(-14deg);pointer-events:none}
+.vcp-kpi .ic{width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.26);display:grid;place-items:center;font-size:19px}
+.vcp-kpi .lb{font-size:11px;font-weight:900;letter-spacing:.06em;margin-top:8px;opacity:.95}
+.vcp-kpi .v{font-family:"Space Grotesk",sans-serif;font-size:32px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.vcp-kpi .v small{font-size:13px;font-weight:700;margin-left:3px;opacity:.9}
+.vcp-kpi .n{font-size:11px;font-weight:700;opacity:.92;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vcp-rows{display:flex;flex-direction:column;gap:10px}
+.vcp-row{--c:#4FA8FF;display:grid;grid-template-columns:34px 46px minmax(0,1fr);gap:12px;align-items:center;padding:11px 14px;border-radius:18px;
+  background:color-mix(in srgb,var(--c) 7%,var(--surface));border:1.5px solid color-mix(in srgb,var(--c) 24%,var(--border));
+  transition:transform .15s,box-shadow .15s;animation:vcpPop .4s cubic-bezier(.2,1.3,.4,1) both}
+.vcp-row:hover{transform:translateY(-2px);box-shadow:0 10px 22px -16px var(--c)}
+.vcp-row.top1{border-width:2px;border-color:color-mix(in srgb,#FFB627 70%,var(--border));
+  background:linear-gradient(120deg,color-mix(in srgb,#FFB627 14%,var(--surface)),color-mix(in srgb,var(--c) 7%,var(--surface)))}
+.vcp-medal{font-size:26px;text-align:center;line-height:1}
+.vcp-medal.num{width:28px;height:28px;margin:auto;border-radius:50%;display:grid;place-items:center;font:700 12.5px "Space Grotesk",sans-serif;
+  color:var(--muted);background:var(--surface-2);border:1.5px solid var(--border)}
+.vcp-ic{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;font-size:23px;
+  background:color-mix(in srgb,var(--c) 18%,var(--surface));border:2px solid color-mix(in srgb,var(--c) 50%,transparent)}
+img.vcp-ic{border-radius:50%;object-fit:cover;padding:0}
+.vcp-ic.ini{border-radius:50%;color:#fff;font-weight:900;font-size:18px;background:var(--c);border-color:color-mix(in srgb,var(--c) 60%,#fff)}
+.vcp-lab{display:flex;align-items:center;gap:8px;margin-bottom:7px;min-width:0}
+.vcp-lab .nm{font-size:14.5px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vcp-lab .meta{font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap}
+.vcp-lab .val{margin-left:auto;flex:none;font-family:"Space Grotesk",sans-serif;font-size:13.5px;font-weight:700;color:#fff;
+  background:var(--c);border-radius:999px;padding:3px 11px;box-shadow:0 4px 10px -6px var(--c)}
+.vcp-track{height:12px;border-radius:999px;overflow:hidden;background:color-mix(in srgb,var(--c) 13%,var(--surface-2))}
+.vcp-fill{height:100%;border-radius:999px;transform-origin:left;animation:vcpGrow .8s cubic-bezier(.2,.9,.3,1) both;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c))}
+.vcp-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.vcp-tag{--tc:#4FA8FF;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--ink);
+  border-radius:999px;padding:2px 9px 2px 3px;background:color-mix(in srgb,var(--tc) 12%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--tc) 38%,transparent)}
+.vcp-tag .ti{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:color-mix(in srgb,var(--tc) 22%,var(--surface))}
+.vcp-tag img.ti{object-fit:cover}
+.vcp-tag b{font-family:"Space Grotesk",sans-serif;font-weight:700;color:var(--muted)}
+.vcp-empty{padding:30px 10px;text-align:center;font-size:13px;color:var(--muted);line-height:1.9}
+.vcp-empty .big{font-size:38px;display:block;margin-bottom:4px}
+@keyframes vcpPop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes vcpGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (max-width:620px){ .vcp-row{grid-template-columns:28px 40px minmax(0,1fr);gap:9px;padding:10px} .vcp-ic{width:40px;height:40px;font-size:20px}
+  .vcp-kpi .v{font-size:26px} }
+@media (prefers-reduced-motion:reduce){ .vcp-kpi,.vcp-row,.vcp-fill{animation:none} }
+
 
 
 /* ---- 卒業証書 ---- */
@@ -1072,20 +1121,20 @@ body.ad-on{overflow:hidden}
         <button class="vcchip" id="vcApply">この期間で見る</button>
         <button class="mini" id="vcReload">↻ 更新</button>
       </div>
-      <div class="vckpis" id="vcKpis"></div>
+      <div class="vcp-kpis" id="vcKpis"></div>
     </div>
 
     <div class="card">
       <h2>VCごとの稼働時間</h2>
       <div class="lead"><b>稼働時間</b>＝そのVCに誰かがいた実時間（何人いても1回分）。
         <b>延べ</b>＝全員の滞在時間の合計です。</div>
-      <div class="vcrows" id="vcChRows"><div class="vcempty">読み込み中…</div></div>
+      <div class="vcp-rows" id="vcChRows"><div class="vcp-empty"><span class="big">⏳</span>読み込み中…</div></div>
     </div>
 
     <div class="card">
       <h2>ユーザーごとの滞在時間</h2>
       <div class="lead">長い順。タグはVC別の内訳です。</div>
-      <div class="vcrows" id="vcUsRows"></div>
+      <div class="vcp-rows" id="vcUsRows"></div>
     </div>
   </div>
 
@@ -3770,6 +3819,56 @@ body.ad-on{overflow:hidden}
     let vcMode = { days: 7 };
     let vcStarted = "";
     let vcLoaded = false;
+  /* ---- POPな見た目（KPIカード・ランキング）---- */
+  const VCP_MEDAL = ["🥇", "🥈", "🥉"];
+  let vcpAv = {};          // DiscordのユーザーID → アイコンURL
+  const vcpAvP = (C.vcAvatars ? C.vcAvatars() : Promise.resolve({})).then(m => { vcpAv = m || {}; }).catch(() => {});
+  function vcpKpis(t, d, hoursFn){
+    const k = (ic, lb, v, unit, note, c1, c2) => '<div class="vcp-kpi" style="--c1:' + c1 + ';--c2:' + c2 + '"><span class="bg">' + ic + '</span>' +
+      '<div class="ic">' + ic + '</div><div class="lb">' + esc(lb) + '</div><div class="v">' + esc(v) + '<small>' + esc(unit) + '</small></div>' +
+      '<div class="n">' + esc(note) + '</div></div>';
+    return k("⏱️", "VC稼働時間", hoursFn(t.uptime), "時間", "誰かがVCにいた実時間", "#5AB8FF", "#3F7FF0") +
+      k("🔥", "延べ滞在時間", hoursFn(t.seconds), "時間", "全員の滞在の合計", "#FFB25A", "#FF6B4A") +
+      k("🔊", "使われたVC", t.channels, "個", d.channels[0] ? "いちばん人気 " + vcIcon0(d.channels[0].name) + " " + d.channels[0].name : "—", "#B79BFF", "#7B5CF0") +
+      k("🙋", "参加した人", t.users, "人", d.users[0] ? "いちばん長い " + d.users[0].name : "—", "#5EE0A8", "#20B27A");
+  }
+  const vcIcon0 = n => (C.vcIcon ? C.vcIcon(n) : "🔊");
+  const vcCol = k => (C.vcColor ? C.vcColor(k) : "#4FA8FF");
+  function vcpFace(id, name, color, cls){
+    const a = vcpAv[String(id)];
+    const ini = esc(String(name || "?").trim().slice(0, 1) || "?");
+    return a ? '<img class="' + cls + '" src="' + esc(a) + '" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;' + cls + ' ini&quot;>' + ini + '</span>\'">'
+             : '<span class="' + cls + ' ini">' + ini + '</span>';
+  }
+  function vcpMedal(i){ return i < 3 ? '<div class="vcp-medal">' + VCP_MEDAL[i] + '</div>' : '<div class="vcp-medal num">' + (i + 1) + '</div>'; }
+  function vcpEmpty(){ return '<div class="vcp-empty"><span class="big">🌙</span>この期間の記録はありません。<br>VCに入ると、ここに並びます！</div>'; }
+  // VCごと
+  function vcpChannels(list, box, hmFn){
+    const max = Math.max.apply(null, list.map(x => x.uptime).concat([1]));
+    box.innerHTML = list.length ? list.map((x, i) => { const c = vcCol(x.id || x.name);
+      return '<div class="vcp-row' + (i === 0 ? " top1" : "") + '" style="--c:' + c + ';animation-delay:' + Math.min(i, 10) * 0.04 + 's" title="' +
+        esc(x.name + "：稼働 " + hmFn(x.uptime) + " / 延べ " + hmFn(x.seconds)) + '">' + vcpMedal(i) +
+        '<div class="vcp-ic">' + vcIcon0(x.name) + '</div><div style="min-width:0">' +
+        '<div class="vcp-lab"><span class="nm">' + esc(x.name) + '</span><span class="meta">👥 ' + x.users + '人 ・ 延べ ' + esc(hmFn(x.seconds)) + '</span>' +
+        '<span class="val">' + esc(hmFn(x.uptime)) + '</span></div>' +
+        '<div class="vcp-track"><div class="vcp-fill" style="width:' + Math.max(2, x.uptime / max * 100) + '%"></div></div>' +
+        (x.top ? '<div class="vcp-tags"><span class="vcp-tag" style="--tc:' + c + '">' + vcpFace(x.top.id, x.top.name, c, "ti") +
+          '👑 いちばん長い ' + esc(x.top.name) + ' <b>' + esc(hmFn(x.top.seconds)) + '</b></span></div>' : "") +
+        '</div></div>'; }).join("") : vcpEmpty();
+  }
+  // ユーザーごと
+  function vcpUsers(list, box, hmFn){
+    const max = Math.max.apply(null, list.map(x => x.seconds).concat([1]));
+    box.innerHTML = list.length ? list.map((x, i) => { const c = vcCol("u" + x.id);
+      return '<div class="vcp-row' + (i === 0 ? " top1" : "") + '" style="--c:' + c + ';animation-delay:' + Math.min(i, 10) * 0.04 + 's" title="' +
+        esc(x.name + "：" + hmFn(x.seconds)) + '">' + vcpMedal(i) + vcpFace(x.id, x.name, c, "vcp-ic") + '<div style="min-width:0">' +
+        '<div class="vcp-lab"><span class="nm">' + esc(x.name) + '</span><span class="meta">🔊 ' + x.byChannel.length + 'つのVC</span>' +
+        '<span class="val">' + esc(hmFn(x.seconds)) + '</span></div>' +
+        '<div class="vcp-track"><div class="vcp-fill" style="width:' + Math.max(2, x.seconds / max * 100) + '%"></div></div>' +
+        '<div class="vcp-tags">' + x.byChannel.slice(0, 5).map(ch => '<span class="vcp-tag" style="--tc:' + vcCol(ch.id || ch.name) + '"><span class="ti">' +
+          vcIcon0(ch.name) + '</span>' + esc(ch.name) + ' <b>' + esc(hmFn(ch.seconds)) + '</b></span>').join("") + '</div>' +
+        '</div></div>'; }).join("") : vcpEmpty();
+  }
 
     const hm = C.vcHm;
     const hours = s => { const h = (s || 0) / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
@@ -3800,36 +3899,17 @@ body.ad-on{overflow:hidden}
     }
     function vcRender(d){
       const t = d.totals;
-      $("vcKpis").innerHTML =
-        vcKpi("VC稼働時間", hours(t.uptime), "時間", "誰かがVCにいた実時間") +
-        vcKpi("延べ滞在時間", hours(t.seconds), "時間", "全員の滞在の合計") +
-        vcKpi("使われたVC", t.channels, "個", d.channels[0] ? "最多 " + d.channels[0].name : "—") +
-        vcKpi("参加した人", t.users, "人", d.users[0] ? "最長 " + d.users[0].name : "—");
-
-      vcBars(d.channels, $("vcChRows"), {
-        value: x => x.uptime,
-        name:  x => x.name,
-        meta:  x => x.users + "人 ・ 延べ" + hm(x.seconds),
-        tip:   x => x.name + "：稼働 " + hm(x.uptime) + " / 延べ " + hm(x.seconds),
-        sub:   x => x.top ? '<div class="vcsub"><span class="vctag">最長 ' + esc(x.top.name) +
-                 " " + hm(x.top.seconds) + '</span></div>' : ""
-      });
-      vcBars(d.users, $("vcUsRows"), {
-        value: x => x.seconds,
-        name:  x => x.name,
-        meta:  x => x.byChannel.length + "つのVC",
-        tip:   x => x.name + "：" + hm(x.seconds),
-        sub:   x => '<div class="vcsub">' + x.byChannel.slice(0, 5).map(c =>
-                 '<span class="vctag">' + esc(c.name) + " " + hm(c.seconds) + '</span>').join("") + '</div>'
-      });
+      $("vcKpis").innerHTML = vcpKpis(t, d, hours);
+      vcpChannels(d.channels, $("vcChRows"), hm);
+      vcpUsers(d.users, $("vcUsRows"), hm);
     }
     function vcLoad(){
       const r = vcRange();
       $("vcSince").innerHTML = "期間 <b>" + r.from + " 〜 " + r.to + "</b>" +
         (vcStarted ? "　（記録開始 " + vcStarted + "）" : "　（まだ記録がありません）") +
         "<br>記録しているのは常駐Bot（chc-vc-bot）で、Botを動かし始めたあとの分だけ集計できます。";
-      $("vcChRows").innerHTML = '<div class="vcempty">読み込み中…</div>';
-      C.loadVcRange(r.from, r.to).then(vcRender).catch(e => {
+      $("vcChRows").innerHTML = '<div class="vcp-empty"><span class="big">⏳</span>読み込み中…</div>';
+      Promise.all([C.loadVcRange(r.from, r.to), vcpAvP]).then(([d]) => vcRender(d)).catch(e => {
         $("vcChRows").innerHTML = '<div class="vcempty">読み込めませんでした：' + esc(e.message) + '</div>';
       });
     }
