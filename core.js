@@ -1890,14 +1890,17 @@
   async function refreshLpRolesFromDiscord(onProgress) {
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const lp = await loadLpData();
-    const ids = Object.keys(lp.members || {}).filter(id => /^u_\d+$/.test(id));
+    // ★ LPの名簿だけでなく、メンバー名簿だけにいる人（先生・LP未登録の生徒）も更新する
+    const mem0 = await loadMembers().catch(() => ({}));
+    const ids = Array.from(new Set(Object.keys(lp.members || {}).concat(Object.keys(mem0 || {}))))
+      .filter(id => /^u_\d+$/.test(id));
     const lpPatch = {}, memPatch = {};
     let ok = 0, gone = 0, ng = 0, done = 0;
     for (const id of ids) {
       try {
         const m = await DiscordAuth.guildMember(id.slice(2));
         if (m && m.inGuild) {
-          lpPatch[id] = Object.assign({ roles: m.roles || [] }, m.avatar ? { avatar: m.avatar } : {});
+          if ((lp.members || {})[id]) lpPatch[id] = Object.assign({ roles: m.roles || [] }, m.avatar ? { avatar: m.avatar } : {});
           memPatch[id] = Object.assign({ roles: m.roles || [] }, m.avatar ? { discord: { avatar: m.avatar } } : {});
           ok++;
         }
@@ -1912,7 +1915,7 @@
       const db = openDb();
       try {
         if (db) {
-          await db.collection("lboard_index").doc(LP_DOC).set({ members: lpPatch, updatedAt: Date.now() }, { merge: true });
+          if (Object.keys(lpPatch).length) await db.collection("lboard_index").doc(LP_DOC).set({ members: lpPatch, updatedAt: Date.now() }, { merge: true });
           // 名簿に登録済みの人だけ（いない人を作らない）
           const mem = await loadMembers();
           const mp = {}; Object.keys(memPatch).forEach(id => { if (mem[id]) mp[id] = memPatch[id]; });
@@ -1924,7 +1927,9 @@
         }
       } catch (e) { throw new Error("ロール情報を保存できませんでした（" + (e.code || e.message) + "）"); }
     }
-    return { total: ids.length, ok, gone, ng };
+    // アイコンのURLが1件も返ってこない＝Worker が古い（/member がアイコンを返さない版）
+    const noAvatar = ok > 0 && !Object.values(memPatch).some(x => x.discord && x.discord.avatar);
+    return { total: ids.length, ok, gone, ng, noAvatar };
   }
 
   async function setLpBaseline(date) {
@@ -3023,6 +3028,101 @@
       }
     };
   }
+  /* =============================================================
+     感謝ワード（Discordのチャットで「ありがとう」などが何回言われたか）
+     数えるのは chc-vc-bot（thanks-tracker.js）。
+       lboard_index/thanks          … 設定（言葉・期間・除外チャンネル）＋ Botの状態（bot）
+       lboard_index/thanks_YYYY-MM  … days: { 日付: { チャンネルID: { n, c, m, u:{ユーザーID: 回数} } } }, names
+     ============================================================= */
+  const THANKS_DEFAULT = {
+    words: ["ありがとう", "ありがと", "有難う", "有り難う", "感謝", "サンキュー", "サンクス", "あざす", "あざっす", "あざます",
+            "助かる", "助かった", "助かります", "お礼", "thanks", "thank you", "thx", "ty"],
+    from: "2026-10-25", to: "2026-11-15", exclude: []
+  };
+  function normThanks(raw) {
+    raw = raw || {};
+    const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || "");
+    return {
+      words: Array.isArray(raw.words) && raw.words.length ? raw.words.map(String) : THANKS_DEFAULT.words.slice(),
+      from: ok(raw.from) ? raw.from : THANKS_DEFAULT.from,
+      to: ok(raw.to) ? raw.to : THANKS_DEFAULT.to,
+      exclude: Array.isArray(raw.exclude) ? raw.exclude.map(String) : [],
+      rescan: Number(raw.rescan) || 0,
+      updatedAt: raw.updatedAt || 0,
+      bot: raw.bot || null
+    };
+  }
+  async function loadThanksConfig() {
+    const db = openDb();
+    if (!db) return normThanks(null);
+    const snap = await db.collection("lboard_index").doc("thanks").get();
+    return normThanks(snap.exists ? snap.data() : null);
+  }
+  async function saveThanksConfig(c, rescan) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため保存できません");
+    const words = [...new Set((c.words || []).map(w => String(w).trim()).filter(Boolean))];
+    if (!words.length) throw new Error("数える言葉を1つ以上入れてください");
+    if (!(c.from <= c.to)) throw new Error("期間の開始日と終了日を確かめてください");
+    const w = { words, from: c.from, to: c.to, exclude: (c.exclude || []).map(String), updatedAt: Date.now() };
+    if (rescan) w.rescan = Date.now();
+    try { await db.collection("lboard_index").doc("thanks").set(w, { merge: true }); }
+    catch (e) { throw new Error("感謝ワードの設定を保存できませんでした（" + (e.code || e.message) + "）"); }
+    return normThanks(w);
+  }
+  async function loadThanksRange(fromKey, toKey, exclude) {
+    const db = openDb();
+    const out = { from: fromKey, to: toKey, channels: [], users: [], daily: [], totals: { count: 0, messages: 0, users: 0, channels: 0 } };
+    if (!db) return out;
+    const ex = new Set((exclude || []).map(String));
+    const docs = await Promise.all(vcMonthsBetween(fromKey, toKey).map(m =>
+      db.collection("lboard_index").doc("thanks_" + m).get().then(s => (s.exists ? s.data() : null)).catch(() => null)));
+    const chan = new Map(), user = new Map(), dayMap = {};
+    let names = {};
+    docs.forEach(d => {
+      if (!d) return;
+      names = Object.assign(names, d.names || {});
+      Object.entries(d.days || {}).forEach(([day, chs]) => {
+        if (day < fromKey || day > toKey) return;
+        Object.entries(chs || {}).forEach(([cid, c]) => {
+          if (ex.has(cid)) return;
+          const n = Number(c.c) || 0, msg = Number(c.m) || 0;
+          dayMap[day] = (dayMap[day] || 0) + n;
+          if (!chan.has(cid)) chan.set(cid, { id: cid, name: c.n || cid, count: 0, messages: 0, perUser: {} });
+          const ch = chan.get(cid);
+          if (c.n) ch.name = c.n;
+          ch.count += n; ch.messages += msg;
+          Object.entries(c.u || {}).forEach(([uid, v]) => {
+            v = Number(v) || 0;
+            ch.perUser[uid] = (ch.perUser[uid] || 0) + v;
+            if (!user.has(uid)) user.set(uid, { id: uid, name: uid, count: 0, byChannel: {} });
+            const us = user.get(uid);
+            us.count += v;
+            us.byChannel[cid] = (us.byChannel[cid] || 0) + v;
+          });
+        });
+      });
+    });
+    out.channels = [...chan.values()].map(c => {
+      let top = null;
+      Object.entries(c.perUser).forEach(([uid, v]) => { if (!top || v > top.count) top = { id: uid, name: names[uid] || uid, count: v }; });
+      return { id: c.id, name: c.name, count: c.count, messages: c.messages, users: Object.keys(c.perUser).length, top };
+    }).sort((a, b) => b.count - a.count);
+    const chName = id => (chan.get(id) ? chan.get(id).name : id);
+    out.users = [...user.values()].map(u => ({
+      id: u.id, name: names[u.id] || u.id, count: u.count,
+      byChannel: Object.entries(u.byChannel).map(([cid, v]) => ({ id: cid, name: chName(cid), count: v })).sort((a, b) => b.count - a.count)
+    })).sort((a, b) => b.count - a.count);
+    out.daily = Object.keys(dayMap).sort().map(d => ({ day: d, count: dayMap[d] }));
+    out.totals = {
+      count: out.channels.reduce((n, c) => n + c.count, 0),
+      messages: out.channels.reduce((n, c) => n + c.messages, 0),
+      users: out.users.length, channels: out.channels.length
+    };
+    return out;
+  }
+
   /* ---- VC画面の見た目（vc.html と管理画面で共通）---- */
   const VC_COLORS = ["#FF8A5B", "#4FA8FF", "#9B7BFF", "#2FC48D", "#FFB627", "#FF6FA8", "#22BFC3", "#6F86FF"];
   // 名前から毎回同じ色を選ぶ
@@ -4398,6 +4498,7 @@
     safeUrl, safeImg,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
+    loadThanksConfig, saveThanksConfig, loadThanksRange, THANKS_DEFAULT,
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, vcColor, vcIcon, vcAvatars, loadVcCompanions, loadExamScores, rankOfAbs,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,

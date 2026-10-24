@@ -288,6 +288,15 @@ img.vcp-ic{border-radius:50%;object-fit:cover;padding:0}
 .vcp-tag .ti{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:color-mix(in srgb,var(--tc) 22%,var(--surface))}
 .vcp-tag img.ti{object-fit:cover}
 .vcp-tag b{font-family:"Space Grotesk",sans-serif;font-weight:700;color:var(--muted)}
+.th-words{width:100%;min-height:150px;font-family:inherit;font-size:13px;line-height:1.7}
+.th-ex{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.th-ex label{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;
+  border:1.5px solid var(--border);background:var(--surface);cursor:pointer}
+.th-ex label.on{border-color:var(--danger);color:var(--danger);text-decoration:line-through}
+.th-ex input{display:none}
+.th-stat{font-size:12px;font-weight:700;padding:8px 12px;border-radius:12px;background:var(--surface-2);margin:8px 0 2px}
+.th-stat.ok{background:color-mix(in srgb,#2FC48D 14%,var(--surface));color:#16855C}
+.th-stat.ng{background:color-mix(in srgb,var(--danger) 12%,var(--surface));color:var(--danger)}
 .vcp-empty{padding:30px 10px;text-align:center;font-size:13px;color:var(--muted);line-height:1.9}
 .vcp-empty .big{font-size:38px;display:block;margin-bottom:4px}
 @keyframes vcpPop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
@@ -527,6 +536,7 @@ body.ad-on{overflow:hidden}
       <div class="ad-grp">Discord</div>
       <button class="tab" data-panel="p-msg"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span>メッセージ</span></button>
       <button class="tab" data-panel="p-vc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span>VC稼働</span></button>
+      <button class="tab" data-panel="p-thanks"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>感謝ワード</span></button>
       <div class="ad-grp">設定</div>
       <button class="tab" data-panel="p-conn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3v5M15 3v5M6.5 8h11v3a5.5 5.5 0 0 1-11 0zM12 16.5V21"/></svg><span>接続設定</span></button>
       <button class="tab" data-panel="p-data"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg><span>データ</span></button>
@@ -1137,6 +1147,62 @@ body.ad-on{overflow:hidden}
       <h2>ユーザーごとの滞在時間</h2>
       <div class="lead">長い順。タグはVC別の内訳です。</div>
       <div class="vcp-rows" id="vcUsRows"></div>
+    </div>
+  </div>
+
+  <!-- ================= 感謝ワード ================= -->
+  <div class="panel" id="p-thanks">
+    <div class="card">
+      <h2>💖 感謝ワード</h2>
+      <div class="lead">Discordの各チャットで「ありがとう」などの<b>感謝の言葉が何回言われたか</b>の集計です。
+        数えているのは常駐Bot（chc-vc-bot）で、メッセージの本文は保存せず<b>回数だけ</b>を記録します。
+        スレッド・フォーラムの投稿は親のチャンネルにまとめて数えます。</div>
+      <div class="th-stat" id="thStat">Botの状態を確認しています…</div>
+      <div class="row" style="margin-top:10px">
+        <label style="min-width:44px">期間</label>
+        <input type="date" id="thFrom"><span class="lead" style="margin:0">〜</span><input type="date" id="thTo">
+        <button class="vcchip" id="thApply">この期間で見る</button>
+        <button class="vcchip" id="thAll">集計期間ぜんぶ</button>
+        <span style="flex:1"></span>
+        <button class="mini" id="thReload">↻ 更新</button>
+      </div>
+      <div class="vcp-kpis" id="thKpis"></div>
+    </div>
+
+    <div class="card">
+      <h2>チャンネル別の件数</h2>
+      <div class="lead">感謝の言葉が多かったチャンネル順。タグはそのチャンネルでいちばん言った人です。</div>
+      <div class="vcp-rows" id="thChRows"><div class="vcp-empty"><span class="big">⏳</span>読み込み中…</div></div>
+    </div>
+
+    <div class="card">
+      <h2>言った人ランキング</h2>
+      <div class="lead">感謝の言葉をたくさん送った人の順。タグはチャンネル別の内訳です。</div>
+      <div class="vcp-rows" id="thUsRows"></div>
+    </div>
+
+    <div class="card">
+      <h2>⚙️ 数え方の設定</h2>
+      <div class="lead">保存すると、Botが5分以内に読み込んで<b>集計期間の最初から数え直します</b>（過去のメッセージも読み直します）。
+        全角半角・大文字小文字・カタカナひらがなの違いは同じ言葉として数えます。英語は単語の一部には当たりません（「ty」は「party」に当たらない）。</div>
+      <div class="row"><label style="min-width:72px">集計期間</label>
+        <input type="date" id="thCfgFrom"><span class="hint">〜</span><input type="date" id="thCfgTo"></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">数える言葉</label>
+        <div style="flex:1;min-width:220px">
+          <textarea id="thWords" class="th-words" placeholder="1行に1つ"></textarea>
+          <div class="hint">1行に1つ。長い言葉が先に当たるので「ありがとう」と「ありがと」を両方入れても二重には数えません。
+            <a href="#" id="thWordsDef">初期値に戻す</a></div>
+        </div></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:6px">除外</label>
+        <div style="flex:1;min-width:220px">
+          <div class="hint">押したチャンネルは数えません（Botが見られるチャンネルが並びます）。</div>
+          <div class="th-ex" id="thEx"></div>
+        </div></div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin-top:6px">
+        <span class="hint" id="thCfgState" style="margin-right:auto"></span>
+        <button class="mini" id="thRescan" type="button">🔁 最初から数え直す</button>
+        <button class="mini grad" id="thSave" type="button">💾 保存</button>
+      </div>
     </div>
   </div>
 
@@ -2623,7 +2689,7 @@ body.ad-on{overflow:hidden}
     btn.disabled = false;
   };
 
-  // ★ LPランキングに載っている全員のロールを Discord から取り直す（大会のメンバー表に入っていない人も）
+  // ★ LPランキング＋メンバー名簿の全員のロール・アイコンを Discord から取り直す（大会のメンバー表に入っていない人も）
   $("lpSyncRoles").onclick = async () => {
     const btn = $("lpSyncRoles"), label = btn.textContent;
     btn.disabled = true;
@@ -2632,7 +2698,8 @@ body.ad-on{overflow:hidden}
       await loadLp();
       gOrder = [];
       renderLpRoles();
-      toast("ロールとアイコンを更新しました：成功 " + r.ok + "人" + (r.gone ? " / サーバーにいない " + r.gone + "人" : "") + (r.ng ? " / 失敗 " + r.ng + "人" : ""));
+      toast("ロールとアイコンを更新しました：成功 " + r.ok + "人" + (r.gone ? " / サーバーにいない " + r.gone + "人" : "") + (r.ng ? " / 失敗 " + r.ng + "人" : "") +
+        (r.noAvatar ? "　⚠️ アイコンは更新されていません（Cloudflare の Worker を最新の worker.js にしてください）" : ""));
     } catch(e){ toast(e.message); }
     btn.disabled = false; btn.textContent = label;
   };
@@ -3958,6 +4025,117 @@ body.ad-on{overflow:hidden}
     const vcTab = document.querySelector('[data-panel="p-vc"]');
     if (vcTab) vcTab.addEventListener("click", vcBoot);
     if ($("p-vc").classList.contains("on")) vcBoot();   // 前回このタブだったとき
+
+    /* ---------------- 感謝ワード ---------------- */
+    if (typeof C.loadThanksRange === "function"){
+      let thCfg = null, thBooted = false, thEx = new Set();
+      const thCol = k => vcCol("t" + k);
+      const thAgo = ms => { const m = Math.round((Date.now() - ms) / 60000);
+        return m < 1 ? "たった今" : m < 60 ? m + "分前" : m < 1440 ? Math.round(m / 60) + "時間前" : Math.round(m / 1440) + "日前"; };
+      function thStatus(){
+        const b = thCfg && thCfg.bot, el = $("thStat");
+        if (!b || !b.at){ el.className = "th-stat ng";
+          el.innerHTML = "🤖 Botからの連絡がまだありません。chc-vc-bot を最新にして、Developer Portal で <b>MESSAGE CONTENT INTENT</b> をオンにしてください。"; return; }
+        const old = Date.now() - b.at > 20 * 60000;
+        el.className = "th-stat " + (old ? "ng" : "ok");
+        el.innerHTML = (old ? "⚠️ Botの最後の連絡は " + thAgo(b.at) + "（止まっているかもしれません）"
+            : b.state === "scanning" ? "🔄 過去ログを読み直しています…（" + esc(b.msg || "") + "）"
+            : "✅ Bot稼働中（最終連絡 " + thAgo(b.at) + "）") +
+          "　集計期間 " + esc(b.from || "") + " 〜 " + esc(b.to || "") + (b.err ? '<br><span style="color:var(--danger)">エラー：' + esc(b.err) + "</span>" : "");
+      }
+      function thKpis(d){
+        const t = d.totals;
+        const k = (ic, lb, v, unit, note, c1, c2) => '<div class="vcp-kpi" style="--c1:' + c1 + ';--c2:' + c2 + '"><span class="bg">' + ic + '</span>' +
+          '<div class="ic">' + ic + '</div><div class="lb">' + esc(lb) + '</div><div class="v">' + esc(v) + '<small>' + esc(unit) + '</small></div>' +
+          '<div class="n">' + esc(note) + '</div></div>';
+        const best = d.daily.slice().sort((a, b) => b.count - a.count)[0];
+        return k("💖", "感謝の言葉", t.count, "回", best ? "いちばん多い日 " + best.day.slice(5).replace("-", "/") + "（" + best.count + "回）" : "—", "#FF8FB1", "#FF5C8A") +
+          k("💬", "感謝のメッセージ", t.messages, "通", "感謝の言葉が入っていたメッセージ", "#FFB25A", "#FF6B4A") +
+          k("📣", "チャンネル", t.channels, "個", d.channels[0] ? "いちばん多い #" + d.channels[0].name : "—", "#B79BFF", "#7B5CF0") +
+          k("🙋", "言った人", t.users, "人", d.users[0] ? "いちばん多い " + d.users[0].name : "—", "#5EE0A8", "#20B27A");
+      }
+      const thEmpty = '<div class="vcp-empty"><span class="big">🌱</span>この期間の感謝の言葉はまだありません。</div>';
+      function thRender(d){
+        $("thKpis").innerHTML = thKpis(d);
+        const cmax = Math.max.apply(null, d.channels.map(x => x.count).concat([1]));
+        $("thChRows").innerHTML = d.channels.length ? d.channels.map((x, i) => { const c = thCol(x.id);
+          return '<div class="vcp-row' + (i === 0 ? " top1" : "") + '" style="--c:' + c + ';animation-delay:' + Math.min(i, 10) * 0.04 + 's">' + vcpMedal(i) +
+            '<div class="vcp-ic">💬</div><div style="min-width:0">' +
+            '<div class="vcp-lab"><span class="nm">#' + esc(x.name) + '</span><span class="meta">🙋 ' + x.users + '人 ・ 💬 ' + x.messages + '通</span>' +
+            '<span class="val">' + x.count + '回</span></div>' +
+            '<div class="vcp-track"><div class="vcp-fill" style="width:' + Math.max(2, x.count / cmax * 100) + '%"></div></div>' +
+            (x.top ? '<div class="vcp-tags"><span class="vcp-tag" style="--tc:' + c + '">' + vcpFace(x.top.id, x.top.name, c, "ti") +
+              '👑 いちばん言った ' + esc(x.top.name) + ' <b>' + x.top.count + '回</b></span></div>' : "") +
+            '</div></div>'; }).join("") : thEmpty;
+        const umax = Math.max.apply(null, d.users.map(x => x.count).concat([1]));
+        $("thUsRows").innerHTML = d.users.length ? d.users.map((x, i) => { const c = vcCol("u" + x.id);
+          return '<div class="vcp-row' + (i === 0 ? " top1" : "") + '" style="--c:' + c + ';animation-delay:' + Math.min(i, 10) * 0.04 + 's">' + vcpMedal(i) +
+            vcpFace(x.id, x.name, c, "vcp-ic") + '<div style="min-width:0">' +
+            '<div class="vcp-lab"><span class="nm">' + esc(x.name) + '</span><span class="meta">💬 ' + x.byChannel.length + 'チャンネル</span>' +
+            '<span class="val">' + x.count + '回</span></div>' +
+            '<div class="vcp-track"><div class="vcp-fill" style="width:' + Math.max(2, x.count / umax * 100) + '%"></div></div>' +
+            '<div class="vcp-tags">' + x.byChannel.slice(0, 5).map(ch => '<span class="vcp-tag" style="--tc:' + thCol(ch.id) + '"><span class="ti">💬</span>#' +
+              esc(ch.name) + ' <b>' + ch.count + '回</b></span>').join("") + '</div>' +
+            '</div></div>'; }).join("") : thEmpty;
+      }
+      function thLoad(){
+        const from = $("thFrom").value || thCfg.from, to = $("thTo").value || thCfg.to;
+        $("thChRows").innerHTML = '<div class="vcp-empty"><span class="big">⏳</span>読み込み中…</div>';
+        Promise.all([C.loadThanksRange(from, to), vcpAvP]).then(([d]) => thRender(d)).catch(e => {
+          $("thChRows").innerHTML = '<div class="vcp-empty">読み込めませんでした：' + esc(e.message) + '</div>';
+        });
+      }
+      function thFillCfg(){
+        $("thCfgFrom").value = thCfg.from; $("thCfgTo").value = thCfg.to;
+        $("thWords").value = thCfg.words.join("\n");
+        thEx = new Set(thCfg.exclude);
+        thRenderEx();
+        $("thCfgState").textContent = thCfg.updatedAt ? "保存済み（" + new Date(thCfg.updatedAt).toLocaleString("ja-JP") + "）" : "まだ保存していません（初期値で数えます）";
+      }
+      function thRenderEx(){
+        const list = ((thCfg.bot && thCfg.bot.channels) || []).slice().sort((a, b) => String(a.n).localeCompare(String(b.n), "ja"));
+        thCfg.exclude.forEach(id => { if (!list.some(x => x.id === id)) list.push({ id, n: id }); });
+        const box = $("thEx");
+        box.innerHTML = list.length ? "" : '<span class="hint">Botが動き出すと、ここにチャンネルが並びます。</span>';
+        list.forEach(ch => {
+          const l = document.createElement("label");
+          l.className = thEx.has(ch.id) ? "on" : "";
+          l.innerHTML = '<input type="checkbox"' + (thEx.has(ch.id) ? " checked" : "") + '>#' + esc(ch.n);
+          l.querySelector("input").onchange = ev => {
+            if (ev.target.checked) thEx.add(ch.id); else thEx.delete(ch.id);
+            l.className = ev.target.checked ? "on" : ""; thDirty();
+          };
+          box.appendChild(l);
+        });
+      }
+      const thDirty = () => { $("thCfgState").textContent = "未保存の変更があります"; };
+      ["thCfgFrom", "thCfgTo", "thWords"].forEach(id => $(id).addEventListener("input", thDirty));
+      $("thWordsDef").onclick = ev => { ev.preventDefault(); $("thWords").value = C.THANKS_DEFAULT.words.join("\n"); thDirty(); };
+      async function thSave(rescan){
+        const c = { words: $("thWords").value.split(/\r?\n/), from: $("thCfgFrom").value, to: $("thCfgTo").value, exclude: [...thEx] };
+        if (rescan && !confirm("集計期間の最初から数え直します（5分以内にBotが始めます）。よろしいですか？")) return;
+        try {
+          const saved = await C.saveThanksConfig(c, rescan);
+          thCfg = Object.assign(thCfg, saved, { bot: thCfg.bot, updatedAt: saved.updatedAt });
+          thFillCfg();
+          toast(rescan ? "数え直しを頼みました（5分以内に始まります）" : "保存しました。5分以内にBotが読み込んで数え直します");
+        } catch(e){ toast(e.message); }
+      }
+      $("thSave").onclick = () => thSave(false);
+      $("thRescan").onclick = () => thSave(true);
+      $("thApply").onclick = thLoad;
+      $("thAll").onclick = () => { $("thFrom").value = thCfg.from; $("thTo").value = thCfg.to; thLoad(); };
+      $("thReload").onclick = async () => { try { thCfg = await C.loadThanksConfig(); thStatus(); } catch(e){} thLoad(); };
+      async function thBoot(){
+        if (thBooted) return; thBooted = true;
+        try { thCfg = await C.loadThanksConfig(); } catch(e){ thCfg = { words: C.THANKS_DEFAULT.words.slice(), from: C.THANKS_DEFAULT.from, to: C.THANKS_DEFAULT.to, exclude: [], bot: null }; }
+        $("thFrom").value = thCfg.from; $("thTo").value = thCfg.to;
+        thStatus(); thFillCfg(); thLoad();
+      }
+      const thTab = document.querySelector('[data-panel="p-thanks"]');
+      if (thTab) thTab.addEventListener("click", thBoot);
+      if ($("p-thanks").classList.contains("on")) thBoot();
+    }
   })();
 
   /* =============================================================
@@ -4527,6 +4705,7 @@ body.ad-on{overflow:hidden}
     "p-snap":    ["先生スナップショットの実施日・ポイント・結果", "lp.html", "LPランキング"],
     "p-msg":     ["Discordへ自動投稿する文面（投稿先はすべて連絡事項）", null],
     "p-vc":      ["VCごとの稼働時間と、ユーザーごとの滞在時間", null],
+    "p-thanks":  ["Discordのチャットで感謝の言葉が何回言われたか（チャンネル別・言った人）", null],
     "p-conn":    ["Worker（Riot API / Discord 連携）の接続", null],
     "p-data":    ["バックアップ・復元・危険な操作", null]
   };
