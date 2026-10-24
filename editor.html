@@ -4042,9 +4042,13 @@ body.ad-on{overflow:hidden}
       const q = ($("alFilter").value || "").trim().toLowerCase();
       const onlyEmpty = $("alOnlyEmpty").checked;
       const tIds = Array.from(new Set(Object.keys(alLp.members || {}).concat(Object.keys(alMem)))).filter(alIsT);
-      const ids = tIds.concat(Object.keys(alLp.members || {}).filter(id => tIds.indexOf(id) < 0).sort((a, b) =>
-        (C.lpGroupIndex(alLp.members[a], order) - C.lpGroupIndex(alLp.members[b], order)) ||
-        String(alLp.members[a].name || "").localeCompare(String(alLp.members[b].name || ""), "ja")));
+      // 生徒＝LPランキングの名簿＋メンバー名簿の参加者（LPの記録がまだ無い人も入れる）
+      const mOf = id => (alLp.members || {})[id] || alMem[id] || {};
+      const sAll = Array.from(new Set(Object.keys(alLp.members || {}).concat(
+        Object.keys(alMem).filter(id => !C.isParticipant || C.isParticipant(alMem[id])))));
+      const ids = tIds.concat(sAll.filter(id => tIds.indexOf(id) < 0).sort((a, b) =>
+        (C.lpGroupIndex(mOf(a), order) - C.lpGroupIndex(mOf(b), order)) ||
+        String(mOf(a).name || "").localeCompare(String(mOf(b).name || ""), "ja")));
       const allIds = ids.slice();
       const filled = ids.filter(id => (alEdit.comments[id] || "").trim()).length;
       const tName = id => { const m = (alLp.members || {})[id] || alMem[id] || {}; return m.name || "—"; };

@@ -174,6 +174,8 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
 .aw .who .avf{font-size:11px}
 .sec-t{font-size:12px;font-weight:900;letter-spacing:.16em;color:var(--gold);margin:4px 2px 10px;display:flex;align-items:center;gap:8px}
 .sec-t small{letter-spacing:0;color:var(--muted);font-weight:700}
+.st.pend{opacity:.72;border-style:dashed}
+.st .pendb{position:absolute;bottom:8px;right:8px;font-size:10px;font-weight:900;padding:1px 8px;border-radius:99px;background:var(--muted,#888);color:#fff}
 .st .awb{position:absolute;top:10px;left:10px;font-size:18px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.2))}
 .pg-awards{display:flex;flex-wrap:wrap;gap:10px}
 .pg-aw{display:flex;align-items:center;gap:12px;padding:12px 18px 12px 12px;border-radius:16px;
@@ -293,14 +295,23 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     const isT = id => C.isTeacherOf((lp.members || {})[id], teacherRoles) || C.isTeacherOf(mem[id], teacherRoles);
     const order = C.lpGroupOrder(lp);
     const extra = { snap, exam, vcUsers: vcr ? vcr.users : [], vcComp: vcc };
-    const list = Object.keys(lp.members || {}).map(id => {
+    // 生徒＝LPランキングの名簿＋メンバー名簿の参加者（講師・運営は除く）
+    const sIds = Array.from(new Set(Object.keys(lp.members || {}).concat(
+      Object.keys(mem).filter(id => !C.isParticipant || C.isParticipant(mem[id]))))).filter(id => !isT(id));
+    const allStu = sIds.map(id => {
       const e = C.albumEntry(lp, id, album, extra);
-      const gi = C.lpGroupIndex((lp.members || {})[id], order);
+      const lm = (lp.members || {})[id] || {}, mm = mem[id] || {};
+      e.name = lm.name || mm.name || "—";
+      e.avatar = lm.avatar || (mm.discord && mm.discord.avatar) || "";
+      const gi = C.lpGroupIndex((lp.members || {})[id] || mm, order);
       e.roleLabel = C.lpSectionLabel(gi, order);
       const card = cards && cards[id];
       e.color = card && THEMES[card.theme.color] ? THEMES[card.theme.color] : "var(--leaf)";
+      e.pending = !(e.start || e.vc || e.exam || e.snap);   // 期間中の記録がまだ無い
       return e;
-    }).filter(e => !isT(e.id) && (e.start || e.vc || e.exam || e.snap));   // 生徒で、期間中に何かしら記録がある人だけ
+    });
+    // 生徒には「期間中に何かしら記録がある人」だけ。管理者には記録待ちの人も全員出す
+    const list = IS_ADMIN ? allStu : allStu.filter(e => !e.pending);
 
     /* ---- 講師（感謝状） ---- */
     const mentors = album.mentors || {};
@@ -318,13 +329,13 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
       e.color = card && THEMES[card.theme.color] ? THEMES[card.theme.color] : "var(--gold)";
       const comp = (vcc && vcc.byUser && vcc.byUser[id]) || {};
       // 担当の生徒（先生1人につき生徒1人）
-      const s = list.find(x => mentors[x.id] === id) || null;
+      const s = allStu.find(x => mentors[x.id] === id) || null;
       e.t = { s, vcSec: s ? (comp[s.id] || 0) : 0 };
       return e;
     }).sort((a, b) => a.name.localeCompare(b.name, "ja"));
 
     // 生徒の担当の先生（講師に入っている人だけ）
-    list.forEach(x => {
+    allStu.forEach(x => {
       const t = teachers.find(t => t.id === mentors[x.id]);
       x.mentor = t ? { id: t.id, name: t.name, avatar: t.avatar } : null;
     });
@@ -386,7 +397,11 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
             gainHtml(e.t.s ? e.t.s.gain : null) +
           "</a>").join("") + "</div>" +
         '<div class="sec-t" style="color:var(--leaf)">📜 生徒 <small>卒業証書</small></div>'
-      : "";
+      : '<div class="sec-t" style="color:var(--leaf)">📜 生徒 <small>卒業証書</small></div>';
+    const pendN = list.filter(e => e.pending).length;
+    const pendHtml = IS_ADMIN && pendN
+      ? '<div class="banner">📭 <b>記録待ち ' + pendN + '人</b>（管理者にだけ見えています）。' +
+        "LP・VCなどの記録が入ると、生徒にも表示されます。</div>" : "";
     const aws = showAwards() ? D.album.awards.filter(a => a.winners.some(w => D.byId[w] || D.nameOf(w) !== "—")) : [];
     const awardsHtml = aws.length
       ? '<div class="sec-t">🎖 特別賞 ' + pendingTag() + '</div><div class="awards">' + aws.map(a =>
@@ -396,7 +411,7 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
             '<a href="?id=' + encodeURIComponent(w) + '">' + avatar(D.avatarOf(w), D.nameOf(w)) + esc(D.nameOf(w)) + "</a>").join("") +
           "</div></div>").join("") + "</div>"
       : "";
-    $("view").innerHTML = unpublishedBanner() + coverHtml() + awardsHtml + teachersHtml +
+    $("view").innerHTML = unpublishedBanner() + coverHtml() + awardsHtml + teachersHtml + pendHtml +
       '<div class="tools">' +
         '<button class="chip' + (sortBy === "gain" ? " on" : "") + '" data-sort="gain">伸びた順</button>' +
         '<button class="chip' + (sortBy === "name" ? " on" : "") + '" data-sort="name">名前順</button>' +
@@ -404,10 +419,11 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
         (mine ? '<a class="xbtn main" href="?id=' + encodeURIComponent(ME) + '">📜 自分の' + (mine.teacher ? esc(D.album.tTitle) : "卒業証書") + "を見る</a>" : "") +
       "</div>" +
       (list.length ? '<div class="grid">' + list.map(e =>
-        '<a class="st' + (e.id === ME ? " me" : "") + '" href="?id=' + encodeURIComponent(e.id) + '" style="--c:' + e.color + '">' +
+        '<a class="st' + (e.id === ME ? " me" : "") + (e.pending ? " pend" : "") + '" href="?id=' + encodeURIComponent(e.id) + '" style="--c:' + e.color + '">' +
           (e.id === ME ? '<span class="you">あなた</span>' : "") +
           (showAwards() && e.awards.length ? '<span class="awb" title="' + esc(e.awards.map(a => a.name).join("・")) + '">' +
             esc(e.awards[0].icon) + "</span>" : "") +
+          (e.pending ? '<span class="pendb" title="期間中の記録がまだありません（生徒には表示されません）">記録待ち</span>' : "") +
           avatar(e.avatar, e.name) +
           '<div class="nm">' + esc(e.name) + "</div>" +
           (e.mentor ? '<div class="ro">担当 ' + esc(e.mentor.name) + "先生</div>"
@@ -492,6 +508,10 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
               avatar(e.mentor.avatar, e.mentor.name) + "担当：" + esc(e.mentor.name) + "先生</a>" : "") +
           "</div>" +
         "</div>" +
+
+        (e.pending ? '<div class="pg-sec"><div class="note">📭 期間中（' + ymd(D.album.start) + " – " + ymd(D.album.end) +
+          '）の記録はまだありません。LP・VCなどの記録が入ると、ここに歩みが表示されます。<br>' +
+          "このページはまだ本人には表示されません（管理者にだけ見えています）。</div></div>" : "") +
 
         (showAwards() && e.awards.length ?
           '<div class="pg-sec"><h3>特別賞' + pendingTag() + '</h3><div class="pg-awards">' +
