@@ -659,24 +659,16 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
   }
   function viewTeacher(e){
     const T = D.album.tTitle;
-    const st = teacherStats(e);
     const tl = D.teachers, i = tl.findIndex(x => x.id === e.id);
-    const box = x => '<div class="b"><small>' + esc(x[0]) + "</small><b>" + esc(x[1]) + "</b>" + (x[2] ? "<span>" + esc(x[2]) + "</span>" : "") + "</div>";
     $("view").innerHTML = unpublishedBanner() +
       '<div class="pg-nav"><a class="xbtn" href="album.html">← みんなの卒業証書</a>' +
         '<div class="xrow">' + (tl.length > 1 ? '<a class="xbtn" href="?id=' + encodeURIComponent(tl[(i + 1) % tl.length].id) + '">' +
           esc(tl[(i + 1) % tl.length].name) + " ›</a>" : "") + "</div></div>" +
-      '<article class="page" style="--c:#C9A24A">' +
-        '<div class="seal" aria-hidden="true">感謝<br>之印</div>' +
-        '<div class="pg-hero">' + avatar(e.avatar, e.name) +
-          '<div><div class="kicker brush">' + esc(T) + "</div>" +
-            "<h2>" + esc(e.name) + ' <span class="brush" style="font-size:.7em;letter-spacing:0">殿</span></h2>' +
-            '<div class="sub">' + (D.album.term ? '<b style="color:var(--ink)">' + esc(D.album.term) + "</b> ・ " : "") +
-              ymd(D.album.start) + " – " + ymd(D.album.end) + "</div>" +
-            '<span class="role">講師</span></div></div>' +
-        (D.album.tBody ? '<div class="pg-sec"><div class="tbody">' + esc(D.album.tBody) + "</div></div>" : "") +
-        '<div class="pg-sec"><h3>担当した生徒の歩み</h3>' + teacherJourney(e) + "</div>" +
-        (st.length ? '<div class="pg-sec"><h3>ハイライト</h3><div class="hl">' + st.map(box).join("") + "</div></div>" : "") +
+      // ★ 感謝状そのもの（保存される画像と同じもの）
+      certHtml +
+      '<article class="page after-cert" style="--c:#C9A24A">' +
+        (e.t && e.t.s ? '<div class="pg-sec"><a class="role mentor-chip" href="?id=' + encodeURIComponent(e.t.s.id) + '">' +
+          avatar(e.t.s.avatar, e.t.s.name) + "担当：" + esc(e.t.s.name) + "さんの卒業証書を見る</a></div>" : "") +
         (e.comment || IS_ADMIN ? '<div class="pg-sec"><h3 style="display:flex;align-items:center">感謝のことば' +
           (IS_ADMIN ? '<a class="editlink" href="editor.html?tab=p-album&focus=' + encodeURIComponent(e.id) + '">✏️ ことばを編集</a>' : "") + "</h3>" +
           (e.comment ? '<div class="bubble">' + esc(e.comment) + '<span class="sig">— ' + esc(D.album.tSigner) + "</span></div>"
@@ -686,6 +678,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
           (navigator.share ? '<button class="xbtn" id="shareImg">📤 シェア</button>' : "") +
           '<span class="note">画像はXやDiscordにそのまま貼れます（証書は1200×675・色紙は1080×1350）。</span></div>' +
       "</article>" + '<div class="shot" id="shot"></div>';
+    renderCert(e);
     bindImageButtons(e);
     document.title = e.name + " ｜ " + T;
   }
