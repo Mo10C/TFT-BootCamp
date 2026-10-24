@@ -314,6 +314,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     const isT = id => C.isTeacherOf((lp.members || {})[id], teacherRoles) || C.isTeacherOf(mem[id], teacherRoles);
     const order = C.lpGroupOrder(lp);
     const extra = { snap, exam, vcUsers: vcr ? vcr.users : [], vcComp: vcc };
+    // アイコンの予備（LPの名簿とメンバー名簿で違うURLが入っていたら、もう片方も試す）
+    const altAv = (cur, lm, mm) => [lm.avatar, mm.discord && mm.discord.avatar].filter(u => u && u !== cur)[0] || "";
     // 生徒＝LPランキングの名簿＋メンバー名簿の参加者（講師・運営は除く）
     const sIds = Array.from(new Set(Object.keys(lp.members || {}).concat(
       Object.keys(mem).filter(id => !C.isParticipant || C.isParticipant(mem[id]))))).filter(id => !isT(id));
@@ -322,6 +324,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       const lm = (lp.members || {})[id] || {}, mm = mem[id] || {};
       e.name = lm.name || mm.name || "—";
       e.avatar = lm.avatar || (mm.discord && mm.discord.avatar) || "";
+      e.avatarAlt = altAv(e.avatar, lm, mm);
       const gi = C.lpGroupIndex((lp.members || {})[id] || mm, order);
       e.roleLabel = C.lpSectionLabel(gi, order);
       const card = cards && cards[id];
@@ -342,6 +345,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       const lm = (lp.members || {})[id] || {}, mm = mem[id] || {};
       e.name = lm.name || mm.name || "—";
       e.avatar = lm.avatar || (mm.discord && mm.discord.avatar) || "";
+      e.avatarAlt = altAv(e.avatar, lm, mm);
       e.teacher = true;
       e.roleLabel = "講師";
       const card = cards && cards[id];
@@ -356,7 +360,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     // 生徒の担当の先生（講師に入っている人だけ）
     allStu.forEach(x => {
       const t = teachers.find(t => t.id === mentors[x.id]);
-      x.mentor = t ? { id: t.id, name: t.name, avatar: t.avatar } : null;
+      x.mentor = t ? { id: t.id, name: t.name, avatar: t.avatar, avatarAlt: t.avatarAlt } : null;
     });
     const byId = {};
     list.forEach(e => { byId[e.id] = e; });
@@ -365,11 +369,14 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     const nameOf = id => (byId[id] && byId[id].name) || ((lp.members || {})[id] || {}).name || (mem[id] || {}).name || (vcc && vcc.names[id]) || "—";
     const avatarOf = id => (byId[id] && byId[id].avatar) || ((lp.members || {})[id] || {}).avatar ||
       ((mem[id] || {}).discord || {}).avatar || "";
+    // 画像用：候補を全部（読めなければ次を試す）
+    const avatarsOf = id => Array.from(new Set([byId[id] && byId[id].avatar, byId[id] && byId[id].avatarAlt,
+      ((lp.members || {})[id] || {}).avatar, ((mem[id] || {}).discord || {}).avatar].filter(Boolean)));
     // 寄せ書き（宛先ごと・古い順）
     const yoseTo = {};
     Object.values(yose || {}).forEach(m => { (yoseTo[m.to] = yoseTo[m.to] || []).push(m); });
     Object.values(yoseTo).forEach(a => a.sort((x, y) => x.at - y.at));
-    D = { album, lp, list, teachers, byId, nameOf, avatarOf, yoseTo };
+    D = { album, lp, list, teachers, byId, nameOf, avatarOf, avatarsOf, yoseTo };
   }
 
   /* ---- 部品 ---- */
@@ -713,6 +720,16 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     while (t.length > 1 && g.measureText(t + "…").width > maxW) t = t.slice(0, -1);
     return t + "…";
   }
+  /* 名前が見切れないように：文字を小さくして収める。最小でも入らなければ2行にする */
+  function fitName(g, t, maxW, fsMax, fsMin, weight, family){
+    t = String(t || "");
+    let fs = fsMax;
+    const set = () => { g.font = (weight || "900") + " " + fs + "px " + family; };
+    set();
+    while (fs > fsMin && g.measureText(t).width > maxW){ fs -= 1; set(); }
+    if (g.measureText(t).width <= maxW) return { fs, lines: [t] };
+    return { fs, lines: wrapText(g, t, maxW, 2) };
+  }
   function wrapText(g, t, maxW, maxLines){
     const out = []; let line = "";
     for (const ch of String(t || "").replace(/\s*\n\s*/g, " ")){
@@ -725,7 +742,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     return out;
   }
   async function drawAvatar(g, url, name, cx, cy, r, ring){
-    const im = await loadImg(url);
+    let im = null;
+    for (const u of (Array.isArray(url) ? url : [url])){ im = await loadImg(u); if (im) break; }
     g.save();
     g.beginPath(); g.arc(cx, cy, r + (ring ? 6 : 3), 0, Math.PI * 2); g.fillStyle = ring || "#fff"; g.fill();
     g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.closePath(); g.clip();
@@ -806,9 +824,13 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
 
     // 左：アイコン・名前（輪は入学許可書と同じ金色）
     const ring = g.createLinearGradient(110, 150, 310, 350); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
-    await drawAvatar(g, e.avatar, e.name, 210, 250, 100, ring);
-    g.textAlign = "center"; g.fillStyle = ink; g.font = "900 34px " + JP;
-    g.fillText(fitText(g, e.name, 300), 210, 402);
+    await drawAvatar(g, [e.avatar, e.avatarAlt], e.name, 210, 250, 100, ring);
+    g.textAlign = "center"; g.fillStyle = ink;
+    {
+      const fn = fitName(g, e.name, 310, 34, 22, "900", JP);
+      if (fn.lines.length > 1){ fn.lines.forEach((ln, i) => g.fillText(ln, 210, 376 + i * (fn.fs + 4))); }
+      else g.fillText(fn.lines[0], 210, 402);
+    }
     g.fillStyle = muted; g.font = "500 16px " + JP;
     // 名前の下：Riot IDの代わりに「TFT合宿　SET18」などを印字
     if (D.album.term){ g.fillStyle = ink; g.font = "900 19px " + JP; g.fillText(fitText(g, D.album.term, 300), 210, 432); }
@@ -820,7 +842,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       const cl = fitText(g, chip, 240);
       const tw = g.measureText(cl).width + 56;
       rr(g, 210 - tw / 2, 444, tw, 34, 17); g.fillStyle = "rgba(201,162,74,.18)"; g.fill();
-      await drawAvatar(g, e.mentor.avatar, e.mentor.name, 210 - tw / 2 + 17, 461, 13, "#D9B75E");
+      await drawAvatar(g, [e.mentor.avatar, e.mentor.avatarAlt], e.mentor.name, 210 - tw / 2 + 17, 461, 13, "#D9B75E");
       g.textAlign = "left"; g.fillStyle = "#9A7426"; g.font = "900 15px " + JP;
       g.fillText(cl, 210 - tw / 2 + 38, 467); g.textAlign = "center";
     } else if (chip){
@@ -906,12 +928,14 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       g.fillText("いっしょに過ごした仲間", X, 484);
       let mx = X;
       for (const m of mates){
-        await drawAvatar(g, D.avatarOf(m.id), D.nameOf(m.id), mx + 18, 514, 18, col);
-        g.fillStyle = ink; g.font = "900 15px " + JP; g.textAlign = "left";
-        const nm = fitText(g, D.nameOf(m.id), 150);
+        await drawAvatar(g, D.avatarsOf(m.id), D.nameOf(m.id), mx + 18, 514, 18, col);
+        g.fillStyle = ink; g.textAlign = "left";
+        let ms = 15; g.font = "900 " + ms + "px " + JP;
+        while (ms > 11 && g.measureText(D.nameOf(m.id)).width > 150){ ms -= 1; g.font = "900 " + ms + "px " + JP; }
+        const nm = fitText(g, D.nameOf(m.id), 150), nmw = g.measureText(nm).width;
         g.fillText(nm, mx + 44, 511);
         g.fillStyle = muted; g.font = "500 12px " + JP; g.fillText(hours(m.seconds) + "時間", mx + 44, 529);
-        mx += 44 + Math.max(g.measureText(nm).width, 60) + 36;
+        mx += 44 + Math.max(nmw, 60) + 36;
       }
     }
 
@@ -988,13 +1012,13 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
 
     // 左：アイコン・名前＋殿・印字・「講師」
     const ring = g.createLinearGradient(110, 150, 310, 350); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
-    await drawAvatar(g, e.avatar, e.name, 210, 250, 100, ring);
+    await drawAvatar(g, [e.avatar, e.avatarAlt], e.name, 210, 250, 100, ring);
     // 名前は長ければ文字を小さくして収める（24pxまで。それでも長ければ「…」）
     g.fillStyle = ink; g.textAlign = "left";
     let fs = 34;
     g.font = "900 " + fs + "px " + JP;
-    while (fs > 24 && g.measureText(e.name).width > 250){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
-    const nm = fitText(g, e.name, 250), nw = g.measureText(nm).width;
+    while (fs > 18 && g.measureText(e.name).width > 270){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
+    const nm = fitText(g, e.name, 270), nw = g.measureText(nm).width;
     const ts = Math.round(fs * .88);
     g.font = "400 " + ts + "px " + BR; const tonoW = g.measureText("殿").width;
     const nx = 210 - (nw + 8 + tonoW) / 2;
@@ -1026,10 +1050,10 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     let XJ = X;
     if (s){
       const ring2 = g.createLinearGradient(X, 150, X + 96, 246); ring2.addColorStop(0, goldB); ring2.addColorStop(1, goldA);
-      await drawAvatar(g, s.avatar, s.name, X + 48, 200, 44, ring2);
+      await drawAvatar(g, [s.avatar, s.avatarAlt], s.name, X + 48, 200, 44, ring2);
       g.textAlign = "center"; g.fillStyle = ink;
       let ns = 16; g.font = "900 " + ns + "px " + JP;
-      while (ns > 12 && g.measureText(s.name).width > 120){ ns -= 1; g.font = "900 " + ns + "px " + JP; }
+      while (ns > 10 && g.measureText(s.name).width > 124){ ns -= 1; g.font = "900 " + ns + "px " + JP; }
       g.fillText(fitText(g, s.name, 124), X + 48, 272);
       XJ = X + 128;
     }
@@ -1152,12 +1176,12 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     // 左右：先生と生徒
     async function person(cx, p, label, suffix){
       const ring = g.createLinearGradient(cx - 96, 170, cx + 96, 362); ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
-      await drawAvatar(g, p.avatar, p.name, cx, 262, 92, ring);
+      await drawAvatar(g, [p.avatar, p.avatarAlt], p.name, cx, 262, 92, ring);
       g.textAlign = "center"; g.fillStyle = ink;
       let fs = 30; g.font = "900 " + fs + "px " + JP;
       const full = p.name + suffix;
-      while (fs > 20 && g.measureText(full).width > 280){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
-      g.fillText(fitText(g, full, 280), cx, 402);
+      while (fs > 15 && g.measureText(full).width > 300){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
+      g.fillText(fitText(g, full, 300), cx, 402);
       g.font = "900 14px " + JP;
       const cw = g.measureText(label).width + 30;
       rr(g, cx - cw / 2, 416, cw, 28, 14); g.fillStyle = "rgba(201,162,74,.18)"; g.fill();
@@ -1341,7 +1365,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       const nm = fitText(g, D.nameOf(m.from), nw - 70);
       g.fillText(nm, nw / 2 - 12, nh / 2 - 12);
       const nmw = g.measureText(nm).width;
-      await drawAvatar(g, D.avatarOf(m.from), D.nameOf(m.from), nw / 2 - 12 - nmw - 14, nh / 2 - 17, 9, "#fff");
+      await drawAvatar(g, D.avatarsOf(m.from), D.nameOf(m.from), nw / 2 - 12 - nmw - 14, nh / 2 - 17, 9, "#fff");
       g.restore();
     }
     if (shown.length < ms.length){
@@ -1353,11 +1377,11 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     // まん中：本人
     const ring = g.createLinearGradient(W / 2 - 90, cy - 110, W / 2 + 90, cy + 70);
     ring.addColorStop(0, goldB); ring.addColorStop(1, goldA);
-    await drawAvatar(g, e.avatar, e.name, W / 2, cy - 22, 84, ring);
+    await drawAvatar(g, [e.avatar, e.avatarAlt], e.name, W / 2, cy - 22, 84, ring);
     g.textAlign = "center"; g.fillStyle = ink;
     let fs = 34; g.font = "900 " + fs + "px " + JP;
-    while (fs > 20 && g.measureText(e.name).width > 200){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
-    const nm = fitText(g, e.name, 200), nw2 = g.measureText(nm).width;
+    while (fs > 16 && g.measureText(e.name).width > 230){ fs -= 1; g.font = "900 " + fs + "px " + JP; }
+    const nm = fitText(g, e.name, 230), nw2 = g.measureText(nm).width;
     g.font = "400 26px " + BR; const sw = g.measureText("さんへ").width;
     const sx = W / 2 - (nw2 + 8 + sw) / 2;
     g.textAlign = "left"; g.font = "900 " + fs + "px " + JP; g.fillText(nm, sx, cy + 104);
