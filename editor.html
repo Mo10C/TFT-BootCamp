@@ -319,6 +319,8 @@ img.vcp-ic{border-radius:50%;object-fit:cover;padding:0}
 .admprev .ht{color:#1d9bf0}
 .alrow{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border)}
 .alrow:last-child{border-bottom:none}
+.alpv{margin-top:8px;border-radius:14px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1200/675;background:#FBF8EE}
+.alpv iframe{width:100%;height:100%;border:0;display:block}
 .mtrow{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1.3fr);gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
 .mtrow:last-child{border-bottom:none}
 .mtrow .who{display:flex;align-items:center;gap:10px;min-width:0}
@@ -1240,6 +1242,19 @@ body.ad-on{overflow:hidden}
       <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">全体へ</label>
         <textarea id="alMsg" maxlength="600" style="flex:1;min-height:90px;font-family:inherit;font-size:13px;line-height:1.8"
           placeholder="表紙に出る、全員へのメッセージ（任意）"></textarea></div>
+    </div>
+
+    <div class="card">
+      <h2>📜 証書のプレビュー</h2>
+      <div class="lead">生徒が「画像で保存」するものと同じ証書です。ここで変えた文言・ひとことは<b>保存前でもすぐ反映</b>されます（特別賞は未発表でも表示）。</div>
+      <div class="row">
+        <select id="alPvSel" style="min-width:220px"></select>
+        <button class="mini" id="alPvPrev" type="button" title="前の人">‹</button>
+        <button class="mini" id="alPvNext" type="button" title="次の人">›</button>
+        <button class="mini" id="alPvReload" type="button" title="読み込み直す">↻</button>
+        <a class="mini" id="alPvOpen" href="album.html" target="_blank" rel="noopener" style="margin-left:auto">ページを開く ↗</a>
+      </div>
+      <div class="alpv"><iframe id="alPvFrame" title="証書のプレビュー"></iframe></div>
     </div>
 
     <div class="card">
@@ -3955,7 +3970,49 @@ body.ad-on{overflow:hidden}
     let alData = null, alEdit = null, alDirty = false, alLp = null, alBooted = false;
     let alMem = {}, alTRoles = [];   // 講師の判定用（メンバー一覧・先生ロール）
     const alIsT = id => C.isTeacherOf && (C.isTeacherOf((alLp && alLp.members || {})[id], alTRoles) || C.isTeacherOf(alMem[id], alTRoles));
-    const markAl = () => { alDirty = true; $("alSave").classList.add("dirty"); $("alState").textContent = "未保存の変更があります"; };
+    const markAl = () => { alDirty = true; $("alSave").classList.add("dirty"); $("alState").textContent = "未保存の変更があります"; alPvPush(); };
+
+    /* ---- 証書のプレビュー（album.html?id=…&embed=cert を埋め込む） ---- */
+    let alPvId = "", alPvList = [];
+    const pvOrigin = () => location.origin === "null" ? "*" : location.origin;
+    function alPvLoad(force){
+      const f = $("alPvFrame");
+      if (!alPvId){ f.removeAttribute("src"); return; }
+      const url = "album.html?id=" + encodeURIComponent(alPvId) + "&embed=cert";
+      if (!force && f.dataset.id === alPvId) return;
+      f.dataset.id = alPvId;
+      f.src = url + "&t=" + Date.now();
+      $("alPvOpen").href = "album.html?id=" + encodeURIComponent(alPvId);
+      $("alPvSel").value = alPvId;
+    }
+    function alPvPush(){
+      const f = $("alPvFrame");
+      if (!alEdit || !alPvId || !f.contentWindow) return;
+      try { f.contentWindow.postMessage({ type: "album-draft", album: JSON.parse(JSON.stringify(alEdit)), id: alPvId }, pvOrigin()); } catch(e){}
+    }
+    function alPvSetList(list){   // list = [{id, label}]
+      alPvList = list;
+      const sel = $("alPvSel");
+      sel.innerHTML = list.map(x => '<option value="' + esc(x.id) + '">' + esc(x.label) + "</option>").join("");
+      if (!list.some(x => x.id === alPvId)) alPvId = (list.find(x => !x.t) || list[0] || {}).id || "";
+      alPvLoad();
+      sel.value = alPvId;
+    }
+    function alPvShow(id, scroll){
+      alPvId = id; alPvLoad();
+      if (scroll) $("alPvFrame").closest(".card").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    $("alPvSel").onchange = () => alPvShow($("alPvSel").value);
+    $("alPvReload").onclick = () => alPvLoad(true);
+    [["alPvPrev", -1], ["alPvNext", 1]].forEach(([b, d]) => $(b).onclick = () => {
+      if (!alPvList.length) return;
+      const i = alPvList.findIndex(x => x.id === alPvId);
+      alPvShow(alPvList[(i + d + alPvList.length) % alPvList.length].id);
+    });
+    // プレビューが開き終わったら、保存前の編集を送る
+    window.addEventListener("message", ev => {
+      if (ev.data && ev.data.type === "album-cert-ready" && alDirty) alPvPush();
+    });
     const clearAl = () => { alDirty = false; $("alSave").classList.remove("dirty"); };
 
     function fillForm(){
@@ -4050,6 +4107,9 @@ body.ad-on{overflow:hidden}
         (C.lpGroupIndex(mOf(a), order) - C.lpGroupIndex(mOf(b), order)) ||
         String(mOf(a).name || "").localeCompare(String(mOf(b).name || ""), "ja")));
       const allIds = ids.slice();
+      alPvSetList(ids.map(id => { const isT = tIds.indexOf(id) >= 0;
+        const m = (alLp.members || {})[id] || alMem[id] || {};
+        return { id, t: isT, label: (isT ? "🎓 " : "📜 ") + (m.name || "—") + (isT ? "（講師）" : "") }; }));
       const filled = ids.filter(id => (alEdit.comments[id] || "").trim()).length;
       const tName = id => { const m = (alLp.members || {})[id] || alMem[id] || {}; return m.name || "—"; };
       alEdit.mentors = alEdit.mentors || {};
@@ -4086,11 +4146,13 @@ body.ad-on{overflow:hidden}
               (e.start && e.end ? "<small>" + esc(C.rankLabel(e.start.rank)) + " → " + esc(C.rankLabel(e.end.rank)) + "</small>" : "") +
               (isTeacher ? '<small style="color:var(--gold);font-weight:900">担当 ' + (stuOf(id) ? esc(tName(stuOf(id))) : "未設定") + "</small>"
               : (tIds.indexOf(alEdit.mentors[id]) >= 0 ? '<small style="color:var(--gold);font-weight:900">担当 ' + esc(tName(alEdit.mentors[id])) + "先生</small>" : "")) +
-              '<a class="hint" style="margin-left:auto" href="album.html?id=' + encodeURIComponent(id) + '" target="_blank" rel="noopener">ページを見る ↗</a>' +
+              '<button class="mini" type="button" data-pv style="margin-left:auto">🖼 証書</button>' +
+              '<a class="hint" href="album.html?id=' + encodeURIComponent(id) + '" target="_blank" rel="noopener">ページを見る ↗</a>' +
             "</div>" +
             '<textarea maxlength="300" placeholder="' + (isTeacher ? "この先生への感謝のことば（任意）" : "この人へのひとこと（任意）") + '"></textarea>' +
             '<div class="cnt"></div>' +
           "</div>";
+        row.querySelector("[data-pv]").onclick = () => alPvShow(id, true);
         const ta = row.querySelector("textarea"), cnt = row.querySelector(".cnt");
         ta.value = text;
         cnt.textContent = text.length + " / 300";
@@ -4207,6 +4269,7 @@ body.ad-on{overflow:hidden}
         alData = await C.saveAlbum(alEdit);
         alEdit = JSON.parse(JSON.stringify(alData));
         clearAl(); fillForm(); renderAwards(); renderRows();
+        alPvLoad(true);
         toast("卒業証書を保存しました");
       } catch(e){ toast(e.message); }
       btn.disabled = false;
@@ -4215,6 +4278,7 @@ body.ad-on{overflow:hidden}
       if (alDirty && !confirm("編集中の内容を捨てて、保存されている設定に戻しますか？")) return;
       alEdit = JSON.parse(JSON.stringify(alData));
       clearAl(); fillForm(); renderAwards(); renderRows();
+      alPvLoad(true);
     };
     window.addEventListener("beforeunload", e => { if (alDirty){ e.preventDefault(); e.returnValue = ""; } });
 

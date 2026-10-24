@@ -126,6 +126,7 @@
 .nt .by .avf{font-size:10px}
 .nt::before{content:"";position:absolute;top:-7px;left:50%;width:56px;height:14px;transform:translateX(-50%) rotate(-2deg);
   background:rgba(255,255,255,.55);border-radius:2px;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.pg-sec a.role.mentor-chip{font-size:12px;font-weight:900;border:1.5px solid;border-radius:99px}
 a.role.mentor-chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;background:rgba(201,162,74,.18);border-color:rgba(201,162,74,.45);color:#9A7426;padding:3px 12px 3px 4px;vertical-align:middle}
 a.role.mentor-chip .av{width:24px;height:24px;border-width:2px;border-color:#D9B75E;margin:0}
 a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
@@ -156,6 +157,17 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
 .pg-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:16px 26px 22px;border-top:1px dashed var(--border-strong);margin-top:8px}
 .pg-nav{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap}
 .shot{margin-top:14px}
+/* 証書（1200×675の画像そのもの）を1人ページの一番上に出す */
+.cert{position:relative;margin:0 0 14px;border-radius:16px;overflow:hidden;aspect-ratio:1200/675;
+  background:#FBF8EE;box-shadow:0 10px 30px rgba(35,56,77,.14)}
+.cert img{display:block;width:100%;height:100%}
+.cert .ph{position:absolute;inset:0;display:grid;place-items:center;font-size:13px;font-weight:700;color:#6D8699}
+.page.after-cert{padding-top:8px}
+/* 管理画面に埋め込むとき（album.html?id=…&embed=cert）は証書だけ */
+body.embed{background:transparent!important;min-height:0}
+body.embed .top,body.embed #toast{display:none!important}
+body.embed .wrap{max-width:none!important;padding:0!important;margin:0!important}
+body.embed .cert{margin:0;border-radius:0;box-shadow:none}
 .shot img{width:100%;border-radius:14px;border:1px solid var(--border);display:block}
 
 
@@ -248,6 +260,9 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
   const IS_ADMIN = C.isAdmin(session);
   const ME = "u_" + session.discord.id;
   if (IS_ADMIN) $("editorLink").style.display = "";
+  // 管理画面の「卒業証書」タブのプレビュー用（証書の画像だけを出す）
+  const EMBED = IS_ADMIN && new URLSearchParams(location.search).get("embed") === "cert";
+  if (EMBED) document.body.classList.add("embed");
 
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
     ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -279,16 +294,20 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     const l = $("brushFont");
     if (l) l.href = "https://fonts.googleapis.com/css2?family=Yuji+Boku&text=" + encodeURIComponent(t) + "&display=swap";
   }
-  async function loadAll(){
-    const album = await C.loadAlbum();
+  let RAW = null;   // 読み込んだ記録（プレビューで文言だけ変えたときは読み直さない）
+  async function loadAll(override){
+    const album = override || await C.loadAlbum();
     ensureBrush(album.title + album.tTitle + (album.pTitle || ""));
     const S = album.start, E = album.end;
     const safe = p => p.catch(e => { console.warn(e); return null; });
-    const [lp, snap, exam, vcr, vcc, cards, members, yose] = await Promise.all([
+    const rawKey = S + "|" + E;
+    const raw = (override && RAW && RAW.key === rawKey) ? RAW.v : await Promise.all([
       C.loadLpData(), safe(C.loadSnapshot()), safe(C.loadExamScores()),
       safe(C.loadVcRange(S, E)), safe(C.loadVcCompanions(S, E)), safe(C.loadProfileCards()), safe(C.loadMembers()),
       safe(C.loadYosegaki ? C.loadYosegaki() : Promise.resolve({}))
     ]);
+    RAW = { key: rawKey, v: raw };
+    const [lp, snap, exam, vcr, vcc, cards, members, yose] = raw;
     const mem = members || {};
     // 講師＝「講師（先生）のロール」を持っている人（管理コンソール →「入学許可書」で選ぶ）
     const teacherRoles = C.loadTeacherRoleIds ? await C.loadTeacherRoleIds() : [];
@@ -472,19 +491,40 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     if (e.exam) b.push(["中間試験", e.exam.score + "点", e.exam.of + "人中 " + e.exam.rank + "位"]);
     return b;
   }
+  /* 証書の画像を作って #cert に出す（作った画像は「画像で保存」でもそのまま使う） */
+  let certTok = 0;
+  async function renderCert(e){
+    const box = $("cert"); if (!box) return;
+    const tok = ++certTok;
+    try {
+      const blob = await makeImage(e);
+      if (tok !== certTok || !$("cert")) return;
+      e._certBlob = blob;
+      const old = box.querySelector("img");
+      const im = new Image();
+      im.alt = (e.teacher ? D.album.tTitle : D.album.title) + "：" + e.name;
+      im.src = URL.createObjectURL(blob);
+      im.onload = () => { if (old) URL.revokeObjectURL(old.src); };
+      box.innerHTML = ""; box.appendChild(im);
+    } catch(err){
+      if (tok === certTok) box.innerHTML = '<div class="ph">証書の画像を作れませんでした：' + esc(err.message) + "</div>";
+    }
+  }
+  const certHtml = '<div class="cert" id="cert"><div class="ph">証書をつくっています…</div></div>';
+
   function viewPage(id){
     const e = D.byId[id];
     if (!e){
-      $("view").innerHTML = '<div class="panel"><div class="empty">この人のページは見つかりませんでした。<br>' +
+      $("view").innerHTML = EMBED ? '<div class="cert"><div class="ph">この人の証書はまだありません</div></div>'
+        : '<div class="panel"><div class="empty">この人のページは見つかりませんでした。<br>' +
         '<a class="xbtn" href="album.html" style="margin-top:12px">← みんなの卒業証書へ</a></div></div>';
       return;
     }
+    if (EMBED){ $("view").innerHTML = certHtml; renderCert(e); return; }
     if (e.teacher) return viewTeacher(e);
     const list = D.list.slice().sort((a, b) => a.name.localeCompare(b.name, "ja"));
     const i = list.findIndex(x => x.id === id);
     const prev = list[(i - 1 + list.length) % list.length], next = list[(i + 1) % list.length];
-    const hl = highlights(e);
-    const mates = (e.vc && e.vc.mates) || [];
 
     $("view").innerHTML = unpublishedBanner() +
       '<div class="pg-nav">' +
@@ -494,52 +534,19 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
                              '<a class="xbtn" href="?id=' + encodeURIComponent(next.id) + '">' + esc(next.name) + " ›</a>" : "") +
         "</div>" +
       "</div>" +
-      '<article class="page" style="--c:' + e.color + '">' +
-        '<div class="seal" aria-hidden="true">卒業<br>証書</div>' +
-        '<div class="pg-hero">' +
-          avatar(e.avatar, e.name) +
-          "<div>" +
-            '<div class="kicker brush">' + esc(D.album.title) + "</div>" +
-            "<h2>" + esc(e.name) + "</h2>" +
-            '<div class="sub">' + (D.album.term ? '<b style="color:var(--ink)">' + esc(D.album.term) + "</b> ・ " : "") +
-              ymd(D.album.start) + " – " + ymd(D.album.end) + "</div>" +
-            (e.roleLabel ? '<span class="role">' + esc(e.roleLabel) + "</span>" : "") +
-            (e.mentor ? ' <a class="role mentor-chip" href="?id=' + encodeURIComponent(e.mentor.id) + '">' +
-              avatar(e.mentor.avatar, e.mentor.name) + "担当：" + esc(e.mentor.name) + "先生</a>" : "") +
-          "</div>" +
-        "</div>" +
-
-        (e.pending ? '<div class="pg-sec"><div class="note">📭 期間中（' + ymd(D.album.start) + " – " + ymd(D.album.end) +
-          '）の記録はまだありません。LP・VCなどの記録が入ると、ここに歩みが表示されます。<br>' +
-          "このページはまだ本人には表示されません（管理者にだけ見えています）。</div></div>" : "") +
+      // ★ 証書そのもの（保存される画像と同じもの）
+      certHtml +
+      (e.pending ? '<div class="banner">📭 期間中（' + ymd(D.album.start) + " – " + ymd(D.album.end) +
+        '）の記録はまだありません。LP・VCなどの記録が入ると、証書に歩みが入ります。' +
+        "このページはまだ本人には表示されません（管理者にだけ見えています）。</div>" : "") +
+      '<article class="page after-cert" style="--c:' + e.color + '">' +
+        (e.mentor ? '<div class="pg-sec"><a class="role mentor-chip" href="?id=' + encodeURIComponent(e.mentor.id) + '">' +
+          avatar(e.mentor.avatar, e.mentor.name) + "担当：" + esc(e.mentor.name) + "先生の" + esc(D.album.tTitle) + "を見る</a></div>" : "") +
 
         (showAwards() && e.awards.length ?
           '<div class="pg-sec"><h3>特別賞' + pendingTag() + '</h3><div class="pg-awards">' +
             e.awards.map(a => '<div class="pg-aw"><span class="ic">' + esc(a.icon) + "</span><span><b>" + esc(a.name) + "</b>" +
               (a.desc ? "<small>" + esc(a.desc) + "</small>" : "") + "</span></div>").join("") +
-          "</div></div>" : "") +
-
-        (e.start && e.end ?
-          '<div class="pg-sec"><h3>ランクの歩み</h3>' +
-            '<div class="journey">' +
-              '<div class="jr-pt"><small>開校のころ（' + md(e.start.day) + '）</small>' + C.rankIcon(e.start.rank, { cls: "lg" }) +
-                '<span class="rk">' + esc(C.rankLabel(e.start.rank)) + "</span></div>" +
-              '<span class="jr-arrow">→</span>' +
-              '<div class="jr-pt"><small>卒業のころ（' + md(e.end.day) + '）</small>' + C.rankIcon(e.end.rank, { cls: "lg" }) +
-                '<span class="rk">' + esc(C.rankLabel(e.end.rank)) + "</span></div>" +
-              '<div class="jr-gain"><div class="v ' + (e.gain > 0 ? "up" : e.gain < 0 ? "down" : "flat") + '">' + signed(e.gain) + "</div>" +
-                "<small>合宿でのびたLP</small></div>" +
-            "</div>" + sparkSvg(e) +
-          "</div>" : "") +
-
-        (hl.length ? '<div class="pg-sec"><h3>ハイライト</h3><div class="hl">' +
-          hl.map(x => '<div class="b"><small>' + esc(x[0]) + "</small><b>" + esc(x[1]) + "</b>" +
-            (x[2] ? "<span>" + esc(x[2]) + "</span>" : "") + "</div>").join("") + "</div></div>" : "") +
-
-        (mates.length ? '<div class="pg-sec"><h3>いっしょに過ごした仲間（VC）</h3><div class="mates">' +
-          mates.map(m => '<a class="mate" href="?id=' + encodeURIComponent(m.id) + '">' +
-            avatar(D.avatarOf(m.id), D.nameOf(m.id)) +
-            "<span><b>" + esc(D.nameOf(m.id)) + "</b><small>" + hours(m.seconds) + "時間</small></span></a>").join("") +
           "</div></div>" : "") +
 
         (e.comment || IS_ADMIN ? '<div class="pg-sec"><h3 style="display:flex;align-items:center">先生からのひとこと' +
@@ -558,6 +565,7 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
       "</article>" +
       '<div class="shot" id="shot"></div>';
 
+    renderCert(e);
     bindImageButtons(e);
     document.title = e.name + " ｜ " + D.album.title;
   }
@@ -605,15 +613,16 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       showShot(blob);
     }).catch(err => toast("画像を作れませんでした：" + err.message));
-    $("saveImg").onclick = () => makeImage(e).then(blob => {
+    const certBlob = () => e._certBlob ? Promise.resolve(e._certBlob) : makeImage(e);
+    $("saveImg").onclick = () => certBlob().then(blob => {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = title + "_" + e.name.replace(/[\\/:*?"<>|]/g, "") + ".png";
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-      showShot(blob);
+      if (!$("cert")) showShot(blob);   // 証書をページに出していないとき（感謝状）だけ
     }).catch(err => toast("画像を作れませんでした：" + err.message));
-    if ($("shareImg")) $("shareImg").onclick = () => makeImage(e).then(async blob => {
+    if ($("shareImg")) $("shareImg").onclick = () => certBlob().then(async blob => {
       const file = new File([blob], "album.png", { type: "image/png" });
       const data = { text: title + "｜" + e.name + " #TFT合宿", files: [file] };
       if (navigator.canShare && navigator.canShare(data)) await navigator.share(data);
@@ -831,7 +840,7 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     }
 
     // 特別賞（発表後だけ。左の列のロールの下に金色のリボン）
-    if (D.album.awardsOpen && e.awards.length){
+    if ((D.album.awardsOpen || EMBED) && e.awards.length){
       const a = e.awards[0];
       const label = a.icon + " " + a.name + (e.awards.length > 1 ? " ほか" + (e.awards.length - 1) : "");
       g.font = "900 17px " + JP; g.textAlign = "center";
@@ -1383,6 +1392,19 @@ a.role.mentor-chip .avf{font-size:11px;display:inline-grid;place-items:center}
     }
     const id = new URLSearchParams(location.search).get("id");
     if (id) viewPage(id); else viewList();
+    // 管理画面から「保存前の文言」が届いたら、その内容で証書を描き直す
+    if (EMBED && id){
+      let tm = null;
+      window.addEventListener("message", ev => {
+        if (ev.origin !== location.origin || !ev.data || ev.data.type !== "album-draft") return;
+        clearTimeout(tm);
+        tm = setTimeout(() => {
+          const al = C.normAlbum ? C.normAlbum(ev.data.album) : ev.data.album;
+          loadAll(al).then(() => viewPage(ev.data.id || id)).catch(err => console.warn(err));
+        }, 250);
+      });
+      try { parent.postMessage({ type: "album-cert-ready", id }, location.origin === "null" ? "*" : location.origin); } catch(x){}
+    }
   }).catch(err => {
     console.error(err);
     $("view").innerHTML = '<div class="panel"><div class="empty">卒業証書を読み込めませんでした。<br>' + esc(err.message) + "</div></div>";
