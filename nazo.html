@@ -129,7 +129,7 @@
   padding:14px 10px 12px;text-align:center;transition:transform .12s,border-color .12s,box-shadow .12s}
 .ch:hover:not(:disabled){transform:translateY(-2px);border-color:var(--nz2)}
 .ch:disabled{cursor:default}
-.ch .ci{width:72px;height:72px;border-radius:50%;margin:0 auto 8px;background:var(--nz2) center/cover no-repeat;display:grid;place-items:center;color:#fff;font-size:28px;font-weight:900}
+.ch .ci{width:72px;height:72px;border-radius:50%;margin:0 auto 8px;background:#fff center/cover no-repeat;border:1.5px solid var(--border);display:grid;place-items:center;color:var(--nz2);font-size:28px;font-weight:900}
 .ch b{display:block;font-size:19px;font-weight:900;letter-spacing:.04em;word-break:break-all}
 .ch .ck{position:absolute;top:8px;right:10px;font-size:13px;font-weight:900;color:var(--nzA);opacity:0}
 .ch.on{border-color:var(--nzA);background:color-mix(in srgb,var(--nzA) 14%,var(--surface));box-shadow:0 0 0 4px color-mix(in srgb,var(--nzA) 25%,transparent)}
@@ -496,10 +496,10 @@
     [{ key: "final", kind: "final" }, { key: "outro", kind: "outro" }]);
   const cleared = t => !!(t && t.result && t.result.ok);
   const revealed = t => !!(t && t.result);
-  // スタートすると5つの謎と最終回答はぜんぶ見られる。エピローグは管理者が結果を開示してから
+  // スタートすると5つの謎と最終回答はぜんぶ見られる。エピローグは、そのチームの結果が発表されたら（または管理者がエピローグを開いたら）
   function unlockedKey(t, key){
     if (key === "intro") return true;
-    if (key === "outro") return S.phase === "epilogue";
+    if (key === "outro") return S.phase === "epilogue" || revealed(t);   // 結果が発表されたチームは先にエピローグを開ける
     return !!t && playing() && slides().some(s => s.key === key);
   }
   const statusText = t => !t || !playing() ? "スタート前" : t.result ? (t.result.ok ? "🏆 正解" + (t.result.n === 2 ? "（2回目）" : "") : "❌ 不正解")
