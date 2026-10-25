@@ -90,8 +90,17 @@
 .stage:hover .nav{opacity:1}
 .stage .nav:disabled{display:none}
 .stage .nav.l{left:8px} .stage .nav.r{right:8px}
-.stage img.turn-n{animation:turnN .45s ease}
-.stage img.turn-p{animation:turnP .45s ease}
+.stage img.turn-n,.stage .ktext.turn-n{animation:turnN .45s ease}
+/* 紙芝居：画像を指定していないページは、文章を画面に大きく出す */
+.stage{container-type:inline-size}
+.stage .ktext{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:7% 9%;pointer-events:none;
+  background:url("assets/nazo/bg/bg_base.png") center/cover,linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B)}
+.stage .ktext>div{color:#fff;font-weight:900;text-align:center;white-space:pre-wrap;line-height:1.75;letter-spacing:.04em;word-break:auto-phrase;line-break:strict;
+  font-size:28px;font-size:4.4cqw;text-shadow:0 2px 14px rgba(0,0,0,.45);max-height:100%;overflow:hidden}
+.stage .ktext.ng{background:url("assets/nazo/bg/bg_base.png") center/cover,linear-gradient(150deg,#2A1E2A,#3A2638 55%,#4A2E3A)}
+.kvar{display:inline-block;margin-left:8px;padding:1px 10px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:.04em;vertical-align:middle}
+.kvar.ok{background:#E9F7EE;color:#1F8A4C}.kvar.ng{background:#FDECEC;color:#C8372D}
+.stage img.turn-p,.stage .ktext.turn-p{animation:turnP .45s ease}
 @keyframes turnN{from{opacity:0;transform:translateX(6%) rotateY(-12deg)}to{opacity:1;transform:none}}
 @keyframes turnP{from{opacity:0;transform:translateX(-6%) rotateY(12deg)}to{opacity:1;transform:none}}
 .kpg{position:absolute;left:12px;top:12px;z-index:3;padding:4px 12px;border-radius:999px;background:rgba(0,0,0,.5);color:#fff;font-size:12.5px;font-weight:900;letter-spacing:.06em;pointer-events:none}
@@ -100,6 +109,7 @@
 .kdots i.on{background:#fff;width:24px;border-radius:99px}
 .kbar{display:flex;align-items:center;gap:10px;margin-top:12px}
 .kbar .pgn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:14px;min-width:54px;text-align:center}
+.edsub{font-size:13.5px;font-weight:900;margin:16px 0 6px;padding-top:12px;border-top:1px dashed var(--border)}
 .kctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0;border-top:1px dashed var(--border)}
 .kctl img{width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#0E1E25}
 .kctl .pgn{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:16px;min-width:56px;text-align:center}
@@ -373,6 +383,10 @@
         { img: "assets/nazo/outro.png", text: "（1枚目）すべての謎が解けたとき──。" },
         { img: "assets/nazo/outro2.png", text: "（2枚目）（ここにアウトロのストーリーを書きます）" },
         { img: "assets/nazo/outro3.png", text: "（3枚目）めでたし、めでたし。" }],
+        // 最終回答に失敗したチームのエピローグ（画像を指定しなければ文章を画面に大きく出す）
+        fail: [
+          { img: "", text: "（1枚目）あと一歩、真相には届かなかった──。" },
+          { img: "", text: "（2枚目）（ここに失敗したときのストーリーを書きます）" }],
         explain: "（ここに全体の解説を書きます）", explainImg: "" },
       updatedAt: 0
     };
@@ -387,7 +401,10 @@
       // 古い形（画像1枚＋文章）はページ1枚として読む
       const src = Array.isArray(o.pages) && o.pages.length ? o.pages : (o.img != null || o.text != null ? [{ img: o.img, text: o.text }] : dd.pages);
       return { title: s(o.title, dd.title, 60), pages: src.slice(0, 30).map(pg => ({ img: s((pg || {}).img, "", 2000), text: s((pg || {}).text, "", 4000) })) }; };
-    const outro = Object.assign(io(raw.outro, d.outro), { explain: s((raw.outro || {}).explain, d.outro.explain), explainImg: s((raw.outro || {}).explainImg, "", 2000) });
+    const failSrc = Array.isArray((raw.outro || {}).fail) && raw.outro.fail.length ? raw.outro.fail : d.outro.fail;
+    const outro = Object.assign(io(raw.outro, d.outro), {
+      fail: failSrc.slice(0, 30).map(pg => ({ img: s((pg || {}).img, "", 2000), text: s((pg || {}).text, "", 4000) })),
+      explain: s((raw.outro || {}).explain, d.outro.explain), explainImg: s((raw.outro || {}).explainImg, "", 2000) });
     return {
       title: s(raw.title, d.title, 60), subtitle: s(raw.subtitle, "", 100), open: raw.open !== false, ranking: raw.ranking !== false,
       teamSize: Math.max(1, Math.min(8, raw.teamSize | 0 || 4)), teams,
@@ -429,9 +446,35 @@
   const pg = { intro: 0, outro: 0 };
   let turnDir = "";
   const isKami = k => k === "intro" || k === "outro";
-  const kPages = k => (cfg[k] && cfg[k].pages && cfg[k].pages.length ? cfg[k].pages : [{ img: "", text: "" }]);
+  /* エピローグは2パターン：最終回答に正解したチーム＝成功（pages）、それ以外＝失敗（fail） */
+  const outroVar = t => cleared(t) ? "ok" : "ng";
+  const kPagesOf = (k, v) => { const L = k === "outro" && v === "ng" ? cfg.outro.fail : (cfg[k] && cfg[k].pages);
+    return L && L.length ? L : [{ img: "", text: "" }]; };
+  const kPages = k => kPagesOf(k, k === "outro" ? outroVar(team()) : "ok");
   const kPg = k => Math.max(0, Math.min(kPages(k).length - 1, pg[k] | 0));
   const inkKey = () => isKami(slide) && kPg(slide) > 0 ? slide + "_p" + kPg(slide) : slide;   // 書き込みはページごと
+  const kMax = k => k === "outro" ? Math.max(kPagesOf(k, "ok").length, kPagesOf(k, "ng").length) : kPagesOf(k, "ok").length;
+  const gmView = () => !!spectate || IS_GM;      // 管理者・観戦中は、どちらのエピローグかを表示
+  // 画像なしのページ：文章が枠からはみ出すときは文字を小さくする
+  function fitKtext(){
+    const box = $("ktext"); if (!box) return;
+    const tx = box.firstChild; tx.style.fontSize = "";
+    let fs = parseFloat(getComputedStyle(tx).fontSize) || 28;
+    for (let i = 0; i < 40 && tx.scrollHeight > box.clientHeight * 0.86 && fs > 12; i++){ fs -= 1; tx.style.fontSize = fs + "px"; }
+  }
+  window.addEventListener("resize", () => fitKtext());
+  // 管理画面：紙芝居のページ一覧（intro / outro / outroFail）
+  const edPagesRef = k => k === "outroFail" ? edit.outro.fail : edit[k].pages;
+  function edPages(k, L){
+    const ph = k === "outroFail" ? "空のままなら文章を大きく表示" : "assets/nazo/" + (k === "intro" ? "intro" : "outro");
+    return L.map((pg, i) => '<div class="edpg" data-pk="' + k + '" data-pi="' + i + '"><div class="row"><b style="font-size:13px">📖 ' + (i + 1) + '枚目</b>' +
+        (pg.img ? "" : '<span class="note" style="margin-left:6px">（画像なし：文章を画面に大きく表示）</span>') + '<div class="spacer"></div>' +
+        '<button class="xbtn sm" data-pm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-pm="1"' + (i < L.length - 1 ? "" : " disabled") + ">▼</button>" +
+        '<button class="xbtn sm danger" data-pdel' + (L.length <= 1 ? " disabled" : "") + ">削除</button></div>" +
+      '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(pg.img) + '\')"></span><div style="flex:1;min-width:200px"><label>画像（空にすると文章を画面に大きく表示）</label>' +
+        '<input data-pf="img" value="' + esc(pg.img) + '" placeholder="' + esc(k === "outroFail" ? ph : ph + (i ? i + 1 : "") + ".png") + '"></div></div>' +
+      '<label>文章（画像があるときは画像の下に出ます）</label><textarea data-pf="text" style="min-height:80px">' + esc(pg.text) + "</textarea></div>").join("");
+  }
   function flip(d){                                   // 紙芝居をめくる。端まで来たら前後のスライドへ
     if (isKami(slide)){
       const n = kPg(slide) + d;
@@ -569,6 +612,8 @@
     const list = slides(), idx = list.findIndex(s => s.key === slide);
     const kp = isKami(sl.kind) ? kPg(sl.kind) : 0, kn = isKami(sl.kind) ? kPages(sl.kind).length : 0, page = isKami(sl.kind) ? kPages(sl.kind)[kp] : null, lastPg = !kn || kp === kn - 1;
     const img = page ? page.img : sl.kind === "final" ? cfg.final.img : sl.q.img;
+    const ktext = !!page && !img;          // 画像なし → 文章を画面に大きく出す（下の文章欄は出さない）
+    const ptext = ktext ? "" : '<div class="txt">' + esc(page ? page.text : "") + "</div>";
     const kbar = kn > 1 ? '<div class="kbar"><button class="xbtn sm" data-flip="-1"' + (kp ? "" : " disabled") + '>◀ 前</button><span class="pgn">' + (kp + 1) + " / " + kn + "</span>" +
       '<button class="xbtn sm' + (lastPg ? "" : " main") + '" data-flip="1"' + (lastPg ? " disabled" : "") + ">次 ▶</button>" +
       (!lastPg ? '<span class="note">← → キーや画像の左右でもめくれます</span>' : "") + "</div>" : "";
@@ -576,7 +621,7 @@
     const ro = !!spectate;
     let below = "";
     if (sl.kind === "intro"){
-      below = '<div class="no">PROLOGUE' + (kn > 1 ? " ・ " + (kp + 1) + " / " + kn : "") + '</div><h2>' + esc(cfg.intro.title) + '</h2><div class="txt">' + esc(page.text) + "</div>" + kbar +
+      below = '<div class="no">PROLOGUE' + (kn > 1 ? " ・ " + (kp + 1) + " / " + kn : "") + '</div><h2>' + esc(cfg.intro.title) + "</h2>" + ptext + kbar +
         (!playing() ? '<div class="exp" style="text-align:center;margin-top:14px"><b>⏳ スタートの合図を待っています</b><div class="note">管理者がスタートすると、全チームいっせいに第1の謎が開きます</div></div>'
                     : (cfg.questions[0] && lastPg ? '<div class="row" style="margin-top:12px"><button class="xbtn main" data-go="' + esc(cfg.questions[0].id) + '">第1の謎へ →</button></div>' : ""));
     } else if (sl.kind === "q"){
@@ -628,7 +673,10 @@
         (!r && f.hint ? (hinted ? '<div class="hint">💡 ' + esc(f.hint) + "</div>" : (ro ? "" : '<button class="xbtn sm" id="hintBtn" style="margin-top:8px">💡 ヒントを見る（チーム全員に出ます）</button>')) : "");
     } else {
       const o = cfg.outro;
-      below = '<div class="no">EPILOGUE' + (kn > 1 ? " ・ " + (kp + 1) + " / " + kn : "") + '</div><h2>' + esc(o.title) + '</h2><div class="txt">' + esc(page.text) + "</div>" + kbar +
+      const ov = outroVar(t);
+      below = '<div class="no">EPILOGUE' + (kn > 1 ? " ・ " + (kp + 1) + " / " + kn : "") +
+          (gmView() ? '<span class="kvar ' + ov + '">' + (ov === "ok" ? "🏆 成功のエピローグ" : "💧 失敗のエピローグ") + "</span>" : "") +
+          '</div><h2>' + esc(o.title) + "</h2>" + ptext + kbar +
         (!lastPg ? "" :                                   // 結果と解説は最後のページで
         (Object.keys(t.kw).length ? '<div class="note" style="margin-top:12px;font-weight:900">あなたのチームのキーワード' + (t.answer ? " ・ 最終回答「" + esc(t.answer.ans) + "」" : "") + "</div>" + kwGrid(t) : "") +
         (cleared(t) ? '<div class="clear"><div style="font-size:34px">🏆</div><h3>全問クリア！</h3><div style="font-weight:900">提出までのタイム ' + fmt(t.answer.at - S.startAt) + "</div></div>"
@@ -653,7 +701,8 @@
           '<button class="tb" id="zoomBtn" title="画像を大きく見る">⛶</button>' +
         "</div>" +
         '<div class="stage ' + (ro ? "" : tool) + '" id="stage">' +
-          (img ? '<img id="simg"' + (turnDir && isKami(sl.kind) ? ' class="turn-' + turnDir + '"' : "") + ' src="' + esc(img) + '" alt="">' : '<div class="lock" style="background:linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B);font-size:30px;letter-spacing:.12em">🔑 ' + esc(title) + "</div>") + '<canvas id="ink"></canvas>' +
+          (ktext ? '<div class="ktext' + (sl.kind === "outro" && outroVar(t) === "ng" ? " ng" : "") + (turnDir ? " turn-" + turnDir : "") + '" id="ktext"><div>' + esc(page.text) + "</div></div>"
+           : img ? '<img id="simg"' + (turnDir && isKami(sl.kind) ? ' class="turn-' + turnDir + '"' : "") + ' src="' + esc(img) + '" alt="">' : '<div class="lock" style="background:linear-gradient(150deg,#16323D,#1F4E5F 55%,#2E6B6B);font-size:30px;letter-spacing:.12em">🔑 ' + esc(title) + "</div>") + '<canvas id="ink"></canvas>' +
           (kn > 1 ? '<span class="kpg">📖 ' + (kp + 1) + " / " + kn + '</span><div class="kdots">' + Array.from({ length: kn }, (_, i) => "<i" + (i === kp ? ' class="on"' : "") + "></i>").join("") + "</div>" : "") +
           '<button class="nav l" data-step="-1"' + (idx > 0 || kp > 0 ? "" : " disabled") + ">‹</button>" +
           '<button class="nav r" data-step="1"' + (!lastPg || (idx < list.length - 1 && unlockedKey(t, list[idx + 1].key)) ? "" : " disabled") + ">›</button>" +
@@ -682,6 +731,7 @@
     bindGame();
     updateSide(); updateKw();
     if ($("simg")) $("simg").onload = () => drawInk();
+    fitKtext();
     drawInk();
   }
   // 5つの謎のキーワード一覧（最終回答・エピローグ用）
@@ -1002,13 +1052,16 @@
             '<button class="xbtn' + (S.phase === "play" ? " main" : "") + '" data-phase="play">▶ 謎解きスタート</button>' +
             '<button class="xbtn' + (S.phase === "epilogue" ? " main" : "") + '" data-phase="epilogue">🌙 エピローグを開く</button>' +
           "</div>" +
-          ["intro", "outro"].map(k => { const n = kPages(k).length, v = Math.min(S[k + "Pg"], n - 1), pgx = kPages(k)[v];
+          ["intro", "outro"].map(k => { const n = kMax(k), v = Math.min(S[k + "Pg"], n - 1), pgx = kPagesOf(k, "ok")[Math.min(v, kPagesOf(k, "ok").length - 1)];
+            const fx = k === "outro" ? kPagesOf(k, "ng")[Math.min(v, kPagesOf(k, "ng").length - 1)] : null;
+            const pv = x => x.img ? '<img src="' + esc(x.img) + '" alt="">' : '<span class="note" style="padding:4px 8px;border:1px dashed var(--border);border-radius:8px">文字だけ</span>';
             return '<div class="kctl"><b style="min-width:150px">📖 ' + (k === "intro" ? "プロローグ" : "エピローグ") + "の紙芝居</b>" +
-              (pgx.img ? '<img src="' + esc(pgx.img) + '" alt="">' : "") +
+              (fx ? '<span class="kvar ok">成功</span>' + pv(pgx) + '<span class="kvar ng">失敗</span>' + pv(fx) : pv(pgx)) +
               '<button class="xbtn sm" data-kpg="' + k + '|-1"' + (v > 0 ? "" : " disabled") + '>◀</button><span class="pgn">' + (v + 1) + " / " + n + "</span>" +
               '<button class="xbtn sm main" data-kpg="' + k + '|1"' + (v < n - 1 ? "" : " disabled") + ">▶ めくる</button>" +
               '<button class="xbtn sm" data-kpg="' + k + '|0">1枚目へ</button>' +
-              '<span class="note" style="flex-basis:100%;margin-left:158px">' + esc((pgx.text || "").slice(0, 60)) + ((pgx.text || "").length > 60 ? "…" : "") + "</span></div>"; }).join("") +
+              '<span class="note" style="flex-basis:100%;margin-left:158px">' + (fx ? "成功：" : "") + esc((pgx.text || "").slice(0, 60)) + ((pgx.text || "").length > 60 ? "…" : "") +
+                (fx ? "<br>失敗：" + esc((fx.text || "").slice(0, 60)) + ((fx.text || "").length > 60 ? "…" : "") : "") + "</span></div>"; }).join("") +
           '<div class="note" style="margin-top:8px">紙芝居：◀ ▶ でめくると、全チームの画面が同じページに動きます（チームは自分でもめくれます）<br>プロローグ：全チームがプロローグの画面で待機（謎は開きません）／ 謎解きスタート：全チームが第1の謎へ移動し、タイム計測開始 ／ エピローグ：全チームがエピローグへ移動（提出は締め切り）' +
             (waiting ? '<br><b style="color:var(--danger)">発表していないチームが ' + waiting + " チームあります</b>" : "") + "</div></div></div>";
       html += '<div class="panel"><div class="phead"><h2>📊 チームの進行</h2></div><div class="pbody" style="overflow:auto"><table class="tbl"><tr><th>チーム</th><th>メンバー</th>' +
@@ -1043,13 +1096,9 @@
           edit.teams.map((t, i) => '<div class="row" style="margin-bottom:6px"><input type="color" data-tc="' + i + '" value="' + t.color + '"><input data-tn="' + i + '" value="' + esc(t.name) + '" maxlength="30" style="flex:1">' +
             '<button class="xbtn sm danger" data-tdel="' + i + '">削除</button></div>').join("") +
           '<button class="xbtn sm" id="tadd">＋ チームを足す</button></div></div>' +
-        '<div class="panel ed"><div class="phead"><h2>🌅 イントロ（紙芝居）</h2><span class="sub">ページごとに画像＋文章。プロローグ中は「チームの進行」から全チームいっせいにめくれます</span></div><div class="pbody">' +
+        '<div class="panel ed"><div class="phead"><h2>🌅 イントロ（紙芝居）</h2><span class="sub">ページごとに画像＋文章（画像を空にすると、文章が画面に大きく出ます）。プロローグ中は「チームの進行」から全チームいっせいにめくれます</span></div><div class="pbody">' +
           '<label>見出し</label><input data-p="intro.title" value="' + esc(edit.intro.title) + '">' +
-          edit.intro.pages.map((pg, i) => '<div class="edpg" data-pk="intro" data-pi="' + i + '"><div class="row"><b style="font-size:13px">📖 ' + (i + 1) + '枚目</b><div class="spacer"></div>' +
-              '<button class="xbtn sm" data-pm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-pm="1"' + (i < edit.intro.pages.length - 1 ? "" : " disabled") + ">▼</button>" +
-              '<button class="xbtn sm danger" data-pdel' + (edit.intro.pages.length <= 1 ? " disabled" : "") + ">削除</button></div>" +
-            '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(pg.img) + '\')"></span><div style="flex:1;min-width:200px"><label>画像</label><input data-pf="img" value="' + esc(pg.img) + '" placeholder="assets/nazo/intro' + (i ? i + 1 : "") + '.png"></div></div>' +
-            '<label>文章（画像の下に出ます）</label><textarea data-pf="text" style="min-height:80px">' + esc(pg.text) + "</textarea></div>").join("") +
+          edPages("intro", edit.intro.pages) +
           '<button class="xbtn sm" data-padd="intro">＋ ページを足す</button>' +
           "</div></div>" +
         '<div class="panel ed"><div class="phead"><h2>🧩 問題</h2><span class="sub">画像は 16:9（例 1600×900）がおすすめ</span></div><div class="pbody">' +
@@ -1079,14 +1128,14 @@
           '<button class="xbtn sm" id="cadd"' + (edit.final.choices.length >= 8 ? " disabled" : "") + ">＋ 選択肢を足す</button>" +
           '<div class="note" style="margin-top:6px">⭕ をつけた選択肢を選んだチームが正解になります（複数につけてもOK）。「📣 発表」でこの設定どおりに結果が出ます</div>' +
           '<label>ヒント（任意）</label><textarea data-p="final.hint" style="min-height:60px">' + esc(edit.final.hint) + "</textarea></div></div>" +
-        '<div class="panel ed"><div class="phead"><h2>🌙 アウトロ（紙芝居＋解説）</h2><span class="sub">エピローグで開きます。結果と解説は最後のページの下に出ます</span></div><div class="pbody">' +
+        '<div class="panel ed"><div class="phead"><h2>🌙 アウトロ（紙芝居＋解説）</h2><span class="sub">エピローグで開きます。正解したチームには「成功」、それ以外のチームには「失敗」の紙芝居が出ます。結果と解説は最後のページの下に出ます</span></div><div class="pbody">' +
           '<label>見出し</label><input data-p="outro.title" value="' + esc(edit.outro.title) + '">' +
-          edit.outro.pages.map((pg, i) => '<div class="edpg" data-pk="outro" data-pi="' + i + '"><div class="row"><b style="font-size:13px">📖 ' + (i + 1) + '枚目</b><div class="spacer"></div>' +
-              '<button class="xbtn sm" data-pm="-1"' + (i ? "" : " disabled") + '>▲</button><button class="xbtn sm" data-pm="1"' + (i < edit.outro.pages.length - 1 ? "" : " disabled") + ">▼</button>" +
-              '<button class="xbtn sm danger" data-pdel' + (edit.outro.pages.length <= 1 ? " disabled" : "") + ">削除</button></div>" +
-            '<div class="row" style="align-items:flex-end"><span class="pv" style="background-image:url(\'' + esc(pg.img) + '\')"></span><div style="flex:1;min-width:200px"><label>画像</label><input data-pf="img" value="' + esc(pg.img) + '" placeholder="assets/nazo/outro' + (i ? i + 1 : "") + '.png"></div></div>' +
-            '<label>文章（画像の下に出ます）</label><textarea data-pf="text" style="min-height:80px">' + esc(pg.text) + "</textarea></div>").join("") +
+          '<h3 class="edsub">🏆 成功したとき（最終回答に正解したチーム）</h3>' +
+          edPages("outro", edit.outro.pages) +
           '<button class="xbtn sm" data-padd="outro">＋ ページを足す</button>' +
+          '<h3 class="edsub">💧 失敗したとき（不正解・未提出のチーム）</h3>' +
+          edPages("outroFail", edit.outro.fail) +
+          '<button class="xbtn sm" data-padd="outroFail">＋ ページを足す</button>' +
           '<label style="margin-top:14px">解説</label><textarea data-p="outro.explain" style="min-height:140px">' + esc(edit.outro.explain) + "</textarea>" +
           '<label>解説の画像（任意）</label><input data-p="outro.explainImg" value="' + esc(edit.outro.explainImg) + '" placeholder="assets/nazo/explain.png"></div></div>' +
         '<div class="savebar' + (dirty ? " dirty" : "") + '"><b style="font-size:12.5px">謎解き</b><span class="note">' + (dirty ? "未保存の変更があります" : "保存済み") + '</span><div class="spacer"></div>' +
@@ -1113,7 +1162,7 @@
     document.querySelectorAll("[data-spec]").forEach(b => b.onclick = () => { spectate = b.dataset.spec; gm = false; slide = (T[spectate] && T[spectate].cur) || "intro"; lastKey = ""; render(); });
     document.querySelectorAll("[data-kick]").forEach(b => b.onclick = () => { const [tid, k] = b.dataset.kick.split("|"); if (confirm("このメンバーをチームから外しますか？")) store.del(TDOC(tid), "members." + k).catch(e => toast(e.message)); });
     document.querySelectorAll("[data-kpg]").forEach(b => b.onclick = async () => {
-      const [k, d] = b.dataset.kpg.split("|"), n = kPages(k).length;
+      const [k, d] = b.dataset.kpg.split("|"), n = kMax(k);
       const v = d === "0" ? 0 : Math.max(0, Math.min(n - 1, Math.min(S[k + "Pg"], n - 1) + Number(d)));
       try { await store.merge(DOC_ST, { [k + "Pg"]: v }); } catch(e){ toast(e.message); }
     });
@@ -1188,7 +1237,7 @@
     });
     $("cadd").onclick = () => { const n = edit.final.choices.length + 1; edit.final.choices.push({ id: "c" + uid(), label: "選択肢" + n, img: "", ok: false, msgPick: "", msgR1: "", msgR2: "" }); dirty = true; render(); };
     document.querySelectorAll("[data-pi]").forEach(box => {
-      const k = box.dataset.pk, i = +box.dataset.pi, L = edit[k].pages, pgx = L[i];
+      const k = box.dataset.pk, i = +box.dataset.pi, L = edPagesRef(k), pgx = L[i];
       box.querySelectorAll("[data-pf]").forEach(el => el.oninput = () => {
         pgx[el.dataset.pf] = el.value; mark();
         if (el.dataset.pf === "img") box.querySelector(".pv").style.backgroundImage = "url('" + el.value.replace(/'/g, "") + "')";
@@ -1196,7 +1245,8 @@
       box.querySelectorAll("[data-pm]").forEach(b => b.onclick = () => { const j = i + Number(b.dataset.pm); [L[i], L[j]] = [L[j], L[i]]; dirty = true; render(); });
       box.querySelector("[data-pdel]").onclick = () => { if (confirm((i + 1) + "枚目を削除しますか？")){ L.splice(i, 1); dirty = true; render(); } };
     });
-    document.querySelectorAll("[data-padd]").forEach(b => b.onclick = () => { const k = b.dataset.padd, L = edit[k].pages; L.push({ img: "assets/nazo/" + k + (L.length + 1) + ".png", text: "" }); dirty = true; render(); });
+    document.querySelectorAll("[data-padd]").forEach(b => b.onclick = () => { const k = b.dataset.padd, L = edPagesRef(k);
+      L.push({ img: k === "outroFail" ? "" : "assets/nazo/" + k + (L.length + 1) + ".png", text: "" }); dirty = true; render(); });
     $("qadd").onclick = () => { const n = edit.questions.length + 1; edit.questions.push({ id: "q" + uid(), title: "第" + n + "の謎", img: "assets/nazo/q" + n + ".png", text: "", hint: "", kwHint: "" }); dirty = true; render(); };
     $("erev").onclick = () => { if (!dirty || confirm("編集中の内容を捨てますか？")){ edit = null; render(); } };
     $("esave").onclick = async () => {
