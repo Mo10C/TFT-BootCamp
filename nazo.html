@@ -453,6 +453,7 @@
   const kPages = k => kPagesOf(k, k === "outro" ? outroVar(team()) : "ok");
   const kPg = k => Math.max(0, Math.min(kPages(k).length - 1, pg[k] | 0));
   const inkKey = () => isKami(slide) && kPg(slide) > 0 ? slide + "_p" + kPg(slide) : slide;   // 書き込みはページごと
+  const badImg = {};   // 読めなかった画像（ファイルが無い・パス違い）
   const kMax = k => k === "outro" ? Math.max(kPagesOf(k, "ok").length, kPagesOf(k, "ng").length) : kPagesOf(k, "ok").length;
   const gmView = () => !!spectate || IS_GM;      // 管理者・観戦中は、どちらのエピローグかを表示
   // 画像なしのページ：文章が枠からはみ出すときは文字を小さくする
@@ -460,7 +461,8 @@
     const box = $("ktext"); if (!box) return;
     const tx = box.firstChild; tx.style.fontSize = "";
     let fs = parseFloat(getComputedStyle(tx).fontSize) || 28;
-    for (let i = 0; i < 40 && tx.scrollHeight > box.clientHeight * 0.86 && fs > 12; i++){ fs -= 1; tx.style.fontSize = fs + "px"; }
+    const bs = getComputedStyle(box), avail = box.clientHeight - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom);
+    for (let i = 0; i < 60 && tx.scrollHeight > avail && fs > 12; i++){ fs -= 1; tx.style.fontSize = fs + "px"; }
   }
   window.addEventListener("resize", () => fitKtext());
   // 管理画面：紙芝居のページ一覧（intro / outro / outroFail）
@@ -611,7 +613,8 @@
     lastKey = key;
     const list = slides(), idx = list.findIndex(s => s.key === slide);
     const kp = isKami(sl.kind) ? kPg(sl.kind) : 0, kn = isKami(sl.kind) ? kPages(sl.kind).length : 0, page = isKami(sl.kind) ? kPages(sl.kind)[kp] : null, lastPg = !kn || kp === kn - 1;
-    const img = page ? page.img : sl.kind === "final" ? cfg.final.img : sl.q.img;
+    const img0 = page ? page.img : sl.kind === "final" ? cfg.final.img : sl.q.img;
+    const img = page && badImg[img0] ? "" : img0;   // 紙芝居で画像が読めなかったときは、文字を大きく出す
     const ktext = !!page && !img;          // 画像なし → 文章を画面に大きく出す（下の文章欄は出さない）
     const ptext = ktext ? "" : '<div class="txt">' + esc(page ? page.text : "") + "</div>";
     const kbar = kn > 1 ? '<div class="kbar"><button class="xbtn sm" data-flip="-1"' + (kp ? "" : " disabled") + '>◀ 前</button><span class="pgn">' + (kp + 1) + " / " + kn + "</span>" +
@@ -730,7 +733,10 @@
     $("memo").value = t.memo;
     bindGame();
     updateSide(); updateKw();
-    if ($("simg")) $("simg").onload = () => drawInk();
+    if ($("simg")){
+      $("simg").onload = () => drawInk();
+      if (page) $("simg").onerror = () => { badImg[img0] = true; lastKey = ""; render(); };
+    }
     fitKtext();
     drawInk();
   }
@@ -1246,7 +1252,7 @@
       box.querySelector("[data-pdel]").onclick = () => { if (confirm((i + 1) + "枚目を削除しますか？")){ L.splice(i, 1); dirty = true; render(); } };
     });
     document.querySelectorAll("[data-padd]").forEach(b => b.onclick = () => { const k = b.dataset.padd, L = edPagesRef(k);
-      L.push({ img: k === "outroFail" ? "" : "assets/nazo/" + k + (L.length + 1) + ".png", text: "" }); dirty = true; render(); });
+      L.push({ img: "", text: "" }); dirty = true; render(); });
     $("qadd").onclick = () => { const n = edit.questions.length + 1; edit.questions.push({ id: "q" + uid(), title: "第" + n + "の謎", img: "assets/nazo/q" + n + ".png", text: "", hint: "", kwHint: "" }); dirty = true; render(); };
     $("erev").onclick = () => { if (!dirty || confirm("編集中の内容を捨てますか？")){ edit = null; render(); } };
     $("esave").onclick = async () => {
