@@ -974,8 +974,8 @@ body.ad-on{overflow:hidden}
       <div id="snapResults"></div>
       <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
         <select id="snapImgDay"></select>
-        <button class="mini" id="snapImgNow" type="button">🖼 この回の画像を今すぐ投稿</button>
-        <span class="hint">Botが1分以内に連絡事項へ投稿します（テスト・出し直し用）</span>
+        <button class="mini" id="snapImgNow" type="button">🧪 この回の画像を実験チャンネルへ投稿</button>
+        <span class="hint">Botが1分以内に実験チャンネル（「メッセージ」タブで設定）へ投稿します（テスト用）</span>
       </div>
       <div class="hint" id="snapImgStat" style="margin-top:6px;font-weight:700"></div>
     </div>
@@ -1019,6 +1019,20 @@ body.ad-on{overflow:hidden}
     </div>
 
     <div class="card">
+      <h2>🧪 実験チャンネル（Botの画像投稿）</h2>
+      <div class="lead">「今すぐ投稿」ボタン（急上昇・ランクアップ・先生スナップショット）は、<b>連絡事項ではなくこのチャンネル</b>に投稿します。
+        試しても本番のチャンネルには出ません。</div>
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <label style="font-size:12.5px;font-weight:700">チャンネルID</label>
+        <input type="text" id="bcTest" inputmode="numeric" style="width:230px" placeholder="1540746100204638208">
+        <label class="chk"><input type="checkbox" id="bcAll"> 毎日の自動投稿（画像）も実験チャンネルへ送る（テスト期間用）</label>
+        <button class="mini grad" id="bcSave" type="button">💾 保存</button>
+      </div>
+      <div class="hint" style="margin-top:6px">※ Worker が出す文字だけの投稿（ランクアップ・予定・スナップショットの文字）は、今までどおり連絡事項に出ます。
+        Botがこのチャンネルを見られるように、チャンネルの権限で Bot に「チャンネルを見る」「メッセージを送信」「ファイルを添付」を付けてください。</div>
+    </div>
+
+    <div class="card">
       <h2>📈 急上昇の画像投稿（Bot）</h2>
       <div class="lead">毎日 <b>23:50</b> に、その日23:45のLP集計から<b>「スタートからの伸び」「1日の伸び」</b>のランキング画像を作って、連絡事項へ投稿します。
         投稿するのは常駐Bot（chc-vc-bot）です。文面は下の「急上昇（…）・画像つき」で編集できます。</div>
@@ -1031,10 +1045,26 @@ body.ad-on{overflow:hidden}
       </div>
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
         <input type="date" id="rsDay">
-        <button class="mini" id="rsNow" type="button">📤 この日の分を今すぐ投稿</button>
-        <span class="hint">テスト用。1分以内にBotが投稿します（一時停止中でも投稿します）</span>
+        <button class="mini" id="rsNow" type="button">🧪 この日の分を実験チャンネルへ投稿</button>
+        <span class="hint">テスト用。1分以内にBotが実験チャンネルへ投稿します（一時停止中でも投稿します）</span>
       </div>
       <div class="hint" id="rsStat" style="margin-top:8px;font-weight:700">—</div>
+    </div>
+
+    <div class="card">
+      <h2>🎊 ランクアップの画像投稿（Bot）</h2>
+      <div class="lead">23:45の集計でティアが上がった人を、急上昇と同じ体裁の画像にして連絡事項へ投稿します（前のティア → 新しいティア）。
+        画像は常駐Bot（chc-vc-bot）が作ります。文面は下の「ランクアップのお祝い」で編集できます。</div>
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <select id="puMode">
+          <option value="both">文字のあとに画像も投稿（文字：Worker・画像：Bot）</option>
+          <option value="bot">文字＋画像を1通で投稿（Botがまとめて投稿）</option>
+          <option value="text">画像なし（文字だけ）</option>
+        </select>
+        <button class="mini grad" id="puSave" type="button">💾 保存</button>
+        <button class="mini" id="puNow" type="button">🧪 最新のランクアップを実験チャンネルへ投稿</button>
+      </div>
+      <div class="hint" id="puStat" style="margin-top:8px;font-weight:700">—</div>
     </div>
 
     <div id="msgCards"></div>
@@ -3196,7 +3226,7 @@ body.ad-on{overflow:hidden}
   $("snapImgNow").onclick = async () => {
     const v = $("snapImgDay").value;
     if (!v){ toast("まだ結果がありません"); return; }
-    if (!confirm("連絡事項に、" + (v === "__final" ? "表彰" : v + " の結果") + "の画像を実際に投稿します。よろしいですか？")) return;
+    if (!confirm("実験チャンネルに、" + (v === "__final" ? "表彰" : v + " の結果") + "の画像を投稿します。よろしいですか？")) return;
     try { await C.requestSnapshotImage(v === "__final" ? "" : v, v === "__final"); toast("Botに頼みました。1分以内に投稿されます"); setTimeout(loadSnap, 70000); }
     catch(e){ toast(e.message); }
   };
@@ -3284,14 +3314,43 @@ body.ad-on{overflow:hidden}
     };
     $("rsNow").onclick = async () => {
       const d = $("rsDay").value;
-      if (!confirm((d || "前日") + " の分を、連絡事項に実際に投稿します。よろしいですか？")) return;
+      if (!confirm((d || "前日") + " の分を、実験チャンネルに投稿します。よろしいですか？")) return;
       try { await C.requestRisingPost(d); toast("Botに頼みました。1分以内に投稿されます"); loadRisingCard(); setTimeout(loadRisingCard, 70000); }
       catch(e){ toast(e.message); }
     };
   }
 
+  /* ---- ランクアップの画像投稿（Bot） ---- */
+  async function loadPromoteCard(){
+    if (!C.loadPromoteImg) return;
+    let r;
+    try { r = await C.loadPromoteImg(); } catch(e){ $("puStat").textContent = "読み込めませんでした：" + e.message; return; }
+    $("puMode").value = r.imageMode;
+    $("puStat").textContent = (r.last ? "最新の記録：" + (r.last.day || "") + " " + (r.last.rows || []).map(x => x.name + "（" + x.from + "→" + x.to + "）").join("、") : "まだランクアップの記録がありません（23:45の集計で上がった人が出ると記録されます）") +
+      (r.imgLastResult ? "　／ 最後の画像投稿：" + r.imgLastResult : "") + (r.imgRequestAt > r.imgHandledAt ? "　⏳ 今すぐ投稿を待っています…" : "");
+  }
+  if ($("puSave")) {
+    $("puSave").onclick = async () => { try { await C.savePromoteImgMode($("puMode").value); toast("ランクアップの画像投稿の設定を保存しました"); } catch(e){ toast(e.message); } };
+    $("puNow").onclick = async () => {
+      if (!confirm("最新のランクアップを、実験チャンネルに投稿します。よろしいですか？")) return;
+      try { await C.requestPromoteImage(); toast("Botに頼みました。1分以内に投稿されます"); setTimeout(loadPromoteCard, 70000); } catch(e){ toast(e.message); }
+    };
+  }
+
+  /* ---- 実験チャンネル ---- */
+  async function loadBotCfgCard(){
+    if (!C.loadBotCfg) return;
+    try { const c = await C.loadBotCfg(); $("bcTest").value = c.testChannelId; $("bcAll").checked = c.testAll; } catch(e){}
+  }
+  if ($("bcSave")) $("bcSave").onclick = async () => {
+    try { await C.saveBotCfg({ testChannelId: $("bcTest").value, testAll: $("bcAll").checked });
+      toast($("bcAll").checked ? "保存しました（Botの自動投稿もすべて実験チャンネルへ出ます）" : "保存しました"); } catch(e){ toast(e.message); }
+  };
+
   async function loadMsgs(){
+    loadBotCfgCard();
     loadRisingCard();
+    loadPromoteCard();
     try { msgData = await C.loadMessages(); }
     catch(e){ toast("文面の読み込みに失敗: " + e.message); return; }
     msgEdit = JSON.parse(JSON.stringify(msgData));

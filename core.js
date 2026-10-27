@@ -2274,6 +2274,52 @@
     return s;
   }
 
+  /* Bot（chc-vc-bot）の投稿先の設定：lboard_index/botcfg { testChannelId, testAll }
+       testChannelId … 「今すぐ投稿」（テスト）の投稿先
+       testAll       … オンにすると、Bot の毎日の自動投稿（画像）も実験チャンネルへ */
+  const TEST_CHANNEL_DEFAULT = "1540746100204638208";
+  async function loadBotCfg() {
+    const db = openDb();
+    let raw = null;
+    if (db) { const snap = await db.collection("lboard_index").doc("botcfg").get(); raw = snap.exists ? snap.data() : null; }
+    raw = raw || {};
+    return { testChannelId: /^\d{15,25}$/.test(String(raw.testChannelId || "")) ? String(raw.testChannelId) : TEST_CHANNEL_DEFAULT, testAll: !!raw.testAll };
+  }
+  async function saveBotCfg(c) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const id = String((c && c.testChannelId) || "").trim();
+    if (!/^\d{15,25}$/.test(id)) throw new Error("チャンネルIDは数字だけ（15〜25桁）で入れてください");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため保存できません");
+    await db.collection("lboard_index").doc("botcfg").set({ testChannelId: id, testAll: !!c.testAll, updatedAt: Date.now() }, { merge: true });
+  }
+
+  /* ランクアップの画像投稿（chc-vc-bot の promote-poster.js）
+       lboard_index/promote { imageMode: both|bot|text, imgRequestAt, imgHandledAt, imgLastResult,
+                              runs: { <時刻>: { at, day, rows:[{id,name,from,to,division,lp}], botAt } } }  ← runs は Worker が書く */
+  async function loadPromoteImg() {
+    const db = openDb();
+    let raw = null;
+    if (db) { const snap = await db.collection("lboard_index").doc("promote").get(); raw = snap.exists ? snap.data() : null; }
+    raw = raw || {};
+    const runs = Object.values(raw.runs || {}).filter(r => r && r.at).sort((a, b) => b.at - a.at);
+    return { imageMode: ["both", "bot", "text"].indexOf(raw.imageMode) >= 0 ? raw.imageMode : "both",
+      imgRequestAt: raw.imgRequestAt || 0, imgHandledAt: raw.imgHandledAt || 0, imgLastResult: String(raw.imgLastResult || ""),
+      last: runs[0] || null };
+  }
+  async function savePromoteImgMode(mode) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため保存できません");
+    await db.collection("lboard_index").doc("promote").set({ imageMode: ["both", "bot", "text"].indexOf(mode) >= 0 ? mode : "both" }, { merge: true });
+  }
+  async function requestPromoteImage() {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため使えません");
+    await db.collection("lboard_index").doc("promote").set({ imgRequestAt: Date.now() }, { merge: true });
+  }
+
   /* 結果の画像を、Bot（chc-vc-bot）に今すぐ投稿してもらう（テスト・出し直し用） */
   async function requestSnapshotImage(day, isFinal) {
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
@@ -4586,6 +4632,7 @@
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
     loadRising, saveRising, requestRisingPost, requestSnapshotImage,
+    loadPromoteImg, savePromoteImgMode, requestPromoteImage, loadBotCfg, saveBotCfg,
     fillTemplate, buildMessage, sampleMessageVars, MSG_CHANNELS, channelName,
     isPresent, presentList, presentUnits,
     isDouble, slotCount, SEATS_PER_TABLE_SOLO: 8, TEAMS_PER_TABLE, TEAM_SIZE,
