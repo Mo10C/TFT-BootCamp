@@ -2313,19 +2313,19 @@
     if (!db) throw new Error("Firebase に接続していないため保存できません");
     await db.collection("lboard_index").doc("promote").set({ imageMode: ["both", "bot", "text"].indexOf(mode) >= 0 ? mode : "both" }, { merge: true });
   }
-  async function requestPromoteImage() {
+  async function requestPromoteImage(dummy) {
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const db = openDb();
     if (!db) throw new Error("Firebase に接続していないため使えません");
-    await db.collection("lboard_index").doc("promote").set({ imgRequestAt: Date.now() }, { merge: true });
+    await db.collection("lboard_index").doc("promote").set({ imgRequestAt: Date.now(), imgRequestDummy: !!dummy }, { merge: true });
   }
 
   /* 結果の画像を、Bot（chc-vc-bot）に今すぐ投稿してもらう（テスト・出し直し用） */
-  async function requestSnapshotImage(day, isFinal) {
+  async function requestSnapshotImage(day, isFinal, dummy) {
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const db = openDb();
     if (!db) throw new Error("Firebase に接続していないため使えません");
-    await db.collection("lboard_index").doc(SNAP_DOC).set({ imgRequestAt: Date.now(), imgRequestDay: day || "", imgRequestFinal: !!isFinal }, { merge: true });
+    await db.collection("lboard_index").doc(SNAP_DOC).set({ imgRequestAt: Date.now(), imgRequestDay: day || "", imgRequestFinal: !!isFinal, imgRequestDummy: !!dummy }, { merge: true });
   }
 
   /* 全回の合計ポイント順。同点なら最後に測ったLPが高いほう → 名前順 */
@@ -3869,11 +3869,11 @@
     return n;
   }
   // 「今すぐ投稿」：Bot が1分以内に拾って投稿する（一時停止は無視）
-  async function requestRisingPost(day) {
+  async function requestRisingPost(day, dummy) {
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const db = openDb();
     if (!db) throw new Error("Firebase に接続していないため使えません");
-    await db.collection("lboard_index").doc("rising").set({ requestAt: Date.now(), requestDay: day || "" }, { merge: true });
+    await db.collection("lboard_index").doc("rising").set({ requestAt: Date.now(), requestDay: day || "", requestDummy: !!dummy }, { merge: true });
   }
 
   async function loadMessages() {

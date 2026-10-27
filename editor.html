@@ -975,6 +975,8 @@ body.ad-on{overflow:hidden}
       <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
         <select id="snapImgDay"></select>
         <button class="mini" id="snapImgNow" type="button">🧪 この回の画像を実験チャンネルへ投稿</button>
+        <button class="mini" id="snapDummy" type="button">🎲 ダミーで結果を投稿</button>
+        <button class="mini" id="snapDummyF" type="button">🎲 ダミーで表彰を投稿</button>
         <span class="hint">Botが1分以内に実験チャンネル（「メッセージ」タブで設定）へ投稿します（テスト用）</span>
       </div>
       <div class="hint" id="snapImgStat" style="margin-top:6px;font-weight:700"></div>
@@ -1046,6 +1048,7 @@ body.ad-on{overflow:hidden}
       <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
         <input type="date" id="rsDay">
         <button class="mini" id="rsNow" type="button">🧪 この日の分を実験チャンネルへ投稿</button>
+        <button class="mini" id="rsDummy" type="button">🎲 ダミーデータで投稿</button>
         <span class="hint">テスト用。1分以内にBotが実験チャンネルへ投稿します（一時停止中でも投稿します）</span>
       </div>
       <div class="hint" id="rsStat" style="margin-top:8px;font-weight:700">—</div>
@@ -1063,6 +1066,7 @@ body.ad-on{overflow:hidden}
         </select>
         <button class="mini grad" id="puSave" type="button">💾 保存</button>
         <button class="mini" id="puNow" type="button">🧪 最新のランクアップを実験チャンネルへ投稿</button>
+        <button class="mini" id="puDummy" type="button">🎲 ダミーデータで投稿</button>
       </div>
       <div class="hint" id="puStat" style="margin-top:8px;font-weight:700">—</div>
     </div>
@@ -3223,6 +3227,11 @@ body.ad-on{overflow:hidden}
 
   $("snapEnabled").onchange = () => { snapEdit.enabled = $("snapEnabled").checked; markSnapDirty(); };
   $("snapImgMode").onchange = () => { snapEdit.imageMode = $("snapImgMode").value; markSnapDirty(); };
+  [["snapDummy", false], ["snapDummyF", true]].forEach(([id, fin]) => $(id).onclick = async () => {
+    if (!confirm("ダミーデータ（名簿からランダムに選んだ人・架空のポイント）で、" + (fin ? "表彰" : "結果") + "を実験チャンネルに投稿します。よろしいですか？")) return;
+    try { await C.requestSnapshotImage("", fin, true); toast("Botに頼みました。1分以内に実験チャンネルへ出ます"); setTimeout(loadSnap, 70000); }
+    catch(e){ toast(e.message); }
+  });
   $("snapImgNow").onclick = async () => {
     const v = $("snapImgDay").value;
     if (!v){ toast("まだ結果がありません"); return; }
@@ -3312,6 +3321,11 @@ body.ad-on{overflow:hidden}
       try { await C.saveRising({ enabled: $("rsOn").checked, total: $("rsTotal").checked, daily: $("rsDaily").checked, top: $("rsTop").value | 0 });
         toast("急上昇の投稿設定を保存しました"); loadRisingCard(); } catch(e){ toast(e.message); }
     };
+    $("rsDummy").onclick = async () => {
+      if (!confirm("ダミーデータ（名簿の人に架空の数字）で、急上昇の画像を実験チャンネルに投稿します。よろしいですか？")) return;
+      try { await C.requestRisingPost($("rsDay").value || C.dayKey(), true); toast("Botに頼みました。1分以内に実験チャンネルへ出ます"); setTimeout(loadRisingCard, 70000); }
+      catch(e){ toast(e.message); }
+    };
     $("rsNow").onclick = async () => {
       const d = $("rsDay").value;
       if (!confirm((d || "前日") + " の分を、実験チャンネルに投稿します。よろしいですか？")) return;
@@ -3331,6 +3345,10 @@ body.ad-on{overflow:hidden}
   }
   if ($("puSave")) {
     $("puSave").onclick = async () => { try { await C.savePromoteImgMode($("puMode").value); toast("ランクアップの画像投稿の設定を保存しました"); } catch(e){ toast(e.message); } };
+    $("puDummy").onclick = async () => {
+      if (!confirm("ダミーデータ（名簿からランダムに2人）で、ランクアップのお祝いを実験チャンネルに投稿します。よろしいですか？")) return;
+      try { await C.requestPromoteImage(true); toast("Botに頼みました。1分以内に実験チャンネルへ出ます"); setTimeout(loadPromoteCard, 70000); } catch(e){ toast(e.message); }
+    };
     $("puNow").onclick = async () => {
       if (!confirm("最新のランクアップを、実験チャンネルに投稿します。よろしいですか？")) return;
       try { await C.requestPromoteImage(); toast("Botに頼みました。1分以内に投稿されます"); setTimeout(loadPromoteCard, 70000); } catch(e){ toast(e.message); }
