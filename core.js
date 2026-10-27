@@ -2207,7 +2207,7 @@
     Object.entries(raw.results || {}).forEach(([d, v]) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !v) return;
       results[d] = {
-        at: v.at || 0,
+        at: v.at || 0, botAt: v.botAt || 0,
         rows: (Array.isArray(v.rows) ? v.rows : []).map(r => ({
           id: String(r.id || ""), name: String(r.name || "—"),
           tier: String(r.tier || ""), division: String(r.division || ""),
@@ -2227,6 +2227,9 @@
       results,
       final: Array.isArray(raw.final) ? raw.final : [],
       finalAt: raw.finalAt || 0,
+      // 画像の投稿（chc-vc-bot）：both＝文字(Worker)＋画像(Bot) / bot＝Botが文字＋画像を1通で / text＝文字だけ
+      imageMode: ["both", "bot", "text"].indexOf(raw.imageMode) >= 0 ? raw.imageMode : "both",
+      imgRequestAt: raw.imgRequestAt || 0, imgHandledAt: raw.imgHandledAt || 0, imgLastResult: String(raw.imgLastResult || ""),
       updatedAt: raw.updatedAt || 0
     };
   }
@@ -2257,6 +2260,7 @@
       const patch = {
         enabled: s.enabled, label: s.label, roleIds: s.roleIds, topN: s.topN,
         points: s.points, dates: s.dates, finalTitle: s.finalTitle, finalN: s.finalN,
+        imageMode: s.imageMode,
         updatedAt: s.updatedAt
       };
       if (db) await db.collection("lboard_index").doc(SNAP_DOC).set(patch, { merge: true });
@@ -2268,6 +2272,14 @@
       throw new Error("設定を保存できませんでした（" + (e.code || e.message) + "）");
     }
     return s;
+  }
+
+  /* 結果の画像を、Bot（chc-vc-bot）に今すぐ投稿してもらう（テスト・出し直し用） */
+  async function requestSnapshotImage(day, isFinal) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため使えません");
+    await db.collection("lboard_index").doc(SNAP_DOC).set({ imgRequestAt: Date.now(), imgRequestDay: day || "", imgRequestFinal: !!isFinal }, { merge: true });
   }
 
   /* 全回の合計ポイント順。同点なら最後に測ったLPが高いほう → 名前順 */
@@ -4573,7 +4585,7 @@
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
-    loadRising, saveRising, requestRisingPost,
+    loadRising, saveRising, requestRisingPost, requestSnapshotImage,
     fillTemplate, buildMessage, sampleMessageVars, MSG_CHANNELS, channelName,
     isPresent, presentList, presentUnits,
     isDouble, slotCount, SEATS_PER_TABLE_SOLO: 8, TEAMS_PER_TABLE, TEAM_SIZE,

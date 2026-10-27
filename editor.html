@@ -950,6 +950,15 @@ body.ad-on{overflow:hidden}
         <input type="number" id="snapFinalN" min="1" max="8" style="width:70px">
         <span class="hint">合計ポイントのこの人数を「代表先生」として表彰します</span>
       </div>
+      <div class="row" style="margin-top:4px">
+        <label style="min-width:86px">画像の投稿</label>
+        <select id="snapImgMode">
+          <option value="both">文字のあとに画像も投稿（文字：Worker・画像：Bot）</option>
+          <option value="bot">文字＋画像を1通で投稿（Botがまとめて投稿）</option>
+          <option value="text">画像なし（文字だけ）</option>
+        </select>
+        <span class="hint">画像は急上昇と同じ体裁。Bot（chc-vc-bot）が作ります</span>
+      </div>
       <div class="sticky-save" id="snapSave">
         <span class="dirty-dot"></span>
         <b style="font-size:12.5px">スナップショットの設定</b>
@@ -963,6 +972,12 @@ body.ad-on{overflow:hidden}
       <h2>結果</h2>
       <div class="lead">実施が終わると、ここに各回の順位と合計ポイントが出ます。</div>
       <div id="snapResults"></div>
+      <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+        <select id="snapImgDay"></select>
+        <button class="mini" id="snapImgNow" type="button">🖼 この回の画像を今すぐ投稿</button>
+        <span class="hint">Botが1分以内に連絡事項へ投稿します（テスト・出し直し用）</span>
+      </div>
+      <div class="hint" id="snapImgStat" style="margin-top:6px;font-weight:700"></div>
     </div>
 
     <div class="card">
@@ -3038,6 +3053,13 @@ body.ad-on{overflow:hidden}
     renderSnapDates();
     renderSnapPoints();
     renderSnapResults();
+    $("snapImgMode").value = snapEdit.imageMode || "both";
+    const done = Object.keys(snapEdit.results || {}).sort();
+    $("snapImgDay").innerHTML = done.map(d => '<option value="' + d + '">' + d + " の結果</option>").join("") +
+      ((snapEdit.final || []).length ? '<option value="__final">表彰（' + esc(snapEdit.finalTitle || "代表先生") + "）</option>" : "") ||
+      '<option value="">（まだ結果がありません）</option>';
+    $("snapImgStat").textContent = (snapData && snapData.imgLastResult ? "最後の画像投稿：" + snapData.imgLastResult : "") +
+      (snapData && snapData.imgRequestAt > snapData.imgHandledAt ? "　⏳ 今すぐ投稿を待っています…" : "");
     if (!$("snapRunDate").value) $("snapRunDate").value = C.dayKey();
   }
 
@@ -3170,6 +3192,14 @@ body.ad-on{overflow:hidden}
   }
 
   $("snapEnabled").onchange = () => { snapEdit.enabled = $("snapEnabled").checked; markSnapDirty(); };
+  $("snapImgMode").onchange = () => { snapEdit.imageMode = $("snapImgMode").value; markSnapDirty(); };
+  $("snapImgNow").onclick = async () => {
+    const v = $("snapImgDay").value;
+    if (!v){ toast("まだ結果がありません"); return; }
+    if (!confirm("連絡事項に、" + (v === "__final" ? "表彰" : v + " の結果") + "の画像を実際に投稿します。よろしいですか？")) return;
+    try { await C.requestSnapshotImage(v === "__final" ? "" : v, v === "__final"); toast("Botに頼みました。1分以内に投稿されます"); setTimeout(loadSnap, 70000); }
+    catch(e){ toast(e.message); }
+  };
   $("snapLabel").oninput = () => { snapEdit.label = $("snapLabel").value; markSnapDirty(); };
   $("snapFinalTitle").oninput = () => { snapEdit.finalTitle = $("snapFinalTitle").value; markSnapDirty(); };
   $("snapFinalN").oninput = () => { snapEdit.finalN = $("snapFinalN").value | 0; markSnapDirty(); };
