@@ -2303,7 +2303,7 @@
     if (db) { const snap = await db.collection("lboard_index").doc("promote").get(); raw = snap.exists ? snap.data() : null; }
     raw = raw || {};
     const runs = Object.values(raw.runs || {}).filter(r => r && r.at).sort((a, b) => b.at - a.at);
-    return { imageMode: ["both", "bot", "text"].indexOf(raw.imageMode) >= 0 ? raw.imageMode : "both",
+    return { imageMode: ["both", "bot", "text"].indexOf(raw.imageMode) >= 0 ? raw.imageMode : "bot",
       imgRequestAt: raw.imgRequestAt || 0, imgHandledAt: raw.imgHandledAt || 0, imgLastResult: String(raw.imgLastResult || ""),
       last: runs[0] || null };
   }
