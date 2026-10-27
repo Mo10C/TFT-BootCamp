@@ -1003,6 +1003,25 @@ body.ad-on{overflow:hidden}
       </div>
     </div>
 
+    <div class="card">
+      <h2>📈 急上昇の画像投稿（Bot）</h2>
+      <div class="lead">毎日 <b>23:50</b> に、その日23:45のLP集計から<b>「スタートからの伸び」「1日の伸び」</b>のランキング画像を作って、連絡事項へ投稿します。
+        投稿するのは常駐Bot（chc-vc-bot）です。文面は下の「急上昇（…）・画像つき」で編集できます。</div>
+      <div class="row" style="gap:14px;flex-wrap:wrap">
+        <label class="chk"><input type="checkbox" id="rsOn"> 毎日投稿する</label>
+        <label class="chk"><input type="checkbox" id="rsTotal"> スタートからの伸び</label>
+        <label class="chk"><input type="checkbox" id="rsDaily"> 1日の伸び</label>
+        <label style="font-size:12.5px;font-weight:700">画像の人数 <input type="number" id="rsTop" min="1" max="10" style="width:64px"></label>
+        <button class="mini grad" id="rsSave" type="button">💾 保存</button>
+      </div>
+      <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+        <input type="date" id="rsDay">
+        <button class="mini" id="rsNow" type="button">📤 この日の分を今すぐ投稿</button>
+        <span class="hint">テスト用。1分以内にBotが投稿します（一時停止中でも投稿します）</span>
+      </div>
+      <div class="hint" id="rsStat" style="margin-top:8px;font-weight:700">—</div>
+    </div>
+
     <div id="msgCards"></div>
 
     <div class="sticky-save" id="msgSave">
@@ -3217,7 +3236,32 @@ body.ad-on{overflow:hidden}
      ============================================================= */
   let msgData = null, msgEdit = null, msgDirty = false;
 
+  /* ---- 急上昇の画像投稿（Bot） ---- */
+  async function loadRisingCard(){
+    if (!C.loadRising) return;
+    let r;
+    try { r = await C.loadRising(); } catch(e){ $("rsStat").textContent = "読み込めませんでした：" + e.message; return; }
+    $("rsOn").checked = r.enabled; $("rsTotal").checked = r.total; $("rsDaily").checked = r.daily; $("rsTop").value = r.top;
+    if (!$("rsDay").value) $("rsDay").value = C.shiftDay(C.dayKey(), -1);
+    $("rsStat").textContent = (r.lastDay ? "最後の毎日投稿：" + r.lastDay + " 分（" + new Date(r.lastAt).toLocaleString("ja-JP") + "）" : "まだ毎日投稿していません") +
+      (r.lastResult ? "　結果：" + r.lastResult : "") +
+      (r.requestAt > r.handledAt ? "　⏳ 今すぐ投稿を待っています…" : "");
+  }
+  if ($("rsSave")) {
+    $("rsSave").onclick = async () => {
+      try { await C.saveRising({ enabled: $("rsOn").checked, total: $("rsTotal").checked, daily: $("rsDaily").checked, top: $("rsTop").value | 0 });
+        toast("急上昇の投稿設定を保存しました"); loadRisingCard(); } catch(e){ toast(e.message); }
+    };
+    $("rsNow").onclick = async () => {
+      const d = $("rsDay").value;
+      if (!confirm((d || "前日") + " の分を、連絡事項に実際に投稿します。よろしいですか？")) return;
+      try { await C.requestRisingPost(d); toast("Botに頼みました。1分以内に投稿されます"); loadRisingCard(); setTimeout(loadRisingCard, 70000); }
+      catch(e){ toast(e.message); }
+    };
+  }
+
   async function loadMsgs(){
+    loadRisingCard();
     try { msgData = await C.loadMessages(); }
     catch(e){ toast("文面の読み込みに失敗: " + e.message); return; }
     msgEdit = JSON.parse(JSON.stringify(msgData));

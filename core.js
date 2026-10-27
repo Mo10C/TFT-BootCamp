@@ -3655,9 +3655,26 @@
      ★ 新しくDiscordへ投げるものを作るときは、必ずここに文面を足して
         管理コンソールから編集できるようにすること。
      ============================================================= */
-  const MSG_KEYS = ["promote", "schedule", "snapshot", "final"];
+  const MSG_KEYS = ["promote", "schedule", "snapshot", "final", "risingTotal", "risingDaily"];
 
+  const RISING_VARS = {
+    head: [["md", "集計した日 10/26"], ["wd", "曜日"], ["date", "2026-10-26"], ["base", "スタートの日 10/25"], ["n", "画像の人数"]],
+    line: [["medal", "🥇🥈🥉"], ["rank", "順位"], ["name", "名前"], ["gain", "伸びたLP"], ["rankLabel", "🛡 MASTER 120LP"]],
+    foot: [["md", "集計した日"], ["n", "画像の人数"]]
+  };
   const MSG_META = {
+    risingTotal: {
+      name: "急上昇（スタートからの伸び）・画像つき",
+      where: "連絡事項",
+      when: "毎日23:50（その日23:45の集計のあと）。Bot（chc-vc-bot）が画像を添付して投稿。本文の明細は上位3人",
+      vars: RISING_VARS
+    },
+    risingDaily: {
+      name: "急上昇（1日の伸び）・画像つき",
+      where: "連絡事項",
+      when: "毎日23:50（その日23:45の集計のあと）。Bot（chc-vc-bot）が画像を添付して投稿。本文の明細は上位3人",
+      vars: RISING_VARS
+    },
     promote: {
       name: "ランクアップのお祝い",
       where: "連絡事項",
@@ -3725,6 +3742,16 @@
         line: "{medal} **{rank}位　{name}**　{rankLabel}　**+{point}pt**",
         foot: "おつかれさまでした！"
       },
+      risingTotal: {
+        head: "📈 **急上昇プレイヤー**　スタート（{base}）から {md} までの伸び",
+        line: "{medal} **{name}**　**+{gain}LP**　{rankLabel}",
+        foot: "この調子で、みんなでランクを上げていこう！"
+      },
+      risingDaily: {
+        head: "🔥 **{md}（{wd}）の1日の伸び**",
+        line: "{medal} **{name}**　**+{gain}LP**　{rankLabel}",
+        foot: ""
+      },
       final: {
         head: "🏆 **{title} 決定！** 🏆\n{rounds}回の{label}の合計ポイントで、{title}{n}名が決まりました。",
         line: "{medal} **{name}**　**{total}pt**{detail}",
@@ -3758,6 +3785,38 @@
     { id: "notice", name: "連絡事項", note: "DISCORD_SCHEDULE_CHANNEL_ID" }
   ];
   function channelName() { return "連絡事項"; }
+
+  /* 急上昇の画像投稿（chc-vc-bot の rising-poster.js）の設定と状態
+       lboard_index/rising { enabled, total, daily, top, requestAt, requestDay,   ← 管理画面が書く
+                             lastDay, lastAt, lastResult, handledAt }              ← Bot が書く */
+  function normRising(raw) {
+    raw = raw || {};
+    return { enabled: raw.enabled !== false, total: raw.total !== false, daily: raw.daily !== false,
+      top: Math.max(1, Math.min(10, raw.top | 0 || 6)),
+      requestAt: raw.requestAt || 0, handledAt: raw.handledAt || 0,
+      lastDay: raw.lastDay || "", lastAt: raw.lastAt || 0, lastResult: raw.lastResult || "" };
+  }
+  async function loadRising() {
+    const db = openDb();
+    if (!db) return normRising(null);
+    const snap = await db.collection("lboard_index").doc("rising").get();
+    return normRising(snap.exists ? snap.data() : null);
+  }
+  async function saveRising(c) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため保存できません");
+    const n = normRising(c);
+    await db.collection("lboard_index").doc("rising").set({ enabled: n.enabled, total: n.total, daily: n.daily, top: n.top }, { merge: true });
+    return n;
+  }
+  // 「今すぐ投稿」：Bot が1分以内に拾って投稿する（一時停止は無視）
+  async function requestRisingPost(day) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため使えません");
+    await db.collection("lboard_index").doc("rising").set({ requestAt: Date.now(), requestDay: day || "" }, { merge: true });
+  }
 
   async function loadMessages() {
     try {
@@ -3808,6 +3867,14 @@
 
   /* 管理画面のプレビュー用のサンプル */
   function sampleMessageVars(key) {
+    if (key === "risingTotal" || key === "risingDaily") return {
+      head: { md: "10/26", wd: "月", date: "2026-10-26", base: "10/25", n: 6 },
+      rows: [
+        { medal: "🥇", rank: 1, name: "くまだ", gain: 172, rankLabel: "EMERALD IV 20LP" },
+        { medal: "🥈", rank: 2, name: "みーろ", gain: 163, rankLabel: "EMERALD II 0LP" },
+        { medal: "🥉", rank: 3, name: "ばけつ", gain: 154, rankLabel: "MASTER 393LP" }
+      ]
+    };
     if (key === "promote") return {
       head: { count: 2 },
       rows: [
@@ -4506,6 +4573,7 @@
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
+    loadRising, saveRising, requestRisingPost,
     fillTemplate, buildMessage, sampleMessageVars, MSG_CHANNELS, channelName,
     isPresent, presentList, presentUnits,
     isDouble, slotCount, SEATS_PER_TABLE_SOLO: 8, TEAMS_PER_TABLE, TEAM_SIZE,
