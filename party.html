@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>チーム分け・ルーレット ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#7CA455">
+<meta name="description" content="メンバーをランダムにチーム分け・ルーレットで1人を決める・お題ルーレット">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;box-shadow:var(--shadow-soft);overflow:hidden;margin-bottom:14px}
+.phead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:13px 17px;border-bottom:1px solid var(--border)}
+.phead h2{font-size:15px;font-weight:900}
+.phead .sub{font-size:11px;color:var(--muted)}
+.pbody{padding:14px 17px 17px}
+.spacer{flex:1}
+.chip{border:1.5px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:6px 14px;font-size:12px;font-weight:900;cursor:pointer;font-family:inherit}
+.chip:hover{border-color:var(--accent)}
+.chip.on{border-color:var(--accent);color:var(--accent-deep);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.btn{border:none;border-radius:14px;padding:11px 20px;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;color:#fff;
+  background:linear-gradient(135deg,#FFB25A,#FF6B4A);box-shadow:0 10px 22px -12px #FF6B4A;transition:transform .12s}
+.btn:hover{transform:translateY(-1px)} .btn:active{transform:translateY(1px)}
+.btn.blue{background:linear-gradient(135deg,#5AB8FF,#3F7FF0);box-shadow:0 10px 22px -12px #3F7FF0}
+.btn.green{background:linear-gradient(135deg,#5EE0A8,#20B27A);box-shadow:0 10px 22px -12px #20B27A}
+.btn.ghost{background:var(--surface);color:var(--ink);border:1.5px solid var(--border);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:default;transform:none}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.muted{font-size:11.5px;color:var(--muted)}
+input[type=number],input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:13px;padding:7px 10px}
+
+/* ---- タブ ---- */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tab{flex:1;min-width:150px;border:2px solid var(--border);background:var(--surface);border-radius:16px;padding:12px 14px;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:900;color:var(--muted);box-shadow:var(--shadow-soft);display:flex;align-items:center;gap:8px;justify-content:center}
+.tab .ic{font-size:22px}
+.tab.on{border-color:var(--accent);color:var(--ink);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+
+/* ---- メンバー選択 ---- */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:9px;max-height:420px;overflow:auto;padding:2px}
+.mem{position:relative;border:2px solid var(--border);background:var(--surface);border-radius:16px;padding:10px 6px 8px;cursor:pointer;text-align:center;
+  transition:transform .12s,border-color .12s,opacity .12s;user-select:none}
+.mem:hover{transform:translateY(-2px)}
+.mem .av{width:50px;height:50px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 6px;background:var(--surface-2)}
+.mem .avf{width:50px;height:50px;border-radius:50%;margin:0 auto 6px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:19px}
+.mem .nm{font-size:11.5px;font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mem .tg{position:absolute;top:5px;left:6px;font-size:10px;font-weight:900;color:#B8892A}
+.mem .ck{position:absolute;top:5px;right:6px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;font-weight:900;display:none;place-items:center}
+.mem.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.mem.on .ck{display:grid}
+.mem.off{opacity:.42}
+.selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.count{font-family:"Space Grotesk",sans-serif;font-size:20px;font-weight:700}
+.count small{font-size:12px;color:var(--muted);margin-left:2px;font-family:inherit}
+.guest{display:flex;gap:6px;align-items:center;margin-top:10px}
+
+/* ---- チーム結果 ---- */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.team{--c:#4FA8FF;border-radius:18px;border:2px solid color-mix(in srgb,var(--c) 45%,var(--border));background:color-mix(in srgb,var(--c) 8%,var(--surface));
+  padding:12px 13px;animation:pop .45s cubic-bezier(.2,1.4,.4,1) both}
+.team h3{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:900;margin-bottom:8px}
+.team h3 .dot{width:14px;height:14px;border-radius:50%;background:var(--c)}
+.team h3 small{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700}
+.tm{display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:10px;animation:pop .4s cubic-bezier(.2,1.4,.4,1) both}
+.tm img,.tm .avf{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none;display:grid;place-items:center;color:#fff;font-weight:900;font-size:12px}
+.tm b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm .tg{font-size:10px;color:#B8892A;font-weight:900;flex:none}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+.shuffling .tm{animation:shake .12s linear infinite}
+@keyframes shake{0%{transform:translateX(-2px)}50%{transform:translateX(2px)}100%{transform:translateX(-2px)}}
+
+/* ---- ルーレット ---- */
+.wheelwrap{position:relative;width:min(460px,100%);aspect-ratio:1;margin:6px auto 0}
+.wheelwrap canvas{width:100%;height:100%;display:block;border-radius:50%;box-shadow:0 18px 40px -22px rgba(0,0,0,.5)}
+.pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:18px solid transparent;border-right:18px solid transparent;
+  border-top:34px solid #E14B4B;filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));z-index:2}
+.hub{position:absolute;inset:0;margin:auto;width:17%;height:17%;border-radius:50%;background:#fff;border:5px solid #F4C542;display:grid;place-items:center;
+  font-weight:900;font-size:13px;color:#8A5A00;box-shadow:0 4px 12px rgba(0,0,0,.2);cursor:pointer;z-index:2}
+.wctl{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.items{width:100%;min-height:150px;line-height:1.7}
+.wins{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.wins span{font-size:11.5px;font-weight:900;padding:3px 10px;border-radius:999px;background:var(--surface-2)}
+.twocol{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:760px){.twocol{grid-template-columns:1fr}}
+
+/* ---- 当たり発表 ---- */
+.win{position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(10,16,30,.6);backdrop-filter:blur(3px)}
+.win.on{display:grid}
+.winc{position:relative;background:var(--surface);border-radius:26px;padding:28px 36px 24px;text-align:center;min-width:280px;max-width:90vw;
+  border:3px solid #F4C542;box-shadow:0 30px 60px -20px rgba(0,0,0,.5);animation:pop .5s cubic-bezier(.2,1.5,.4,1) both}
+.winc .k{font-size:13px;font-weight:900;color:#B8892A;letter-spacing:.1em}
+.winc img,.winc .avf{width:120px;height:120px;border-radius:50%;object-fit:cover;margin:12px auto;border:5px solid #F4C542;display:grid;place-items:center;color:#fff;font-size:44px;font-weight:900}
+.winc .who{font-size:30px;font-weight:900;margin:6px 0 4px;word-break:break-all}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:60}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brandmark"><img src="assets/tile-party.png" alt="チーム分け" onerror="this.parentNode.classList.add('noimg');this.remove()"></div>
+      <div>
+        <h1>チーム分け・ルーレット</h1>
+        <div class="sub">クラウドハッシュテイル校 TOOLS</div>
+      </div>
+    </div>
+    <span class="badge" id="roleBadge">—</span>
+    <div class="spacer"></div>
+    <a class="iconbtn" href="home.html">🏠 HOME</a>
+    <a class="iconbtn" id="editorLink" href="editor.html" style="display:none">⚙️ 管理</a>
+    <button class="iconbtn" id="themeBtn">🌙</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="team"><span class="ic">👥</span>チーム分け</button>
+    <button class="tab" data-tab="pick"><span class="ic">🎯</span>1人えらぶ</button>
+    <button class="tab" data-tab="topic"><span class="ic">🎡</span>お題ルーレット</button>
+  </div>
+
+  <!-- メンバー選択（チーム分け・1人えらぶ で共通） -->
+  <div class="panel" id="memPanel">
+    <div class="phead"><h2>🙋 参加するメンバーをえらぶ</h2><span class="sub">アイコンを押すと、えらぶ／はずすが切りかわります</span></div>
+    <div class="pbody">
+      <div class="selbar">
+        <span class="count" id="selCount">0<small>人</small></span>
+        <span class="spacer"></span>
+        <button class="chip on" data-filter="all">全員</button>
+        <button class="chip" data-filter="stu">生徒</button>
+        <button class="chip" data-filter="tea">先生</button>
+        <input type="text" id="q" placeholder="名前でさがす" style="width:140px">
+        <button class="chip" id="selAll">表示中を全部えらぶ</button>
+        <button class="chip" id="selNone">全部はずす</button>
+      </div>
+      <div class="mgrid" id="mgrid"><div class="muted">読み込み中…</div></div>
+      <div class="guest">
+        <input type="text" id="guestName" placeholder="名簿にいない人を足す（名前）" style="flex:1;max-width:260px">
+        <button class="chip" id="guestAdd">＋ 足す</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- チーム分け -->
+  <div class="panel" data-pane="team">
+    <div class="phead"><h2>👥 チーム分け</h2><span class="sub">えらんだメンバーを、ランダムに分けます</span></div>
+    <div class="pbody">
+      <div class="row">
+        <button class="chip on" data-mode="teams">チームの数で分ける</button>
+        <button class="chip" data-mode="size">1チームの人数で分ける</button>
+        <span style="margin-left:6px;font-weight:900" id="modeLabel">チーム数</span>
+        <input type="number" id="modeN" min="1" max="50" value="2" style="width:80px">
+        <label class="muted" style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="spreadT" checked> 先生を各チームにばらけさせる</label>
+      </div>
+      <div class="muted" id="plan" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="doTeam">🎲 チームを分ける</button>
+        <button class="btn ghost" id="copyTeam" disabled>📋 結果をコピー（Discord用）</button>
+      </div>
+      <div class="tgrid" id="teams"></div>
+    </div>
+  </div>
+
+  <!-- 1人えらぶ -->
+  <div class="panel" data-pane="pick" style="display:none">
+    <div class="phead"><h2>🎯 ルーレットで1人えらぶ</h2><span class="sub">えらんだメンバーの中から1人</span></div>
+    <div class="pbody">
+      <div class="wheelwrap"><div class="pointer"></div><canvas id="wheelP" width="920" height="920"></canvas><div class="hub" id="hubP">START</div></div>
+      <div class="wctl">
+        <button class="btn blue" id="spinP">🎯 ルーレットを回す</button>
+        <label class="muted" style="display:flex;align-items:center;gap:5px"><input type="checkbox" id="dropP"> 当たった人は次から外す</label>
+      </div>
+      <div class="wins" id="winsP"></div>
+    </div>
+  </div>
+
+  <!-- お題ルーレット -->
+  <div class="panel" data-pane="topic" style="display:none">
+    <div class="phead"><h2>🎡 お題ルーレット</h2><span class="sub">好きなお題を入れて回せます（この端末に保存されます）</span></div>
+    <div class="pbody twocol">
+      <div>
+        <div class="muted" style="margin-bottom:6px">お題（1行に1つ）</div>
+        <textarea id="items" class="items" placeholder="例）&#10;リロール構成で勝つ&#10;アイテム縛り&#10;3コスト以下だけ"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="chip" id="preset1">例：TFTのお題</button>
+          <button class="chip" id="preset2">例：罰ゲーム</button>
+          <button class="chip" id="clearItems">空にする</button>
+        </div>
+        <label class="muted" style="display:flex;align-items:center;gap:5px;margin-top:8px"><input type="checkbox" id="dropT"> 当たったお題は次から外す</label>
+        <div class="wins" id="winsT"></div>
+      </div>
+      <div>
+        <div class="wheelwrap"><div class="pointer"></div><canvas id="wheelT" width="920" height="920"></canvas><div class="hub" id="hubT">START</div></div>
+        <div class="wctl"><button class="btn green" id="spinT">🎡 ルーレットを回す</button></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="win" id="win"><div class="winc">
+  <div class="k" id="winK">🎉 きまりました！</div>
+  <div id="winAv"></div>
+  <div class="who" id="winWho">—</div>
+  <div class="row" style="justify-content:center;margin-top:14px"><button class="btn ghost" id="winClose">とじる</button></div>
+</div></div>
+<canvas class="confetti" id="confetti"></canvas>
+<div id="toast"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script src="home-common.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+  const session = C.Session.require();
+  if (!session) return;
+  const ctx = window.MCCHome ? window.MCCHome.boot(session) : null;
+  const toast = m => (ctx && ctx.toast ? ctx.toast(m) : alert(m));
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const LS = k => "mcc-party-" + k;
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(LS(k)); return v == null ? d : JSON.parse(v); } catch(e){ return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(LS(k), JSON.stringify(v)); } catch(e){} };
+  const COLORS = ["#FF8A5B", "#4FA8FF", "#9B7BFF", "#2FC48D", "#FFB627", "#FF6FA8", "#22BFC3", "#6F86FF", "#E0662F", "#7CA455", "#C06BD6", "#3BB5B0"];
+  const colorOf = k => { let h = 0; String(k).split("").forEach(c => { h = (h * 31 + c.charCodeAt(0)) >>> 0; }); return COLORS[h % COLORS.length]; };
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const avHtml = (m, cls) => m.avatar
+    ? '<img class="' + (cls || "") + '" src="' + esc(m.avatar) + '" alt="" loading="lazy" onerror="this.outerHTML=\'<span class=&quot;avf ' + (cls || "") + '&quot; style=&quot;background:' + colorOf(m.id) + '&quot;>' + esc(m.name.slice(0, 1)) + '</span>\'">'
+    : '<span class="avf ' + (cls || "") + '" style="background:' + colorOf(m.id) + '">' + esc(m.name.slice(0, 1)) + "</span>";
+
+  /* =============== メンバー =============== */
+  let MEM = [];                                   // {id, name, avatar, teacher, guest}
+  let sel = new Set(lsGet("sel", []));            // えらんだ人（この端末に保存）
+  let guests = lsGet("guests", []);               // 名簿にいない人
+  let filter = "all";
+  async function loadMembers(){
+    const safe = p => p.catch(() => null);
+    const [lp, mem, troles] = await Promise.all([safe(C.loadLpData()), safe(C.loadMembers()), safe(C.loadTeacherRoleIds ? C.loadTeacherRoleIds() : Promise.resolve([]))]);
+    const lm = (lp && lp.members) || {}, mm = mem || {}, roles = troles || [];
+    const ids = Array.from(new Set(Object.keys(lm).concat(Object.keys(mm).filter(id => !C.isParticipant || C.isParticipant(mm[id]) || (C.isTeacherOf && C.isTeacherOf(mm[id], roles))))));
+    MEM = ids.map(id => {
+      const a = lm[id] || {}, b = mm[id] || {};
+      return { id, name: a.name || b.name || "—", avatar: (b.discord && b.discord.avatar) || a.avatar || "",
+        teacher: !!(C.isTeacherOf && (C.isTeacherOf(a, roles) || C.isTeacherOf(b, roles))) };
+    }).filter(m => m.name && m.name !== "—")
+      .sort((x, y) => (y.teacher - x.teacher) || x.name.localeCompare(y.name, "ja"));
+    guests.forEach(g => MEM.push(g));
+    // 保存してある選択のうち、もういない人は外す
+    sel = new Set([...sel].filter(id => MEM.some(m => m.id === id)));
+    renderMem();
+  }
+  const visible = () => {
+    const q = ($("q").value || "").trim().toLowerCase();
+    return MEM.filter(m => (filter === "all" || (filter === "tea" ? m.teacher : !m.teacher)) && (!q || m.name.toLowerCase().indexOf(q) >= 0));
+  };
+  const chosen = () => MEM.filter(m => sel.has(m.id));
+  function renderMem(){
+    const box = $("mgrid");
+    const list = visible();
+    box.innerHTML = list.length ? "" : '<div class="muted">メンバーがいません</div>';
+    list.forEach(m => {
+      const d = document.createElement("div");
+      d.className = "mem" + (sel.has(m.id) ? " on" : "");
+      d.innerHTML = (m.teacher ? '<span class="tg">先生</span>' : m.guest ? '<span class="tg" style="color:var(--muted)">ゲスト</span>' : "") +
+        '<span class="ck">✓</span>' + avHtml(m, "av") + '<div class="nm">' + esc(m.name) + "</div>";
+      d.onclick = () => { sel.has(m.id) ? sel.delete(m.id) : sel.add(m.id); d.classList.toggle("on"); saveSel(); };
+      if (m.guest) d.oncontextmenu = e => { e.preventDefault(); if (confirm("「" + m.name + "」を消しますか？")){ guests = guests.filter(g => g.id !== m.id); lsSet("guests", guests); MEM = MEM.filter(x => x.id !== m.id); sel.delete(m.id); saveSel(); renderMem(); } };
+      box.appendChild(d);
+    });
+    paintCount();
+  }
+  function saveSel(){ lsSet("sel", [...sel]); paintCount(); }
+  function paintCount(){
+    const n = chosen().length;
+    $("selCount").innerHTML = n + "<small>人 えらんでいます</small>";
+    planText(); drawPickWheel();
+  }
+  document.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => {
+    filter = b.dataset.filter; document.querySelectorAll("[data-filter]").forEach(x => x.classList.toggle("on", x === b)); renderMem(); });
+  $("q").oninput = renderMem;
+  $("selAll").onclick = () => { visible().forEach(m => sel.add(m.id)); saveSel(); renderMem(); };
+  $("selNone").onclick = () => { sel.clear(); saveSel(); renderMem(); };
+  $("guestAdd").onclick = () => {
+    const nm = $("guestName").value.trim(); if (!nm) return;
+    const g = { id: "g_" + Date.now(), name: nm.slice(0, 30), avatar: "", teacher: false, guest: true };
+    guests.push(g); lsSet("guests", guests); MEM.push(g); sel.add(g.id); saveSel(); $("guestName").value = ""; renderMem();
+    toast("「" + g.name + "」を足しました（右クリック／長押しで消せます）");
+  };
+  $("guestName").onkeydown = e => { if (e.key === "Enter") $("guestAdd").click(); };
+
+  /* =============== タブ =============== */
+  let tab = "team";
+  document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => {
+    tab = b.dataset.tab;
+    document.querySelectorAll("[data-tab]").forEach(x => x.classList.toggle("on", x === b));
+    document.querySelectorAll("[data-pane]").forEach(p => p.style.display = p.dataset.pane === tab ? "" : "none");
+    $("memPanel").style.display = tab === "topic" ? "none" : "";
+    if (tab === "pick") drawPickWheel();
+    if (tab === "topic") drawTopicWheel();
+  });
+
+  /* =============== チーム分け =============== */
+  let mode = "teams", lastTeams = null;
+  document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => {
+    mode = b.dataset.mode; document.querySelectorAll("[data-mode]").forEach(x => x.classList.toggle("on", x === b));
+    $("modeLabel").textContent = mode === "teams" ? "チーム数" : "1チームの人数";
+    $("modeN").value = mode === "teams" ? 2 : 4; planText();
+  });
+  $("modeN").oninput = planText;
+  function teamCount(n){
+    const k = Math.max(1, $("modeN").value | 0);
+    return mode === "teams" ? Math.min(k, Math.max(1, n)) : Math.max(1, Math.ceil(n / k));
+  }
+  function planText(){
+    const n = chosen().length;
+    if (!n){ $("plan").textContent = "メンバーをえらんでください"; return; }
+    const t = teamCount(n), base = Math.floor(n / t), rem = n % t;
+    $("plan").textContent = n + "人 → " + t + "チーム（" + (rem ? (base + 1) + "人のチームが" + rem + "つ・" + base + "人のチームが" + (t - rem) + "つ" : "1チーム" + base + "人") + "）";
+  }
+  function split(){
+    const people = chosen(), t = teamCount(people.length);
+    const teams = Array.from({ length: t }, () => []);
+    // 先生をばらけさせる：先生 → 生徒の順に、人数がいちばん少ないチームへ（同じならランダム）
+    const order = $("spreadT").checked ? shuffle(people.filter(m => m.teacher)).concat(shuffle(people.filter(m => !m.teacher))) : shuffle(people);
+    order.forEach(m => {
+      const min = Math.min.apply(null, teams.map(x => x.length));
+      const cand = teams.map((x, i) => i).filter(i => teams[i].length === min);
+      teams[cand[Math.floor(Math.random() * cand.length)]].push(m);
+    });
+    return shuffle(teams);
+  }
+  function renderTeams(teams, shaking){
+    $("teams").className = "tgrid" + (shaking ? " shuffling" : "");
+    $("teams").innerHTML = teams.map((t, i) => '<div class="team" style="--c:' + COLORS[i % COLORS.length] + ';animation-delay:' + (shaking ? 0 : i * 0.08) + 's">' +
+      '<h3><span class="dot"></span>チーム' + (i + 1) + "<small>" + t.length + "人</small></h3>" +
+      t.map((m, j) => '<div class="tm" style="animation-delay:' + (shaking ? 0 : i * 0.08 + j * 0.05) + 's">' + avHtml(m) + "<b>" + esc(m.name) + "</b>" + (m.teacher ? '<span class="tg">先生</span>' : "") + "</div>").join("") +
+      "</div>").join("");
+  }
+  $("doTeam").onclick = () => {
+    if (chosen().length < 2){ toast("2人以上えらんでください"); return; }
+    $("doTeam").disabled = true;
+    let n = 0;
+    const tick = setInterval(() => { renderTeams(split(), true); if (++n > 10){ clearInterval(tick);
+      lastTeams = split(); renderTeams(lastTeams, false); $("doTeam").disabled = false; $("copyTeam").disabled = false; burst(); } }, 90);
+  };
+  $("copyTeam").onclick = async () => {
+    if (!lastTeams) return;
+    const txt = "🎲 **チーム分けの結果**\n" + lastTeams.map((t, i) => "\n**チーム" + (i + 1) + "**（" + t.length + "人）\n" + t.map(m => "・" + m.name + (m.teacher ? "（先生）" : "")).join("\n")).join("\n");
+    try { await navigator.clipboard.writeText(txt); toast("コピーしました。Discordに貼り付けできます"); }
+    catch(e){ prompt("コピーしてください", txt); }
+  };
+
+  /* =============== ルーレット（共通） =============== */
+  const imgCache = {};
+  function img(url){
+    if (!url) return null;
+    if (imgCache[url]) return imgCache[url].ok ? imgCache[url].im : null;
+    const im = new Image(); imgCache[url] = { im, ok: false };
+    im.onload = () => { imgCache[url].ok = true; drawPickWheel(); };
+    im.src = url;
+    return null;
+  }
+  function makeWheel(cv){
+    const W = { cv, g: cv.getContext("2d"), rot: 0, items: [], spinning: false };
+    W.draw = () => {
+      const g = W.g, S = cv.width, R = S / 2 - 8, n = W.items.length;
+      g.clearRect(0, 0, S, S);
+      g.save(); g.translate(S / 2, S / 2);
+      if (!n){ g.beginPath(); g.arc(0, 0, R, 0, Math.PI * 2); g.fillStyle = "#E8EEF4"; g.fill();
+        g.fillStyle = "#8A97A5"; g.font = "900 34px 'Zen Kaku Gothic New',sans-serif"; g.textAlign = "center"; g.fillText("えらんでください", 0, -R / 2.4); g.restore(); return; }
+      g.rotate(W.rot);
+      const a = Math.PI * 2 / n;
+      W.items.forEach((it, i) => {
+        g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, i * a - Math.PI / 2, (i + 1) * a - Math.PI / 2); g.closePath();
+        g.fillStyle = it.color || COLORS[i % COLORS.length]; g.fill();
+        g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.85)"; g.stroke();
+        g.save(); g.rotate(i * a + a / 2 - Math.PI / 2);
+        const fs = Math.max(16, Math.min(40, 520 / Math.max(6, n)));
+        const im = n <= 24 ? img(it.img) : null;
+        g.textAlign = "right"; g.textBaseline = "middle"; g.fillStyle = "#fff";
+        g.font = "900 " + fs + "px 'Zen Kaku Gothic New',sans-serif";
+        g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 4;
+        let label = it.label; const maxW = R * (im ? 0.52 : 0.68);
+        while (label.length > 1 && g.measureText(label).width > maxW) label = label.slice(0, -1);
+        if (label !== it.label) label = label.slice(0, -1) + "…";
+        g.fillText(label, R - (im ? fs * 2.2 + 26 : 26), 0);
+        g.shadowBlur = 0;
+        if (im){ const r = Math.min(fs * 1.05, R * Math.sin(a / 2) * 0.8); g.save(); g.beginPath(); g.arc(R - r - 16, 0, r, 0, Math.PI * 2); g.clip(); g.drawImage(im, R - 2 * r - 16, -r, 2 * r, 2 * r); g.restore();
+          g.beginPath(); g.arc(R - r - 16, 0, r, 0, Math.PI * 2); g.lineWidth = 3; g.strokeStyle = "#fff"; g.stroke(); }
+        g.restore();
+      });
+      g.restore();
+      g.beginPath(); g.arc(S / 2, S / 2, R, 0, Math.PI * 2); g.lineWidth = 10; g.strokeStyle = "#F4C542"; g.stroke();
+    };
+    // 当たりを先に決めて、そこで止まるように回す
+    W.spin = () => new Promise(res => {
+      const n = W.items.length; if (!n || W.spinning) return res(null);
+      W.spinning = true;
+      const win = Math.floor(Math.random() * n), a = Math.PI * 2 / n;
+      const target = -(win * a + a / 2) + (Math.random() - 0.5) * a * 0.7;     // 上の針の位置に当たりのまん中付近
+      const cur = ((W.rot % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const end = W.rot - cur + Math.PI * 2 * (6 + Math.floor(Math.random() * 3)) + ((target % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const from = W.rot, dur = 4200 + Math.random() * 1200, t0 = performance.now();
+      const ease = t => 1 - Math.pow(1 - t, 4);
+      const step = now => { const t = Math.min(1, (now - t0) / dur); W.rot = from + (end - from) * ease(t); W.draw();
+        if (t < 1) requestAnimationFrame(step); else { W.spinning = false; res(W.items[win]); } };
+      requestAnimationFrame(step);
+    });
+    return W;
+  }
+
+  /* 当たりの発表 */
+  function announce(kicker, it){
+    $("winK").textContent = kicker;
+    $("winAv").innerHTML = it.member ? avHtml(it.member) : '<div style="font-size:64px;margin:6px 0">🎉</div>';
+    $("winWho").textContent = it.label;
+    $("win").classList.add("on"); burst(true);
+  }
+  $("winClose").onclick = () => $("win").classList.remove("on");
+  $("win").onclick = e => { if (e.target === $("win")) $("win").classList.remove("on"); };
+
+  /* 1人えらぶ */
+  const WP = makeWheel($("wheelP"));
+  let picked = [];
+  function drawPickWheel(){
+    WP.items = chosen().map(m => ({ label: m.name, img: m.avatar, color: colorOf(m.id), member: m }));
+    if (!WP.spinning) WP.draw();
+  }
+  async function spinPick(){
+    if (WP.items.length < 2){ toast("2人以上えらんでください"); return; }
+    $("spinP").disabled = true;
+    const it = await WP.spin();
+    $("spinP").disabled = false;
+    if (!it) return;
+    picked.push(it.label);
+    $("winsP").innerHTML = picked.map((n, i) => "<span>" + (i + 1) + ". " + esc(n) + "</span>").join("");
+    announce("🎯 えらばれたのは…", it);
+    if ($("dropP").checked){ sel.delete(it.member.id); saveSel(); renderMem(); }
+  }
+  $("spinP").onclick = spinPick; $("hubP").onclick = spinPick;
+
+  /* お題ルーレット */
+  const WT = makeWheel($("wheelT"));
+  let topics = [];
+  const PRESETS = {
+    preset1: ["リロール構成で勝つ", "5コスト2体以上で勝つ", "アイテムは前衛だけ", "レベル9を目指す", "連敗スタート", "いちばん安い構成", "紋章をつかう", "オーグメントは全部右"],
+    preset2: ["語尾に「ござる」", "好きな食べ物を発表", "次のゲームは実況しながら", "変顔スクショ", "1曲歌う", "モノマネ", "褒め言葉を3つ言う", "セーフ！"]
+  };
+  function readTopics(){ topics = $("items").value.split(/\r?\n/).map(s => s.trim()).filter(Boolean).slice(0, 60); lsSet("topics", $("items").value); drawTopicWheel(); }
+  function drawTopicWheel(){ WT.items = topics.map((t, i) => ({ label: t, color: COLORS[i % COLORS.length] })); if (!WT.spinning) WT.draw(); }
+  $("items").value = lsGet("topics", "");
+  $("items").oninput = readTopics;
+  ["preset1", "preset2"].forEach(k => $(k).onclick = () => { $("items").value = PRESETS[k].join("\n"); readTopics(); });
+  $("clearItems").onclick = () => { $("items").value = ""; readTopics(); };
+  let tWins = [];
+  async function spinTopic(){
+    if (WT.items.length < 2){ toast("お題を2つ以上入れてください"); return; }
+    $("spinT").disabled = true;
+    const it = await WT.spin();
+    $("spinT").disabled = false;
+    if (!it) return;
+    tWins.push(it.label);
+    $("winsT").innerHTML = tWins.map((n, i) => "<span>" + (i + 1) + ". " + esc(n) + "</span>").join("");
+    announce("🎡 お題は…", it);
+    if ($("dropT").checked){
+      const lines = $("items").value.split(/\r?\n/); const i = lines.findIndex(l => l.trim() === it.label);
+      if (i >= 0){ lines.splice(i, 1); $("items").value = lines.join("\n"); readTopics(); }
+    }
+  }
+  $("spinT").onclick = spinTopic; $("hubT").onclick = spinTopic;
+  readTopics();
+
+  /* 紙ふぶき */
+  function burst(big){
+    const cv = $("confetti"), g = cv.getContext("2d");
+    cv.width = innerWidth; cv.height = innerHeight;
+    const P = Array.from({ length: big ? 160 : 70 }, () => ({ x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
+      w: 6 + Math.random() * 6, h: 3 + Math.random() * 4, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: COLORS[(Math.random() * COLORS.length) | 0] }));
+    const t0 = performance.now();
+    const step = now => {
+      g.clearRect(0, 0, cv.width, cv.height);
+      P.forEach(p => { p.vy += .35; p.x += p.vx; p.y += p.vy; p.r += p.vr; g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); g.restore(); });
+      if (now - t0 < 2600) requestAnimationFrame(step); else g.clearRect(0, 0, cv.width, cv.height);
+    };
+    requestAnimationFrame(step);
+  }
+
+  loadMembers().catch(e => { $("mgrid").innerHTML = '<div class="muted">メンバーを読み込めませんでした：' + esc(e.message) + "</div>"; });
+})();
+</script>
+</body>
+</html>
