@@ -233,6 +233,12 @@ body.viewer .pop{cursor:default}
 .newtag{margin-left:5px;font-size:8.5px;font-weight:900;letter-spacing:.06em;padding:1px 5px;
   border-radius:4px;background:var(--accent);color:#fff;vertical-align:1px}
 
+/* Riot ID コピー */
+.ridcp{display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);
+  border-radius:8px;font-size:10.5px;font-weight:900;padding:1px 6px;margin-left:5px;cursor:pointer;font-family:inherit;line-height:1.5;vertical-align:middle;flex:none}
+.ridcp:hover{border-color:var(--accent);color:var(--accent-deep)}
+.ridcp.done{border-color:#2FC48D;color:#16855C}
+.tcopy{margin-left:auto;font-size:11px}
 /* toast */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
   padding:10px 20px;border-radius:999px;font-size:12.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:88vw}
@@ -382,6 +388,37 @@ body.viewer .pop{cursor:default}
     clearTimeout(toastTimer);
     toastTimer = setTimeout(()=>el.classList.remove("show"), 2600);
   }
+
+  /* ---- Riot ID のコピー ----
+     data-rid を持つボタンを押すとコピー。席や参加者POPのクリック（配置など）には伝えない */
+  function ridOf(p){ return p && p.riotId && p.riotId !== "#" ? String(p.riotId) : ""; }
+  function ridBtn(p){
+    const r = ridOf(p);
+    return r ? '<button type="button" class="ridcp" data-rid="' + escapeHtml(r) + '" title="Riot ID（' + escapeHtml(r) + '）をコピー">📋</button>' : "";
+  }
+  function ridBtnEl(p){
+    const r = ridOf(p); if (!r) return null;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "ridcp"; b.dataset.rid = r; b.title = "Riot ID（" + r + "）をコピー"; b.textContent = "📋";
+    return b;
+  }
+  async function copyText(t){
+    try { await navigator.clipboard.writeText(t); return true; }
+    catch(e){
+      const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand("copy"); } catch(x){} ta.remove(); return ok;
+    }
+  }
+  document.addEventListener("click", async e => {
+    const b = e.target.closest && e.target.closest("[data-rid]");
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = b.dataset.rid;
+    if (await copyText(t)){
+      toast("📋 " + (b.dataset.many ? "Riot IDをまとめてコピーしました" : "Riot ID「" + t + "」をコピーしました"));
+      b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1200);
+    } else toast("コピーできませんでした：" + t);
+  }, true);
 
   /* ---- 自分のプロフィール表示 ---- */
   $("meAvatar").src = session.discord.avatar || "";
@@ -666,6 +703,7 @@ body.viewer .pop{cursor:default}
       const nm = document.createElement("div");
       nm.className = "nm";
       nm.textContent = p.name + (p.id === myPid ? " ⭐" : "");
+      { const rb = ridBtnEl(p); if (rb) nm.appendChild(rb); }
       const tr = document.createElement("div");
       tr.className = "tr";
       tr.innerHTML = (p.rank && p.rank.tier)
@@ -802,6 +840,7 @@ body.viewer .pop{cursor:default}
       const pn = document.createElement("div");
       pn.className = "pn";
       pn.textContent = p.name + (p.id === myPid ? " ⭐" : "");
+      { const rb = ridBtnEl(p); if (rb) pn.appendChild(rb); }
       if (p.joinedAt && (Date.now() - p.joinedAt) < NEW_MS){
         const nw = document.createElement("span");
         nw.className = "newtag";
@@ -846,6 +885,20 @@ body.viewer .pop{cursor:default}
       card.className = "tablecard";
       const h = document.createElement("h3");
       h.innerHTML = `<span class="tno num">${t+1}</span> 卓 ${t+1}`;
+      {
+        // この卓の全員の Riot ID をまとめてコピー（ロビー招待用）
+        const ppl = [];
+        tb.seats.forEach(pid => { if (!pid) return;
+          if (C.isDouble(s)) C.teamMembers(s, pid).forEach(x => ppl.push(x)); else ppl.push(C.playerById(s, pid)); });
+        const ids = ppl.map(ridOf).filter(Boolean);
+        if (ids.length){
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "ridcp tcopy"; b.dataset.rid = ids.join("\n"); b.dataset.many = "1";
+          b.textContent = "📋 この卓のRiot ID（" + ids.length + "人）"; b.title = "この卓の全員の Riot ID を1行ずつコピー";
+          h.style.display = "flex"; h.style.alignItems = "center"; h.style.gap = "6px";
+          h.appendChild(b);
+        }
+      }
       card.appendChild(h);
       const seats = document.createElement("div");
       seats.className = "seats";
@@ -893,6 +946,7 @@ body.viewer .pop{cursor:default}
           const sn = document.createElement("div");
           sn.className = "sn";
           sn.textContent = p ? p.name : "—";
+          { const rb = ridBtnEl(p); if (rb) sn.appendChild(rb); }
           seat.appendChild(sn);
           const sr = document.createElement("div");
           sr.className = "sr";
@@ -1148,13 +1202,13 @@ body.viewer .pop{cursor:default}
             ms.map(x => '<img src="' + ((x.discord && x.discord.avatar) || "") + '" onerror="this.style.visibility=\'hidden\'">').join("") +
             '<div><div style="font-weight:900">' + escapeHtml(r.name) + "</div>" +
             '<div class="rbadge-sm" style="color:var(--muted)">' +
-            ms.map(x => C.rankIcon(x.rank, { cls: "sm" }) + escapeHtml(x.name)).join(" ＋ ") +
+            ms.map(x => C.rankIcon(x.rank, { cls: "sm" }) + escapeHtml(x.name) + ridBtn(x)).join(" ＋ ") +
             "</div></div></div></td>";
         } else {
           const p = C.playerById(s, r.pid);
           who = `<td><div class="cellp">` +
             `<img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'">` +
-            `<div><div style="font-weight:900">${escapeHtml(r.name)}</div>` +
+            `<div><div style="font-weight:900">${escapeHtml(r.name)}${ridBtn(p)}</div>` +
             `<div class="rbadge-sm" style="color:${C.rankColor(p && p.rank)}">${C.rankIconLabel(p && p.rank, { cls: "sm" })}</div></div>` +
           `</div></td>`;
         }
@@ -1203,9 +1257,9 @@ body.viewer .pop{cursor:default}
               ms.map(x => '<img src="' + ((x.discord && x.discord.avatar) || "") + '" onerror="this.style.visibility=\'hidden\'">').join("") +
               "<div><b>" + escapeHtml(C.teamLabel(s, pid)) + "</b>" +
               '<div class="rbadge-sm" style="color:var(--muted)">' +
-              ms.map(x => escapeHtml(x.name)).join(" ＋ ") + "</div></div></div>";
+              ms.map(x => escapeHtml(x.name) + ridBtn(x)).join(" ＋ ") + "</div></div></div>";
           } else {
-            tdP.innerHTML = `<div class="cellp"><img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'"><b>${escapeHtml(p ? p.name : "—")}</b></div>`;
+            tdP.innerHTML = `<div class="cellp"><img src="${(p && p.discord && p.discord.avatar) || ""}" onerror="this.style.visibility='hidden'"><b>${escapeHtml(p ? p.name : "—")}</b>${ridBtn(p)}</div>`;
           }
           const tdR = document.createElement("td");
           if (IS_ADMIN){

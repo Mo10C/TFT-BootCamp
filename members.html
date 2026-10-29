@@ -337,6 +337,11 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   .sheet .box,.sheet .veil{animation:none}
   .pcard:hover{transform:none}
 }
+/* Riot ID コピー */
+.ridcp{display:inline-flex;align-items:center;gap:3px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;
+  font-size:11px;font-weight:900;padding:1px 8px;margin-left:6px;cursor:pointer;font-family:inherit;line-height:1.5;vertical-align:middle}
+.ridcp:hover{border-color:var(--accent);color:var(--accent-deep)}
+.ridcp.done{border-color:#2FC48D;color:#16855C}
 </style>
 </head>
 <body>
@@ -426,6 +431,20 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   const session = C.Session.require();
   if (!session) return;
   const ctx = window.MCCHome.boot(session);
+
+  /* ---- Riot ID のコピー（プロフィールの 📋 ボタン） ---- */
+  document.addEventListener("click", async e => {
+    const b = e.target.closest && e.target.closest("[data-rid]");
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const t = b.dataset.rid;
+    let ok = false;
+    try { await navigator.clipboard.writeText(t); ok = true; }
+    catch(x){ const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); try { ok = document.execCommand("copy"); } catch(y){} ta.remove(); }
+    ctx.toast(ok ? "📋 Riot ID「" + t + "」をコピーしました" : "コピーできませんでした：" + t);
+    if (ok){ b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1200); }
+  }, true);
   const me = C.Session.toPlayer(session);
   const myId = me ? me.id : "";
 
@@ -640,7 +659,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       ? '<a class="fl" href="' + esc(p.tactics) + '" target="_blank" rel="noopener noreferrer">ひらく ↗</a>'
       : "";
     const tftFacts =
-      factHtml("Riot ID", x.riotId || "—") +
+      (x.riotId ? '<div class="fact"><div class="k">Riot ID</div><div class="v">' + esc(x.riotId) +
+        '<button type="button" class="ridcp" data-rid="' + esc(x.riotId) + '">📋 コピー</button></div></div>' : factHtml("Riot ID", "—")) +
       (p.tactics
         ? '<div class="fact"><div class="k">Tactics Tool</div><div class="v">' + ttLink + "</div></div>"
         : "") +
@@ -663,7 +683,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         '<div class="dname">' +
           (p.kana ? '<div class="furi">' + esc(p.kana) + "</div>" : "") +
           "<h2>" + esc(x.name) + "</h2>" +
-          (x.riotId ? '<div class="rid">' + esc(x.riotId) + "</div>" : "") + "</div>" +
+          (x.riotId ? '<div class="rid">' + esc(x.riotId) + '<button type="button" class="ridcp" data-rid="' + esc(x.riotId) + '" title="Riot ID をコピー">📋</button></div>' : "") + "</div>" +
         (x.id === myId ? '<button class="mini grad" id="dEdit">✏️ 書きかえる</button>' : "") +
       "</div>" +
       (p.nickname ? '<div class="callme">「<b>' + esc(p.nickname) + '</b>」って呼んでね</div>' : "") +

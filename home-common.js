@@ -76,7 +76,26 @@
       $("meAvatar").onerror = function () { this.style.visibility = "hidden"; };
     }
     if ($("meName")) $("meName").textContent = (session.discord && (session.discord.name || session.discord.username)) || "—";
-    if ($("meRiot")) $("meRiot").textContent = C.Session.riotIdOf(session);
+    if ($("meRiot")) {
+      const rid = C.Session.riotIdOf(session);
+      $("meRiot").textContent = rid;
+      // ★ 自分の Riot ID をワンタップでコピー
+      if (rid && rid !== "#") {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = "📋"; b.title = "Riot ID をコピー";
+        b.style.cssText = "margin-left:6px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);border-radius:8px;" +
+          "font-size:11px;font-weight:900;padding:0 6px;cursor:pointer;font-family:inherit;line-height:1.6;vertical-align:middle";
+        b.onclick = async e => {
+          e.preventDefault(); e.stopPropagation();
+          let ok = false;
+          try { await navigator.clipboard.writeText(rid); ok = true; }
+          catch (x) { const ta = document.createElement("textarea"); ta.value = rid; ta.style.position = "fixed"; ta.style.opacity = "0";
+            document.body.appendChild(ta); ta.select(); try { ok = document.execCommand("copy"); } catch (y) { } ta.remove(); }
+          toast(ok ? "📋 Riot ID「" + rid + "」をコピーしました" : "コピーできませんでした：" + rid);
+        };
+        $("meRiot").appendChild(b);
+      }
+    }
     if ($("meRank")) {
       const rk = $("meRank");
       let rank = session.riot && session.riot.rank;
