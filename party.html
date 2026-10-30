@@ -74,6 +74,16 @@ input[type=number],input[type=text],textarea{border:1.5px solid var(--border);bo
 .tm .tg{font-size:10px;color:#B8892A;font-weight:900;flex:none}
 @keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
 .shuffling .tm{animation:shake .12s linear infinite}
+.still .team,.still .tm{animation:none}
+.tm{background:transparent}
+/* ---- ドラッグ＆ドロップで入れかえ ---- */
+[data-dnd]{cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.dnd-src{opacity:.35}
+.dnd-over{outline:2.5px dashed #E8A21A;outline-offset:2px;background:color-mix(in srgb,#F2B33D 16%,var(--surface)) !important}
+.dnd-pick{outline:2.5px solid #E8A21A;outline-offset:2px}
+.dnd-ghost{position:fixed;z-index:9999;pointer-events:none;margin:0;opacity:.95;transform:rotate(-2deg) scale(1.04);box-shadow:0 12px 28px rgba(0,0,0,.25);background:var(--surface);border-radius:12px;animation:none !important;cursor:grabbing}
+.dnd-hint{font-size:12px;color:var(--muted);margin:2px 0 8px;font-weight:700}
+
 @keyframes shake{0%{transform:translateX(-2px)}50%{transform:translateX(2px)}100%{transform:translateX(-2px)}}
 
 /* ---- ルーレット ---- */
@@ -163,7 +173,8 @@ input[type=number],input[type=text],textarea{border:1.5px solid var(--border);bo
         <button class="btn" id="doTeam">🎲 チームを分ける</button>
         <button class="btn ghost" id="copyTeam" disabled>📋 結果をコピー（Discord用）</button>
       </div>
-      <div class="tgrid" id="teams"></div>
+      <div class="dnd-hint" id="teamHint" style="display:none;margin-top:12px">✋ 名前をドラッグ（スマホは長押し）で入れかえ。チームの空いているところに落とすと移動できます。タップ→タップでもOK</div>
+      <div class="tgrid" id="teams" style="margin-top:4px"></div>
     </div>
   </div>
 
@@ -221,6 +232,66 @@ input[type=number],input[type=text],textarea{border:1.5px solid var(--border);bo
   "use strict";
   const C = window.LBCore;
   const $ = id => document.getElementById(id);
+
+  /* ---- ドラッグ＆ドロップで入れかえ（マウス／スマホは長押し／タップ→タップでもOK） ----
+     data-dnd="キー" の要素どうしを入れかえ。data-drop="キー" の場所にも落とせる */
+  function swapDnD(root, onDrop){
+    let d = null, pick = null;
+    const srcOf = el => el && el.closest ? el.closest("[data-dnd]") : null;
+    const dropAt = (x, y) => { const el = document.elementFromPoint(x, y), t = el && el.closest ? el.closest("[data-dnd],[data-drop]") : null; return t && root.contains(t) ? t : null; };
+    const clearOver = () => root.querySelectorAll(".dnd-over").forEach(e => e.classList.remove("dnd-over"));
+    const unpick = () => { if (pick) pick.classList.remove("dnd-pick"); pick = null; };
+    function begin(){
+      const r = d.src.getBoundingClientRect();
+      d.ox = d.sx - r.left; d.oy = d.sy - r.top;
+      const g = d.src.cloneNode(true); g.classList.add("dnd-ghost"); g.style.width = r.width + "px";
+      document.body.appendChild(g); d.g = g; d.src.classList.add("dnd-src"); d.on = true; unpick();
+      move(d.x, d.y);
+    }
+    function move(x, y){
+      d.x = x; d.y = y; if (!d.on) return;
+      d.g.style.left = (x - d.ox) + "px"; d.g.style.top = (y - d.oy) + "px";
+      clearOver(); const t = dropAt(x, y); if (t && t !== d.src) t.classList.add("dnd-over");
+    }
+    function end(cancel){
+      if (!d) return; clearTimeout(d.tm);
+      const w = d; d = null;
+      clearOver(); if (w.g) w.g.remove(); w.src.classList.remove("dnd-src");
+      if (cancel) return;
+      if (w.on){ const t = dropAt(w.x, w.y); if (t && t !== w.src) onDrop(w.src.dataset.dnd, t.dataset.dnd || t.dataset.drop); return; }
+      // 動かさずに離した＝タップ：1人目をえらぶ → 2人目をタップで入れかえ
+      if (pick === w.src){ unpick(); return; }
+      if (pick && root.contains(pick)){ const a = pick.dataset.dnd; unpick(); onDrop(a, w.src.dataset.dnd); return; }
+      unpick(); pick = w.src; pick.classList.add("dnd-pick");
+    }
+    root.addEventListener("mousedown", e => {
+      if (e.button !== 0) return;
+      const src = srcOf(e.target);
+      if (!src){ const z = e.target.closest && e.target.closest("[data-drop]");
+        if (z && pick && root.contains(pick)){ const a = pick.dataset.dnd; unpick(); onDrop(a, z.dataset.drop); } return; }
+      e.preventDefault(); d = { src, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, on: false };
+    });
+    addEventListener("mousemove", e => {
+      if (!d || d.touch) return;
+      if (!d.on && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 5){ d.x = e.clientX; d.y = e.clientY; begin(); }
+      move(e.clientX, e.clientY);
+    });
+    addEventListener("mouseup", () => { if (d && !d.touch) end(false); });
+    root.addEventListener("touchstart", e => {
+      const src = srcOf(e.target); if (!src || e.touches.length > 1){ end(true); return; }
+      const t = e.touches[0]; d = { src, x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, on: false, touch: true };
+      d.tm = setTimeout(() => { if (d && !d.on){ begin(); if (navigator.vibrate) navigator.vibrate(15); } }, 250);
+    }, { passive: true });
+    addEventListener("touchmove", e => {
+      if (!d || !d.touch) return; const t = e.touches[0];
+      if (!d.on){ if (Math.hypot(t.clientX - d.sx, t.clientY - d.sy) > 10){ clearTimeout(d.tm); d = null; } return; }
+      e.preventDefault(); move(t.clientX, t.clientY);
+    }, { passive: false });
+    addEventListener("touchend", e => { if (d && d.touch){ e.preventDefault(); end(false); } }, { passive: false });
+    addEventListener("touchcancel", () => end(true));
+    addEventListener("keydown", e => { if (e.key === "Escape"){ end(true); unpick(); } });
+    root.addEventListener("contextmenu", e => { if (srcOf(e.target)) e.preventDefault(); });
+  }
   const session = C.Session.require();
   if (!session) return;
   const ctx = window.MCCHome ? window.MCCHome.boot(session) : null;
@@ -337,11 +408,12 @@ input[type=number],input[type=text],textarea{border:1.5px solid var(--border);bo
     });
     return shuffle(teams);
   }
-  function renderTeams(teams, shaking){
-    $("teams").className = "tgrid" + (shaking ? " shuffling" : "");
-    $("teams").innerHTML = teams.map((t, i) => '<div class="team" style="--c:' + COLORS[i % COLORS.length] + ';animation-delay:' + (shaking ? 0 : i * 0.08) + 's">' +
+  function renderTeams(teams, shaking, still){
+    $("teams").className = "tgrid" + (shaking ? " shuffling" : "") + (still ? " still" : "");
+    $("teamHint").style.display = shaking ? "none" : "";
+    $("teams").innerHTML = teams.map((t, i) => '<div class="team"' + (shaking ? "" : ' data-drop="t' + i + '"') + ' style="--c:' + COLORS[i % COLORS.length] + ';animation-delay:' + (shaking ? 0 : i * 0.08) + 's">' +
       '<h3><span class="dot"></span>チーム' + (i + 1) + "<small>" + t.length + "人</small></h3>" +
-      t.map((m, j) => '<div class="tm" style="animation-delay:' + (shaking ? 0 : i * 0.08 + j * 0.05) + 's">' + avHtml(m) + "<b>" + esc(m.name) + "</b>" + (m.teacher ? '<span class="tg">先生</span>' : "") + "</div>").join("") +
+      t.map((m, j) => '<div class="tm"' + (shaking ? "" : ' data-dnd="m' + i + "." + j + '"') + ' style="animation-delay:' + (shaking ? 0 : i * 0.08 + j * 0.05) + 's">' + avHtml(m) + "<b>" + esc(m.name) + "</b>" + (m.teacher ? '<span class="tg">先生</span>' : "") + "</div>").join("") +
       "</div>").join("");
   }
   $("doTeam").onclick = () => {
@@ -351,6 +423,15 @@ input[type=number],input[type=text],textarea{border:1.5px solid var(--border);bo
     const tick = setInterval(() => { renderTeams(split(), true); if (++n > 10){ clearInterval(tick);
       lastTeams = split(); renderTeams(lastTeams, false); $("doTeam").disabled = false; $("copyTeam").disabled = false; burst(); } }, 90);
   };
+  // ドラッグ＆ドロップ：m<チーム>.<順番>＝メンバー、t<チーム>＝チームの枠（そこへ移動）
+  swapDnD($("teams"), (a, b) => {
+    if (!lastTeams || $("doTeam").disabled || a === b) return;
+    const pos = k => k.slice(1).split(".").map(Number);
+    const [ti, mi] = pos(a), m = lastTeams[ti] && lastTeams[ti][mi]; if (!m) return;
+    if (b[0] === "t"){ const tj = +b.slice(1); if (tj === ti) return; lastTeams[ti].splice(mi, 1); lastTeams[tj].push(m); }
+    else { const [tj, mj] = pos(b); const o = lastTeams[tj] && lastTeams[tj][mj]; if (!o) return; lastTeams[ti][mi] = o; lastTeams[tj][mj] = m; }
+    renderTeams(lastTeams, false, true);
+  });
   $("copyTeam").onclick = async () => {
     if (!lastTeams) return;
     const txt = "🎲 **チーム分けの結果**\n" + lastTeams.map((t, i) => "\n**チーム" + (i + 1) + "**（" + t.length + "人）\n" + t.map(m => "・" + m.name + (m.teacher ? "（先生）" : "")).join("\n")).join("\n");
@@ -388,7 +469,8 @@ input[type=number],input[type=text],textarea{border:1.5px solid var(--border);bo
         g.textAlign = "right"; g.textBaseline = "middle"; g.fillStyle = "#fff";
         g.font = "900 " + fs + "px 'Zen Kaku Gothic New',sans-serif";
         g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 4;
-        let label = it.label; const maxW = R * (im ? 0.52 : 0.68);
+        let label = it.label; const maxW = R * (im ? 0.52 : 0.7);
+        let f2 = fs; while (f2 > 18 && g.measureText(label).width > maxW) { f2 -= 2; g.font = "900 " + f2 + "px 'Zen Kaku Gothic New',sans-serif"; }   // 長いお題は文字を小さく
         while (label.length > 1 && g.measureText(label).width > maxW) label = label.slice(0, -1);
         if (label !== it.label) label = label.slice(0, -1) + "…";
         g.fillText(label, R - (im ? fs * 2.2 + 26 : 26), 0);

@@ -2274,6 +2274,56 @@
     return s;
   }
 
+  /* =============================================================
+     LoL のカスタム用（lol.html）
+       lboard_index/lol { players: { <id>: { name, avatar, riotId, puuid, rank:{tier,division,lp,queue}, manual,
+                                              main, subs:[...], fill, guest, by, at } }, updatedAt }
+       ロール： TOP / JG / MID / ADC / SUP
+     ============================================================= */
+  const LOL_ROLES = ["TOP", "JG", "MID", "ADC", "SUP"];
+  // VALORANT（valo.html）：デュエリスト / イニシエーター / コントローラー / センチネル
+  const VALO_ROLES = ["DUE", "INI", "CTRL", "SEN"];
+  function normGamePlayer(id, p, roles) {
+    p = p || {};
+    const r = p.rank && p.rank.tier ? { tier: String(p.rank.tier), division: String(p.rank.division || ""), lp: p.rank.lp | 0, queue: String(p.rank.queue || "") } : null;
+    return { id, name: String(p.name || "—"), avatar: String(p.avatar || ""), riotId: String(p.riotId || ""), puuid: String(p.puuid || ""),
+      rank: r, manual: !!p.manual, main: roles.indexOf(p.main) >= 0 ? p.main : "",
+      subs: (Array.isArray(p.subs) ? p.subs : []).filter(x => roles.indexOf(x) >= 0 && x !== p.main),
+      fill: !!p.fill, guest: !!p.guest, by: String(p.by || ""), at: p.at || 0 };
+  }
+  const normLolPlayer = (id, p) => normGamePlayer(id, p, LOL_ROLES);
+  /* 参加者の名簿（LoL・VALO で共通）。docName = lol / valo */
+  async function gameLoad(docName, roles) {
+    const db = openDb();
+    let raw = null;
+    if (db) { const s = await db.collection("lboard_index").doc(docName).get(); raw = s.exists ? s.data() : null; }
+    else { try { raw = JSON.parse(localStorage.getItem("mcc-lb2-" + docName) || "null"); } catch (e) { } }
+    const players = {};
+    Object.entries((raw && raw.players) || {}).forEach(([id, p]) => { if (p) players[id] = normGamePlayer(id, p, roles); });
+    return { players };
+  }
+  // 1人ぶんだけ書く（ほかの人の登録は消さない）
+  async function gameSave(docName, roles, id, data) {
+    if (!/^[\w-]+$/.test(id)) throw new Error("IDが正しくありません");
+    const p = normGamePlayer(id, data, roles); p.at = Date.now();
+    delete p.id;
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc(docName).set({ players: { [id]: p }, updatedAt: Date.now() }, { merge: true });
+    else { const k = "mcc-lb2-" + docName, raw = JSON.parse(localStorage.getItem(k) || "{}"); raw.players = raw.players || {}; raw.players[id] = p; localStorage.setItem(k, JSON.stringify(raw)); }
+    return normGamePlayer(id, p, roles);
+  }
+  async function gameDelete(docName, id) {
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc(docName).update({ ["players." + id]: firebase.firestore.FieldValue.delete() });
+    else { const k = "mcc-lb2-" + docName, raw = JSON.parse(localStorage.getItem(k) || "{}"); if (raw.players) delete raw.players[id]; localStorage.setItem(k, JSON.stringify(raw)); }
+  }
+  const loadLol = () => gameLoad("lol", LOL_ROLES);
+  const saveLolPlayer = (id, d) => gameSave("lol", LOL_ROLES, id, d);
+  const deleteLolPlayer = id => gameDelete("lol", id);
+  const loadValo = () => gameLoad("valo", VALO_ROLES);
+  const saveValoPlayer = (id, d) => gameSave("valo", VALO_ROLES, id, d);
+  const deleteValoPlayer = id => gameDelete("valo", id);
+
   /* Bot（chc-vc-bot）の投稿先の設定：lboard_index/botcfg { testChannelId, testAll }
        testChannelId … 「今すぐ投稿」（テスト）の投稿先
        testAll       … オンにすると、Bot の毎日の自動投稿（画像）も実験チャンネルへ */
@@ -3129,6 +3179,14 @@
     catch (e) { throw new Error("感謝ワードの設定を保存できませんでした（" + (e.code || e.message) + "）"); }
     return normThanks(w);
   }
+  /* 合宿期間中の試合数 { u_123: 58 }（Worker の countCampGames が書く） */
+  async function loadCampGames() {
+    try {
+      const db = openDb();
+      if (db) { const snap = await db.collection("lboard_index").doc("games").get(); return snap.exists ? (snap.data().counts || {}) : {}; }
+      return (JSON.parse(localStorage.getItem("mcc-lb2-games") || "{}").counts) || {};
+    } catch (e) { console.warn("試合数の読み込みに失敗", e); return {}; }
+  }
   async function loadThanksRange(fromKey, toKey, exclude) {
     const db = openDb();
     const out = { from: fromKey, to: toKey, channels: [], users: [], daily: [], totals: { count: 0, messages: 0, users: 0, channels: 0 } };
@@ -3323,12 +3381,17 @@
       message: "",
       signer: "先生より",
       term: "TFT合宿　SET18",   // 名前の下に印字する文字（空欄なら出さない）
+      // 卒業証書の本文（4行まで）。{期} は上の term に置きかわる
+      sBody: "あなたは本校において {期}の\n全課程を修了したことを証します",
       /* 講師用（感謝状） */
       tTitle: "感謝状",
-      tBody: "あなたは本校の講師として\n生徒の成長に力を尽くされました\nその功績をたたえ 感謝の意を表します",
+      // 本文（4行まで）。{生徒} は担当の生徒の名前に置きかわる
+      tBody: "あなたは本校の講師として {生徒}さんの指導にあたり\nその成長に大きく力を尽くされました\nここに深く感謝の意を表します",
       tSigner: "生徒一同より",
       // 先生と生徒のペア画像のタイトル
       pTitle: "師弟の記録",
+      // 2枚目の「まとめ画像」（VC時間・いっしょに過ごした仲間・特別賞）のタイトル
+      sTitle: "合宿のきろく",
       // 寄せ書きの受付（オフにすると新しく書けない。読めるのは卒業証書の公開後）
       yOpen: true,
       comments: {},
@@ -3378,9 +3441,15 @@
       signer: String(raw.signer || "").trim().slice(0, 30) || d.signer,
       term: String(raw.term == null ? d.term : raw.term).trim().slice(0, 20),
       tTitle: String(raw.tTitle || "").trim().slice(0, 12) || d.tTitle,
-      tBody: String(raw.tBody == null ? d.tBody : raw.tBody).slice(0, 120),
+      // 以前の初期文のまま保存されていたら、新しい初期文（卒業証書らしい文）に読み替える
+      // 以前の初期文のまま保存されていたら、いまの初期文に読み替える
+      tBody: (t => (t === "あなたは本校の講師として\n生徒の成長に力を尽くされました\nその功績をたたえ 感謝の意を表します" ||
+                    t === "あなたは本校の講師として\n合宿の期間中 {生徒}さんの指導にあたり\nその成長に大きく力を尽くされました\nよってここにその功績をたたえ\n深く感謝の意を表します" ? d.tBody : t))(
+        String(raw.tBody == null ? d.tBody : raw.tBody).slice(0, 200)),
       tSigner: String(raw.tSigner || "").trim().slice(0, 30) || d.tSigner,
       pTitle: String(raw.pTitle || "").trim().slice(0, 10) || d.pTitle,
+      sTitle: String(raw.sTitle || "").trim().slice(0, 10) || d.sTitle,
+      sBody: (t => (t === "あなたは本校において\n{期}の全課程を\n修了したことを証します" ? d.sBody : t))(String(raw.sBody == null ? d.sBody : raw.sBody).slice(0, 200)),
       yOpen: raw.yOpen == null ? d.yOpen : !!raw.yOpen,
       comments,
       mentors,
@@ -3465,6 +3534,11 @@
       if (n) snap = { total, best, n, label: extra.snap.label || "先生スナップショット" };
     }
     const exam = extra.exam && extra.exam.players ? (extra.exam.players[id] || null) : null;
+    // チャットで「ありがとう」などを言った回数（感謝ワード）
+    const tu = (extra.thanksUsers || []).find(u => "u_" + u.id === id || u.id === id);
+    const thanks = tu && tu.count ? tu.count : 0;
+    // 合宿期間中の試合数（Worker が毎朝9:00に lboard_index/games へ数える）
+    const games = extra.games && typeof extra.games[id] === "number" ? extra.games[id] : null;
 
     // VC（合計・いちばんいたVC・いっしょに過ごした仲間）
     let vc = null;
@@ -3472,7 +3546,7 @@
     const comp = extra.vcComp && extra.vcComp.byUser ? (extra.vcComp.byUser[id] || {}) : {};
     const mates = Object.entries(comp).map(([oid, sec]) => ({ id: oid, seconds: sec }))
       .filter(x => x.seconds >= 60 && x.id !== id)
-      .sort((a, b) => b.seconds - a.seconds).slice(0, 3);
+      .sort((a, b) => b.seconds - a.seconds).slice(0, 5);
     if (vu || mates.length) {
       vc = {
         seconds: vu ? vu.seconds : 0,
@@ -3491,7 +3565,7 @@
       bestDay: bestDay && bestDay.delta > 0 ? bestDay : null,
       days: inPeriod.length,
       series,
-      snap, exam, vc,
+      snap, exam, vc, thanks, games,
       comment: (album.comments || {})[id] || "",
       // この人がもらった特別賞（表示するかどうかは album.awardsOpen で決める）
       awards: (album.awards || []).filter(a => (a.winners || []).indexOf(id) >= 0)
@@ -4126,6 +4200,15 @@
       return workerGet("/account", { gameName, tagLine, region: effCfg().region });
     },
     // TFTランク（RANKED_TFTを優先。無ければ他キューか null）
+    // LoL のランク（ソロ/デュオ → フレックスの順）。ランクなしは null
+    async lolRank(puuid) {
+      const entries = await workerGet("/lol-rank", { puuid, platform: effCfg().platform });
+      if (!Array.isArray(entries) || !entries.length) return null;
+      const e = entries.find(x => x.queueType === "RANKED_SOLO_5x5") || entries.find(x => x.queueType === "RANKED_FLEX_SR") || entries[0];
+      if (!e || !e.tier) return null;
+      return { queue: e.queueType === "RANKED_FLEX_SR" ? "flex" : "solo", tier: e.tier, division: e.rank || "", lp: e.leaguePoints | 0,
+        wins: e.wins || 0, losses: e.losses || 0 };
+    },
     async rank(puuid) {
       const entries = await workerGet("/rank", { puuid, platform: effCfg().platform });
       if (!Array.isArray(entries) || !entries.length) return null;
@@ -4623,7 +4706,7 @@
     safeUrl, safeImg,
     defaultSchedule, normSchedule, loadSchedule, saveSchedule,
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
-    loadThanksConfig, saveThanksConfig, loadThanksRange, THANKS_DEFAULT,
+    loadThanksConfig, saveThanksConfig, loadThanksRange, THANKS_DEFAULT, loadCampGames,
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, vcColor, vcIcon, vcAvatars, loadVcCompanions, loadExamScores, rankOfAbs,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
@@ -4633,6 +4716,7 @@
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
     loadRising, saveRising, requestRisingPost, requestSnapshotImage,
     loadPromoteImg, savePromoteImgMode, requestPromoteImage, loadBotCfg, saveBotCfg,
+    LOL_ROLES, loadLol, saveLolPlayer, deleteLolPlayer, VALO_ROLES, loadValo, saveValoPlayer, deleteValoPlayer,
     fillTemplate, buildMessage, sampleMessageVars, MSG_CHANNELS, channelName,
     isPresent, presentList, presentUnits,
     isDouble, slotCount, SEATS_PER_TABLE_SOLO: 8, TEAMS_PER_TABLE, TEAM_SIZE,

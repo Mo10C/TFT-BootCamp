@@ -1370,19 +1370,24 @@ body.ad-on{overflow:hidden}
         <span class="hint" id="alPubHint"></span></div>
       <div class="row"><label style="min-width:72px">署名</label>
         <input type="text" id="alSigner" style="width:220px" maxlength="30" placeholder="先生より"></div>
-      <div class="row"><label style="min-width:72px">名前の下</label>
+      <div class="row"><label style="min-width:72px">合宿の名前</label>
         <input type="text" id="alTerm" style="width:220px" maxlength="20" placeholder="TFT合宿　SET18">
-        <span class="hint">証書の名前の下に印字する文字（空欄なら出しません）</span></div>
+        <span class="hint">卒業証書の本文の {期} と、合宿の記録の名前の横に入ります</span></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">証書の本文</label>
+        <div style="flex:1"><textarea id="alSBody" maxlength="200" style="width:100%;min-height:90px;font-family:inherit;font-size:13px;line-height:1.8"></textarea>
+        <div class="hint">卒業証書の「名前 殿」の下に出ます（4行まで・改行はそのまま）。<b>{期}</b> は上の「合宿の名前」に置きかわります。</div></div></div>
       <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">全体へ</label>
         <textarea id="alMsg" maxlength="600" style="flex:1;min-height:90px;font-family:inherit;font-size:13px;line-height:1.8"
           placeholder="表紙に出る、全員へのメッセージ（任意）"></textarea></div>
     </div>
 
     <div class="card">
-      <h2>📜 証書のプレビュー</h2>
-      <div class="lead">生徒が「画像で保存」するものと同じ証書です。ここで変えた文言・ひとことは<b>保存前でもすぐ反映</b>されます（特別賞は未発表でも表示）。</div>
+      <h2>📜 証書・まとめ画像のプレビュー</h2>
+      <div class="lead">生徒が「画像で保存」するものと同じ証書です。記録がまだ無いときは「🧪 ダミーデータ」（または一覧の最後の「ダミーの生徒・先生」）で試せます。ここで変えた文言・ひとことは<b>保存前でもすぐ反映</b>されます（特別賞は未発表でも表示）。</div>
       <div class="row">
+        <select id="alPvKind" title="どちらの画像を見るか"><option value="cert">📜 証書</option><option value="sum">📊 合宿の記録（2枚目）</option></select>
         <select id="alPvSel" style="min-width:220px"></select>
+        <select id="alPvData" title="どのデータで描くか"><option value="">いまのデータ</option><option value="1">🧪 ダミーデータ</option></select>
         <button class="mini" id="alPvPrev" type="button" title="前の人">‹</button>
         <button class="mini" id="alPvNext" type="button" title="次の人">›</button>
         <button class="mini" id="alPvReload" type="button" title="読み込み直す">↻</button>
@@ -1398,13 +1403,17 @@ body.ad-on{overflow:hidden}
       <div class="row"><label style="min-width:72px">タイトル</label>
         <input type="text" id="alTTitle" style="width:220px" maxlength="10" placeholder="感謝状"></div>
       <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">本文</label>
-        <textarea id="alTBody" maxlength="120" style="flex:1;min-height:100px;font-family:inherit;font-size:13px;line-height:1.8"></textarea></div>
+        <div style="flex:1"><textarea id="alTBody" maxlength="200" style="width:100%;min-height:130px;font-family:inherit;font-size:13px;line-height:1.8"></textarea>
+        <div class="hint">感謝状の「名前 殿」の下に出ます（4行まで・改行はそのまま）。<b>{生徒}</b> は担当の生徒の名前に置きかわります。</div></div></div>
       <div class="row"><label style="min-width:72px">署名</label>
         <input type="text" id="alTSigner" style="width:220px" maxlength="30" placeholder="生徒一同より">
         <span class="hint">感謝のことばの右下に出ます</span></div>
       <div class="row"><label style="min-width:72px">ペア画像</label>
         <input type="text" id="alPTitle" style="width:220px" maxlength="10" placeholder="師弟の記録">
         <span class="hint">先生と担当の生徒を並べた画像のタイトル（毛筆）</span></div>
+      <div class="row"><label style="min-width:72px">記録の画像</label>
+        <input type="text" id="alSTitle" style="width:220px" maxlength="10" placeholder="合宿のきろく">
+        <span class="hint">2枚目の「合宿の記録」（グラフ・試合数・VC・仲間・特別賞）のタイトル（毛筆）。生徒・先生の両方に出ます</span></div>
     </div>
 
     <div class="card">
@@ -4307,11 +4316,19 @@ body.ad-on{overflow:hidden}
     function alPvLoad(force){
       const f = $("alPvFrame");
       if (!alPvId){ f.removeAttribute("src"); return; }
-      const url = "album.html?id=" + encodeURIComponent(alPvId) + "&embed=cert";
-      if (!force && f.dataset.id === alPvId) return;
-      f.dataset.id = alPvId;
+      const kind = $("alPvKind").value === "sum" ? "sum" : "cert";
+      // ダミーの生徒・先生、または「ダミーデータ」を選んだときは、記録をダミーで埋めて描く（保存はしない）
+      const dm = $("alPvData").value === "1" || /^__dummy_/.test(alPvId) ? "&dummy=1" : "";
+      const url = "album.html?id=" + encodeURIComponent(alPvId) + "&embed=" + kind + dm;
+      if (!force && f.dataset.id === alPvId + "|" + kind + dm) return;
+      f.dataset.id = alPvId + "|" + kind + dm;
+      // 合宿の記録はたて長（1080×1350）
+      const box = f.parentElement;
+      box.style.aspectRatio = kind === "sum" ? "1080/1350" : "";
+      box.style.maxWidth = kind === "sum" ? "520px" : "";
+      box.style.margin = kind === "sum" ? "8px auto 0" : "";
       f.src = url + "&t=" + Date.now();
-      $("alPvOpen").href = "album.html?id=" + encodeURIComponent(alPvId);
+      $("alPvOpen").href = "album.html?id=" + encodeURIComponent(alPvId) + dm;
       $("alPvSel").value = alPvId;
     }
     function alPvPush(){
@@ -4332,6 +4349,8 @@ body.ad-on{overflow:hidden}
       if (scroll) $("alPvFrame").closest(".card").scrollIntoView({ behavior: "smooth", block: "start" });
     }
     $("alPvSel").onchange = () => alPvShow($("alPvSel").value);
+    $("alPvKind").onchange = () => alPvLoad(true);
+    $("alPvData").onchange = () => alPvLoad(true);
     $("alPvReload").onclick = () => alPvLoad(true);
     [["alPvPrev", -1], ["alPvNext", 1]].forEach(([b, d]) => $(b).onclick = () => {
       if (!alPvList.length) return;
@@ -4351,11 +4370,13 @@ body.ad-on{overflow:hidden}
       $("alPub").checked = !!alEdit.published;
       $("alSigner").value = alEdit.signer;
       $("alTerm").value = alEdit.term || "";
+      $("alSBody").value = alEdit.sBody || "";
       $("alMsg").value = alEdit.message;
       $("alTTitle").value = alEdit.tTitle || "";
       $("alTBody").value = alEdit.tBody || "";
       $("alTSigner").value = alEdit.tSigner || "";
       $("alPTitle").value = alEdit.pTitle || "";
+      $("alSTitle").value = alEdit.sTitle || "";
       $("alYOpen").checked = alEdit.yOpen !== false;
       $("alPubHint").textContent = alEdit.published
         ? "公開中：全員が卒業証書を見られます"
@@ -4438,7 +4459,9 @@ body.ad-on{overflow:hidden}
       const allIds = ids.slice();
       alPvSetList(ids.map(id => { const isT = tIds.indexOf(id) >= 0;
         const m = (alLp.members || {})[id] || alMem[id] || {};
-        return { id, t: isT, label: (isT ? "🎓 " : "📜 ") + (m.name || "—") + (isT ? "（講師）" : "") }; }));
+        return { id, t: isT, label: (isT ? "🎓 " : "📜 ") + (m.name || "—") + (isT ? "（講師）" : "") }; })
+        // 名簿がまだ空でも試せるように、ダミーの生徒・先生も選べる
+        .concat([{ id: "__dummy_s", label: "🧪 ダミーの生徒" }, { id: "__dummy_t", t: true, label: "🧪 ダミーの先生" }]));
       const filled = ids.filter(id => (alEdit.comments[id] || "").trim()).length;
       const tName = id => { const m = (alLp.members || {})[id] || alMem[id] || {}; return m.name || "—"; };
       alEdit.mentors = alEdit.mentors || {};
@@ -4523,8 +4546,8 @@ body.ad-on{overflow:hidden}
       }
     }
 
-    [["alTitle","title"],["alSigner","signer"],["alTerm","term"],["alMsg","message"],["alStart","start"],["alEnd","end"],
-     ["alTTitle","tTitle"],["alTBody","tBody"],["alTSigner","tSigner"],["alPTitle","pTitle"]].forEach(([el, key]) => {
+    [["alTitle","title"],["alSigner","signer"],["alTerm","term"],["alSBody","sBody"],["alMsg","message"],["alStart","start"],["alEnd","end"],
+     ["alTTitle","tTitle"],["alTBody","tBody"],["alTSigner","tSigner"],["alPTitle","pTitle"],["alSTitle","sTitle"]].forEach(([el, key]) => {
       $(el).addEventListener("input", () => {
         alEdit[key] = $(el).value;
         markAl();
