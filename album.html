@@ -181,6 +181,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
   background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 20%,var(--surface)),var(--surface) 70%);
   border:1.5px solid color-mix(in srgb,var(--gold) 55%,var(--border))}
 .aw .ic{font-size:30px;line-height:1}
+.awimg{width:1.25em;height:1.25em;border-radius:50%;object-fit:cover;vertical-align:middle;display:inline-block}
 .aw b{display:block;font-size:17px;font-weight:900;margin-top:6px}
 .aw p{font-size:11.5px;color:var(--muted);line-height:1.7;margin-top:2px}
 .aw .who{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -293,6 +294,22 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
   let D = null;   // 読み込んだデータ一式
   // 特別賞を見せるか（発表前は管理者だけ）
   const showAwards = () => D.album.awardsOpen || IS_ADMIN;
+  // 賞のアイコン：画像があれば画像、無ければ絵文字
+  const awIcon = a => a && a.img ? '<img class="awimg" src="' + esc(a.img) + '" alt="">' : esc((a && a.icon) || "🏆");
+  /* 画像の上に賞のアイコンを描く（金の丸の中）。画像があれば丸く切り抜いて、無ければ絵文字 */
+  async function drawAwIcon(g, a, cx, cy, r, emojiPx){
+    const im = a && a.img ? await loadImg(a.img) : null;
+    g.save();
+    if (im){
+      g.beginPath(); g.arc(cx, cy, r - 2, 0, Math.PI * 2); g.clip();
+      const k = Math.max((r * 2) / im.naturalWidth, (r * 2) / im.naturalHeight);
+      g.drawImage(im, cx - im.naturalWidth * k / 2, cy - im.naturalHeight * k / 2, im.naturalWidth * k, im.naturalHeight * k);
+    } else {
+      g.textAlign = "center"; g.textBaseline = "middle"; g.font = (emojiPx || Math.round(r * 1.05)) + "px sans-serif"; g.fillStyle = "#5A3B06";
+      g.fillText((a && a.icon) || "🏆", cx, cy + 1);
+    }
+    g.restore(); g.textBaseline = "alphabetic";
+  }
   const pendingTag = () => D.album.awardsOpen ? "" : '<span class="pending">（未発表・管理者にだけ見えています）</span>';
 
   function ensureBrush(text){
@@ -468,7 +485,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     const aws = showAwards() ? D.album.awards.filter(a => a.winners.some(w => D.byId[w] || D.nameOf(w) !== "—")) : [];
     const awardsHtml = aws.length
       ? '<div class="sec-t">🎖 特別賞 ' + pendingTag() + '</div><div class="awards">' + aws.map(a =>
-          '<div class="aw"><div class="ic">' + esc(a.icon) + "</div><b>" + esc(a.name) + "</b>" +
+          '<div class="aw"><div class="ic">' + awIcon(a) + "</div><b>" + esc(a.name) + "</b>" +
           (a.desc ? "<p>" + esc(a.desc) + "</p>" : "") +
           '<div class="who">' + a.winners.map(w =>
             '<a href="?id=' + encodeURIComponent(w) + '">' + avatar(D.avatarOf(w), D.nameOf(w)) + esc(D.nameOf(w)) + "</a>").join("") +
@@ -485,7 +502,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         '<a class="st' + (e.id === ME ? " me" : "") + (e.pending ? " pend" : "") + '" href="?id=' + encodeURIComponent(e.id) + '" style="--c:' + e.color + '">' +
           (e.id === ME ? '<span class="you">あなた</span>' : "") +
           (showAwards() && e.awards.length ? '<span class="awb" title="' + esc(e.awards.map(a => a.name).join("・")) + '">' +
-            esc(e.awards[0].icon) + "</span>" : "") +
+            awIcon(e.awards[0]) + "</span>" : "") +
           (e.pending ? '<span class="pendb" title="期間中の記録がまだありません（生徒には表示されません）">記録待ち</span>' : "") +
           avatar(e.avatar, e.name) +
           '<div class="nm">' + esc(e.name) + "</div>" +
@@ -767,7 +784,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     let y = headerEnd + 24;
     for (const p of plan){
       const b = p.b;
-      if (p.head) headAt(p.head, y + 4, b.type === "mvp" ? b.icon : "");
+      if (p.head) headAt(p.head, y + 4, b.type === "mvp" && !b.img ? b.icon : "");
       let cy = y + (p.head ? 20 : 0);
       if (b.type === "stats"){
         const tw = (CW - 24) / 3;
@@ -807,7 +824,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         else for (let i = 0; i < p.aws.length; i++){
           const a = p.aws[i], ry = cy + 32 + i * 64;
           g.beginPath(); g.arc(L + 34, ry, 20, 0, Math.PI * 2); g.fillStyle = "#F4C542"; g.fill(); g.lineWidth = 3; g.strokeStyle = "#fff"; g.stroke();
-          g.textAlign = "center"; g.textBaseline = "middle"; g.font = "20px sans-serif"; g.fillStyle = "#5A3B06"; g.fillText(a.icon, L + 34, ry + 1); g.textBaseline = "alphabetic";
+          await drawAwIcon(g, a, L + 34, ry, 20, 20);
           g.textAlign = "left"; g.fillStyle = "#5A3B06"; g.font = "900 19px " + JPF; g.fillText(fitText(g, a.name, 240), L + 66, ry + (a.desc ? 0 : 7));
           if (a.desc){ g.fillStyle = muted; g.font = "500 12px " + JPF; g.fillText(fitText(g, a.desc, 240), L + 66, ry + 18); }
           let wx = L + 330;
@@ -827,7 +844,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
           const x = p.es[i], ry = cy + 32 + i * 56, pw = x.who ? personOf(x.who) : { name: x.name, avatar: "" };
           const nm = x.who ? pw.name : x.name;
           g.beginPath(); g.arc(L + 30, ry, 15, 0, Math.PI * 2); g.fillStyle = "#F4C542"; g.fill();
-          g.textAlign = "center"; g.textBaseline = "middle"; g.font = "16px sans-serif"; g.fillStyle = "#5A3B06"; g.fillText(b.icon || "🏆", L + 30, ry + 1); g.textBaseline = "alphabetic";
+          await drawAwIcon(g, b, L + 30, ry, 15, 16);
           await drawAvatar(g, [pw.avatar, pw.avatarAlt], nm, L + 76, ry, 20, "#E8CD82");
           g.textAlign = "left"; g.fillStyle = ink; g.font = "900 19px " + JPF; const nn = fitText(g, nm, 260); g.fillText(nn, L + 106, ry + 7);
           const nx = L + 106 + Math.max(g.measureText(nn).width, 150) + 28;
@@ -1079,7 +1096,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
 
         (showAwards() && e.awards.length ?
           '<div class="pg-sec"><h3>特別賞' + pendingTag() + '</h3><div class="pg-awards">' +
-            e.awards.map(a => '<div class="pg-aw"><span class="ic">' + esc(a.icon) + "</span><span><b>" + esc(a.name) + "</b>" +
+            e.awards.map(a => '<div class="pg-aw"><span class="ic">' + awIcon(a) + "</span><span><b>" + esc(a.name) + "</b>" +
               (a.desc ? "<small>" + esc(a.desc) + "</small>" : "") + "</span></div>").join("") +
           "</div></div>" : "") +
 
@@ -1750,14 +1767,14 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     if (aws.length){
       card(LX, y, aW, boxH);
       const rh = Math.min(48, (boxH - 12) / aws.length);
-      aws.forEach((a, i) => {
-        const cy = y + 6 + rh * i + rh / 2;
+      for (let i = 0; i < aws.length; i++){
+        const a = aws[i], cy = y + 6 + rh * i + rh / 2;
         g.beginPath(); g.arc(LX + 30, cy, 16, 0, Math.PI * 2); g.fillStyle = "#F4C542"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = "#fff"; g.stroke();
-        g.textAlign = "center"; g.textBaseline = "middle"; g.font = "17px sans-serif"; g.fillStyle = "#5A3B06"; g.fillText(a.icon, LX + 30, cy + 1);
+        await drawAwIcon(g, a, LX + 30, cy, 16, 17);
         g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = "#5A3B06"; g.font = "900 18px " + JP;
         const an = fitText(g, a.name, aW - 80); g.fillText(an, LX + 56, cy + (a.desc ? -1 : 6));
         if (a.desc){ g.fillStyle = muted; g.font = "500 12px " + JP; g.fillText(fitText(g, a.desc, aW - 80), LX + 56, cy + 16); }
-      });
+      }
     } else {
       rr(g, LX, y, aW, boxH, 16); g.setLineDash([7, 6]); g.lineWidth = 2; g.strokeStyle = "rgba(201,162,74,.6)"; g.stroke(); g.setLineDash([]);
       g.textAlign = "center"; g.fillStyle = "#9A7426"; g.font = "900 19px " + JP;

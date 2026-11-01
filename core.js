@@ -3480,17 +3480,21 @@
     if (type === "rank") { o.metric = ALL_METRICS.indexOf(b.metric) >= 0 ? b.metric : "lp"; o.n = Math.min(10, Math.max(1, b.n | 0 || 5)); }
     if (type === "mvp") {
       o.icon = String(b.icon || "🏆").slice(0, 4);
+      o.img = okIconImg(b.img);
       o.entries = (Array.isArray(b.entries) ? b.entries : []).slice(0, 12).map(x => ({
         who: String((x && x.who) || ""), name: String((x && x.name) || "").slice(0, 30), note: String((x && x.note) || "").slice(0, 40) }));
     }
     if (type === "text") o.body = String(b.body || "").slice(0, 400);
     return o;
   }
+  // 賞のアイコン画像（管理コンソールで選んだ画像を 128px にしたデータURL）。無ければ絵文字
+  const okIconImg = v => (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(v || "")) && String(v).length < 200000) ? String(v) : "";
   function normAward(a, i) {
     a = a || {};
     return {
       id: String(a.id || ("aw" + Date.now().toString(36) + i)),
       icon: String(a.icon || "🏆").slice(0, 4),
+      img: okIconImg(a.img),
       name: String(a.name || "").trim().slice(0, 30) || "特別賞",
       desc: String(a.desc || "").slice(0, 120),
       winners: (Array.isArray(a.winners) ? a.winners : []).map(String).filter(Boolean).slice(0, 40)

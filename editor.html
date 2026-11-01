@@ -330,6 +330,7 @@ img.vcp-ic{border-radius:50%;object-fit:cover;padding:0}
 .alrow:last-child{border-bottom:none}
 .alpv{margin-top:8px;border-radius:14px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1200/675;background:#FBF8EE}
 .alpv iframe{width:100%;height:100%;border:0;display:block}
+.icimg img{width:30px;height:30px;border-radius:50%;object-fit:cover;vertical-align:middle;border:2px solid #E8CD82}
 .pta{flex:1;min-height:52px;font-family:inherit;font-size:13px;line-height:1.7}
 .blk{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--surface)}
 .blk .bh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -4502,6 +4503,30 @@ body.ad-on{overflow:hidden}
         : "まだ保存していません（既定の設定です）";
     }
     /* ---- 特別賞 ---- */
+    /* 賞のアイコンを画像にする：選んだ画像を正方形に切りぬいて 128px に（卒業証書の設定にそのまま入る） */
+    function pickIconImg(done){
+      const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+      inp.onchange = () => {
+        const f = inp.files && inp.files[0]; if (!f) return;
+        const url = URL.createObjectURL(f), im = new Image();
+        im.onload = () => {
+          const S = 128, c = document.createElement("canvas"); c.width = c.height = S;
+          const g = c.getContext("2d"), k = Math.max(S / im.naturalWidth, S / im.naturalHeight);
+          g.drawImage(im, (S - im.naturalWidth * k) / 2, (S - im.naturalHeight * k) / 2, im.naturalWidth * k, im.naturalHeight * k);
+          URL.revokeObjectURL(url); done(c.toDataURL("image/png"));
+        };
+        im.onerror = () => toast("画像を読み込めませんでした");
+        im.src = url;
+      };
+      inp.click();
+    }
+    const iconImgHtml = x => '<span class="icimg">' + (x.img ? '<img src="' + x.img + '" alt="">' : "") + "</span>" +
+      '<button class="mini pickimg" type="button" title="アイコンを好きな画像にする">🖼 画像</button>' +
+      (x.img ? '<button class="mini clrimg" type="button" title="画像をやめて絵文字に戻す">✕</button>' : "");
+    const bindIconImg = (el, x, redraw) => {
+      el.querySelector(".pickimg").onclick = () => pickIconImg(u => { x.img = u; markAl(); redraw(); });
+      const c = el.querySelector(".clrimg"); if (c) c.onclick = () => { x.img = ""; markAl(); redraw(); };
+    };
     function renderAwards(){
       $("alAwOpen").checked = !!alEdit.awardsOpen;
       $("alAwHint").textContent = alEdit.awardsOpen
@@ -4515,7 +4540,7 @@ body.ad-on{overflow:hidden}
         row.className = "awrow";
         row.innerHTML =
           '<div class="top">' +
-            '<input type="text" class="ico" maxlength="4" title="絵文字">' +
+            '<input type="text" class="ico" maxlength="4" title="絵文字（画像を選んだときは画像が優先）">' + iconImgHtml(a) +
             '<input type="text" class="nm" maxlength="30" placeholder="賞の名前（例：MVP賞）">' +
             '<button class="ordbtn" data-m="-1" type="button"' + (i === 0 ? " disabled" : "") + '>▲</button>' +
             '<button class="ordbtn" data-m="1" type="button"' + (i === alEdit.awards.length - 1 ? " disabled" : "") + '>▼</button>' +
@@ -4526,6 +4551,7 @@ body.ad-on{overflow:hidden}
         const [ico, nm] = row.querySelectorAll(".top input");
         const ds = row.querySelector(".ds");
         ico.value = a.icon; nm.value = a.name; ds.value = a.desc;
+        bindIconImg(row, a, renderAwards);
         ico.oninput = () => { a.icon = ico.value; markAl(); };
         nm.oninput = () => { a.name = nm.value; markAl(); };
         ds.oninput = () => { a.desc = ds.value; markAl(); };
@@ -4656,7 +4682,7 @@ body.ad-on{overflow:hidden}
       bl.forEach((b, i) => {
         const d = document.createElement("div"); d.className = "blk";
         let h = '<div class="bh"><span class="bt">' + BLK_NAME[b.type] + "</span>" +
-          (b.type === "mvp" ? '<input type="text" class="ic" maxlength="4" style="width:44px;flex:none" value="' + esc(b.icon || "🏆") + '" title="アイコン">' : "") +
+          (b.type === "mvp" ? '<input type="text" class="ic" maxlength="4" style="width:44px;flex:none" value="' + esc(b.icon || "🏆") + '" title="アイコン（絵文字）">' + iconImgHtml(b) : "") +
           '<input type="text" class="ti" maxlength="30" placeholder="見出し" value="' + esc(b.title || "") + '">' +
           (b.type === "rank" ? '<select class="mt">' + Object.keys(METRIC_NAME).map(k => '<option value="' + k + '"' + (b.metric === k ? " selected" : "") + ">" + METRIC_NAME[k] + "</option>").join("") +
             '</select><select class="nn">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option' + ((b.n || 5) === n ? " selected" : "") + ">" + n + "</option>").join("") + "</select>人" : "") +
@@ -4681,6 +4707,7 @@ body.ad-on{overflow:hidden}
         const q = s => d.querySelector(s);
         q(".ti").oninput = e => { b.title = e.target.value; markAl(); };
         if (q(".ic")) q(".ic").oninput = e => { b.icon = e.target.value; markAl(); };
+        if (q(".pickimg")) bindIconImg(d, b, renderBlocks);
         if (q(".mt")) q(".mt").onchange = e => { b.metric = e.target.value; markAl(); };
         if (q(".nn")) q(".nn").onchange = e => { b.n = +e.target.value; markAl(); };
         if (q(".bd")) q(".bd").oninput = e => { b.body = e.target.value; markAl(); };
