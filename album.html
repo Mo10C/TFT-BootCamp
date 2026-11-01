@@ -882,7 +882,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       };
     } else {
       /* 先生ごと：先生と担当の生徒のペアを1枚のカードに。生徒のアイコンを大きく、先生は気持ち小さく。
-         運営の先生（運営・校長・副校長のロール）は、卒業アルバムの集合写真のように右上に丸く並べる */
+         運営の先生（運営・校長・副校長のロール）は、卒業アルバムの集合写真のように右上に丸く並べる。左上はマスコット（assets/mascot.png） */
       const staff = P.tch.filter(t => t.staff);
       const groups = P.tch.filter(t => P.stu.some(x => x.mentor && x.mentor.id === t.id))
         .map(t => ({ t, s: P.stu.filter(x => x.mentor && x.mentor.id === t.id) }));
@@ -892,11 +892,11 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       if (rest.length) groups.push({ t: null, s: rest });
       // 右上の運営の先生（1列4人まで）
       const cw0 = 100, cCols = Math.min(4, Math.max(1, staff.length)), cRows = Math.ceil(staff.length / 4);
-      const cornerBottom = staff.length ? 80 + cRows * 112 : 0;
+      const cornerBottom = staff.length ? 92 + cRows * 118 : 0;
       top = Math.max(top, cornerBottom + 22);
       const cols = groups.length > 12 ? 5 : groups.length > 6 ? 4 : Math.min(3, Math.max(1, groups.length)), gap = 18;
       const cw = (CW - gap * (cols - 1)) / cols;
-      const cardH = gr => gr.s.length > 3 ? 24 + Math.ceil(gr.s.length / 3) * 136 + 12 : 186;
+      const cardH = gr => gr.s.length > 3 ? 24 + Math.ceil(gr.s.length / 3) * 136 + 12 : 200;
       const rows = []; for (let i = 0; i < groups.length; i += cols) rows.push(groups.slice(i, i + cols));
       const rowH = rows.map(r => Math.max.apply(null, r.map(cardH)));
       H = top + rowH.reduce((n, h) => n + h + gap, 0) + 90;
@@ -905,12 +905,13 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         if (staff.length){
           const x1 = R - 4, x0 = x1 - cCols * cw0;
           g.textAlign = "center"; g.fillStyle = "#8C6A24"; g.font = "900 14px " + JPF;
-          g.fillText("🍎 担任の先生", (x0 + x1) / 2, 74);
+          g.fillText("🍎 運営の先生", (x0 + x1) / 2, 74);
           for (let i = 0; i < staff.length; i++){
             const t = staff[i], rowN = Math.min(4, staff.length - Math.floor(i / 4) * 4);
-            const cx = x1 - rowN * cw0 + (i % 4) * cw0 + cw0 / 2, cy = 124 + Math.floor(i / 4) * 112;
+            const cx = x1 - rowN * cw0 + (i % 4) * cw0 + cw0 / 2, cy = 124 + Math.floor(i / 4) * 118;
             await drawAvatar(g, [t.avatar, t.avatarAlt], t.name, cx, cy, 36, goldRing(cx, cy, 36));
-            g.textAlign = "center"; g.fillStyle = ink; g.font = "900 13px " + JPF; g.fillText(fitText(g, t.name, cw0 - 6), cx, cy + 60);
+            g.textAlign = "center"; g.fillStyle = ink; g.font = "900 13px " + JPF;
+            wrapText(g, t.name, cw0 - 6, 2).forEach((ln, k) => g.fillText(ln, cx, cy + 58 + k * 15));   // 長い名前は2行に
           }
         }
         let y = top;
@@ -942,8 +943,10 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
               const cy = base - rT;
               await drawAvatar(g, [gr.t.avatar, gr.t.avatarAlt], gr.t.name, cx, cy, rT, goldRing(cx, cy, rT));
               g.textAlign = "center"; g.fillStyle = "#9A7426"; g.font = "900 13px " + JPF;
-              g.fillText(fitText(g, gr.t.name + " 先生", tArea + 10), cx, cy + rT + (n ? 30 : 34));
-              if (!n){ g.fillStyle = muted; g.font = "500 12px " + JPF; g.fillText("（担当の生徒なし）", cx, cy + rT + 54); }
+              // 見切れるときは2行に（「先生」は2行目の最後へ）
+              const tl = g.measureText(gr.t.name + " 先生").width <= tArea + 10 ? [gr.t.name + " 先生"] : wrapText(g, gr.t.name + " 先生", tArea + 10, 2);
+              tl.forEach((ln, k) => g.fillText(ln, cx, cy + rT + (n ? 28 : 32) + k * 16));
+              if (!n){ g.fillStyle = muted; g.font = "500 12px " + JPF; g.fillText("（担当の生徒なし）", cx, cy + rT + 56 + (tl.length - 1) * 16); }
             } else if (n){
               g.textAlign = "right"; g.fillStyle = muted; g.font = "700 12px " + JPF; g.fillText("担当の先生は未定", x + cw - 14, y + 20);
             }
@@ -957,6 +960,9 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     const g = cv.getContext("2d");
     await drawAdmFrame(g, W, H);
     titleBlock(g, W, "CLASS PHOTO", TT, 96);
+    // 左上にマスコット（右上の運営の先生とつり合うように）
+    const masc = await loadImg("assets/mascot.png");
+    if (masc){ const mh = 168, mw = masc.naturalWidth * mh / masc.naturalHeight; g.drawImage(masc, L + 6, 52, mw, mh); }
     await draw(g);
     g.textAlign = "center"; g.fillStyle = "#8C6A24"; g.font = "900 16px " + JPF;
     g.fillText(SCHOOL + "　生徒 " + P.stu.length + "人・先生 " + P.tch.length + "人", W / 2, H - 58);
