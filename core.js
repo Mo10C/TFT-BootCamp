@@ -1558,8 +1558,16 @@
       });
       hist[id] = s;
     });
+    // マスター以上の日のティア（LPの数字だけではマスター・GM・チャレンジャーを区別できないため）
+    const htier = {};
+    Object.entries(raw.htier || {}).forEach(([id, days]) => {
+      if (!id || !days || typeof days !== "object") return;
+      const o = {};
+      Object.entries(days).forEach(([d, t]) => { if (/^\d{4}-\d{2}-\d{2}$/.test(d) && /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(t)) o[d] = t; });
+      htier[id] = o;
+    });
     return {
-      members, hist,
+      members, hist, htier,
       baseline: /^\d{4}-\d{2}-\d{2}$/.test(raw.baseline) ? raw.baseline : "",
       // ★ LPランキングの並び順（管理コンソールで並び替えたもの）
       groupOrder: Array.isArray(raw.groupOrder)
@@ -1628,6 +1636,8 @@
     const patch = { members: { [player.id]: entry }, updatedAt: Date.now() };
     const beforeStart = !!(lpCollectFrom && today < lpCollectFrom);   // 集計開始日より前は記録しない
     if (withHistory && abs != null && !beforeStart) patch.hist = { [player.id]: { [today]: abs } };
+    const apex = rank && /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(rank.tier) ? rank.tier : "";
+    if (withHistory && apex && !beforeStart) patch.htier = { [player.id]: { [today]: apex } };
 
     const db = openDb();
     try {
@@ -1638,6 +1648,7 @@
         if (withHistory && abs != null && !beforeStart) {
           cur.hist[player.id] = cur.hist[player.id] || {};
           cur.hist[player.id][today] = abs;
+          if (apex){ cur.htier[player.id] = cur.htier[player.id] || {}; cur.htier[player.id][today] = apex; }
         }
         cur.updatedAt = Date.now();
         localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
@@ -2375,13 +2386,36 @@
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const db = openDb();
     if (!db) throw new Error("Firebase に接続していないため使えません");
-    await db.collection("lboard_index").doc(SNAP_DOC).set({ imgRequestAt: Date.now(), imgRequestDay: day || "", imgRequestFinal: !!isFinal, imgRequestDummy: !!dummy }, { merge: true });
+    await db.collection("lboard_index").doc(SNAP_DOC).set({ imgRequestAt: Date.now(), imgRequestDay: day || "", imgRequestFinal: !!isFinal, imgRequestDummy: !!dummy, imgRequestTest: false }, { merge: true });
+  }
+  /* 過去の結果を選んで消す（days：消す日の一覧、withFinal：表彰も消す）。
+     ★ 日付のキーは「-」を含むので FieldPath で指定する */
+  async function deleteSnapshotResults(days, withFinal) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    days = (days || []).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (!days.length && !withFinal) return;
+    const db = openDb();
+    if (db) {
+      const FV = firebase.firestore.FieldValue, args = [];
+      days.forEach(d => { args.push(new firebase.firestore.FieldPath("results", d), FV.delete()); });
+      if (withFinal) args.push("final", [], "finalAt", 0, "finalBotAt", 0);
+      args.push("updatedAt", Date.now());
+      await db.collection("lboard_index").doc(SNAP_DOC).update(...args);
+    } else {
+      const cur = JSON.parse(localStorage.getItem(SNAP_LS_KEY) || "{}");
+      cur.results = cur.results || {};
+      days.forEach(d => { delete cur.results[d]; });
+      if (withFinal) { cur.final = []; cur.finalAt = 0; cur.finalBotAt = 0; }
+      localStorage.setItem(SNAP_LS_KEY, JSON.stringify(cur));
+    }
   }
 
   /* 全回の合計ポイント順。同点なら最後に測ったLPが高いほう → 名前順 */
   function snapshotStandings(snap) {
     const tally = {};
-    Object.keys(snap.results || {}).sort().forEach(d => {
+    // ★ 合計は実施日の回だけ（実施日でない日に試した結果は数えない。Worker の表彰と同じ）
+    const sched = snap.dates || [];
+    Object.keys(snap.results || {}).filter(d => !sched.length || sched.indexOf(d) >= 0).sort().forEach(d => {
       (snap.results[d].rows || []).forEach(r => {
         const t = tally[r.id] || (tally[r.id] = { id: r.id, name: r.name, total: 0, per: {}, lastAbs: 0 });
         t.total += r.point | 0;
@@ -3403,8 +3437,54 @@
         { id: "effort", icon: "🔥", name: "努力賞",          desc: "", winners: [] },
         { id: "mood",  icon: "🌟", name: "ムードメーカー賞", desc: "", winners: [] }
       ],
+      /* 全体の合宿の記録（album.html の一覧の上・卒業式の投稿のしめ）。ブロックを並べて作る
+           stats  … 数字のまとめ（参加人数・合計試合数・合計VC時間など。自動）
+           rank   … ランキング（metric: lp=LPの伸び / games=試合数 / vc=VC時間 / thanks=ありがとう / coach=コーチング時間）
+           awards … 特別賞（上の awards から自動）
+           mvp    … 自由な表彰（レクリエーションMVPなど）。entries: [{ who: メンバーID（空なら name を使う）, name, note }]
+           text   … 自由な文章 */
+      all: {
+        title: "みんなの合宿のきろく",
+        message: "",
+        blocks: [
+          { id: "b1", type: "stats", title: "数字で見る合宿" },
+          { id: "b2", type: "rank", metric: "lp", n: 5, title: "LPの伸び ランキング" },
+          { id: "b3", type: "rank", metric: "games", n: 3, title: "試合数 ランキング" },
+          { id: "b4", type: "rank", metric: "vc", n: 3, title: "VC時間 ランキング" },
+          { id: "b5", type: "awards", title: "特別賞" },
+          { id: "b6", type: "mvp", title: "レクリエーションMVP", icon: "🎉", entries: [] }
+        ]
+      },
+      // 集合写真（by: mentor＝先生ごと／all＝全員）
+      group: { title: "集合写真", by: "mentor" },
+      /* 卒業式の投稿（Bot が1人ずつ投稿）。文面の {…} は投稿するときに置きかわる
+           {name} 名前 / {mention} @メンション / {mentor} 担当の先生 / {student} 担当した生徒
+           {from} 開校時のランク / {to} 期間中の最高ランク / {gain} 最高までの伸び（+120 など）/ {term} 合宿の名前 / {count} 人数 */
+      post: {
+        head: "🎓 **{term} 卒業式** 🎓\n{count}人のみなさん、卒業おめでとうございます！ひとりずつ卒業証書をお渡しします。",
+        student: "📜 **{name}** さん　卒業おめでとう！\n{from} → **{to}**（**{gain}LP**）　担当：{mentor}先生",
+        teacher: "🎓 **{name}** 先生　ほんとうにありがとうございました！\n担当：{student}さん（{from} → **{to}**・**{gain}LP**）",
+        foot: "みなさん、合宿おつかれさまでした！これからもいっしょに上を目指していきましょう 🎉",
+        withSum: true, withAll: true, withGroup: true,
+        onPublish: false   // 「公開」にして保存したら、そのまま本番へ投稿する
+      },
       updatedAt: 0
     };
+  }
+  const ALL_TYPES = ["stats", "rank", "awards", "mvp", "text"];
+  const ALL_METRICS = ["lp", "games", "vc", "thanks", "coach"];
+  function normAllBlock(b, i) {
+    b = b || {};
+    const type = ALL_TYPES.indexOf(b.type) >= 0 ? b.type : "text";
+    const o = { id: String(b.id || ("b" + Date.now().toString(36) + i)), type, title: String(b.title || "").slice(0, 30) };
+    if (type === "rank") { o.metric = ALL_METRICS.indexOf(b.metric) >= 0 ? b.metric : "lp"; o.n = Math.min(10, Math.max(1, b.n | 0 || 5)); }
+    if (type === "mvp") {
+      o.icon = String(b.icon || "🏆").slice(0, 4);
+      o.entries = (Array.isArray(b.entries) ? b.entries : []).slice(0, 12).map(x => ({
+        who: String((x && x.who) || ""), name: String((x && x.name) || "").slice(0, 30), note: String((x && x.note) || "").slice(0, 40) }));
+    }
+    if (type === "text") o.body = String(b.body || "").slice(0, 400);
+    return o;
   }
   function normAward(a, i) {
     a = a || {};
@@ -3454,6 +3534,19 @@
       comments,
       mentors,
       awardsOpen: !!raw.awardsOpen,
+      all: (a => ({
+        title: String(a.title == null ? d.all.title : a.title).slice(0, 30),
+        message: String(a.message || "").slice(0, 300),
+        blocks: (Array.isArray(a.blocks) ? a.blocks : d.all.blocks).slice(0, 12).map(normAllBlock)
+      }))(raw.all || {}),
+      group: { title: String((raw.group || {}).title || "").trim().slice(0, 20) || d.group.title,
+               by: (raw.group || {}).by === "all" ? "all" : "mentor" },
+      post: (p => {
+        const t = (k, n) => String(p[k] == null ? d.post[k] : p[k]).slice(0, n);
+        return { head: t("head", 600), student: t("student", 600), teacher: t("teacher", 600), foot: t("foot", 600),
+          withSum: p.withSum == null ? d.post.withSum : !!p.withSum, withAll: p.withAll == null ? d.post.withAll : !!p.withAll,
+          withGroup: p.withGroup == null ? d.post.withGroup : !!p.withGroup, onPublish: !!p.onPublish };
+      })(raw.post || {}),
       awards: (Array.isArray(raw.awards) ? raw.awards : d.awards).slice(0, 20).map(normAward),
       updatedAt: raw.updatedAt || 0
     };
@@ -3487,6 +3580,39 @@
     return a;
   }
 
+  /* ---- 卒業式の投稿（chc-vc-bot の graduation-poster.js が投稿する） ----
+     画像は管理コンソールの画面で作り、lboard_index/gradimg_<番号> に置く（1枚1ドキュメント・1MB未満）。
+     lboard_index/gradpost に依頼（request・requestAt）を書くと、Bot が15秒以内に投稿を始める */
+  async function saveGradImage(key, dataUrl, name) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    if (!/^gradimg_\d{1,3}$/.test(key)) throw new Error("画像の名前が正しくありません");
+    if (String(dataUrl).length > 1000000) throw new Error("画像が大きすぎます（" + Math.round(String(dataUrl).length / 1024) + "KB）");
+    const db = openDb();
+    if (!db) { localStorage.setItem("mcc-lb2-" + key, "1"); return; }   // 試すとき（Firestore なし）は保存しない
+    await db.collection("lboard_index").doc(key).set({ img: String(dataUrl), name: String(name || key).slice(0, 40), at: Date.now() });
+  }
+  async function requestGradPost(req) {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const at = Date.now();
+    const doc = { requestAt: at, request: Object.assign({}, req, { at }), lastResult: "Bot の開始を待っています…", progress: "" };
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc("gradpost").set(doc, { merge: true });
+    else localStorage.setItem("mcc-lb2-gradpost", JSON.stringify(doc));
+    return at;
+  }
+  async function loadGradPost() {
+    const db = openDb();
+    try {
+      if (db) { const s = await db.collection("lboard_index").doc("gradpost").get(); return s.exists ? s.data() : {}; }
+      return JSON.parse(localStorage.getItem("mcc-lb2-gradpost") || "{}");
+    } catch (e) { return {}; }
+  }
+  async function cancelGradPost() {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc("gradpost").set({ cancelAt: Date.now() }, { merge: true });
+  }
+
   /* 1人ぶんの卒業証書の中身を、既存データから組み立てる。
        lp      … loadLpData()
        id      … "u_<discordId>"
@@ -3509,7 +3635,18 @@
     // 最新の記録なら、members の実ランク（GM/チャレも区別できる）を使う
     const allKeys = Object.keys(h).sort();
     const isLatest = endKey && endKey === allKeys[allKeys.length - 1] && m.tier;
-    const endRank = isLatest ? { tier: m.tier, division: m.division || "", lp: m.lp | 0 } : rankOfAbs(endAbs);
+    /* その日のランク。マスター以上（2800〜）は LP の数字だけではティアが分からないので
+         1) その日に記録したティア（htier）  2) いまより LP が多い日は、いまのティア以上なのでいまのティア  3) どちらも無ければマスター */
+    const ht = (lp.htier || {})[id] || {};
+    const latestAbs = allKeys.length ? h[allKeys[allKeys.length - 1]] : null;
+    const apexNow = /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(m.tier || "") ? m.tier : "";
+    const rankAt = (k, v) => {
+      const r = rankOfAbs(v);
+      if (!r || v < 2800) return r;
+      const t = ht[k] || (apexNow && latestAbs != null && v >= latestAbs ? apexNow : "MASTER");
+      return { tier: t, division: "", lp: Math.round(v - 2800) };
+    };
+    const endRank = isLatest ? { tier: m.tier, division: m.division || "", lp: m.lp | 0 } : rankAt(endKey, endAbs);
     let peak = null, bestDay = null;
     series.forEach((p, i) => {
       if (!peak || p.v > peak.v) peak = p;
@@ -3558,10 +3695,10 @@
     return {
       id, name: m.name || "—", avatar: m.avatar || "", riotId: m.riotId || "",
       roles: rolesOf(m),
-      start: startAbs != null ? { day: startKey, abs: startAbs, rank: rankOfAbs(startAbs) } : null,
+      start: startAbs != null ? { day: startKey, abs: startAbs, rank: rankAt(startKey, startAbs) } : null,
       end: endAbs != null ? { day: endKey, abs: endAbs, rank: endRank } : null,
       gain: (startAbs != null && endAbs != null) ? endAbs - startAbs : null,
-      peak: peak ? { day: peak.day, abs: peak.v, rank: rankOfAbs(peak.v) } : null,
+      peak: peak ? { day: peak.day, abs: peak.v, rank: peak.day === endKey ? endRank : rankAt(peak.day, peak.v) } : null,
       bestDay: bestDay && bestDay.delta > 0 ? bestDay : null,
       days: inPeriod.length,
       series,
@@ -4708,13 +4845,13 @@
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     loadThanksConfig, saveThanksConfig, loadThanksRange, THANKS_DEFAULT, loadCampGames,
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, vcColor, vcIcon, vcAvatars, loadVcCompanions, loadExamScores, rankOfAbs,
-    defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry,
+    defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry, saveGradImage, requestGradPost, loadGradPost, cancelGradPost,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
     defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf, loadTeacherRoleIds,
     defaultSnapshot, normSnapshot, loadSnapshot, saveSnapshot,
     snapshotStandings, snapshotRound, snapshotDone,
     MSG_KEYS, MSG_META, defaultMessages, normMessages, loadMessages, saveMessages,
-    loadRising, saveRising, requestRisingPost, requestSnapshotImage,
+    loadRising, saveRising, requestRisingPost, requestSnapshotImage, deleteSnapshotResults,
     loadPromoteImg, savePromoteImgMode, requestPromoteImage, loadBotCfg, saveBotCfg,
     LOL_ROLES, loadLol, saveLolPlayer, deleteLolPlayer, VALO_ROLES, loadValo, saveValoPlayer, deleteValoPlayer,
     fillTemplate, buildMessage, sampleMessageVars, MSG_CHANNELS, channelName,

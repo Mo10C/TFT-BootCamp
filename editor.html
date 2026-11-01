@@ -330,6 +330,14 @@ img.vcp-ic{border-radius:50%;object-fit:cover;padding:0}
 .alrow:last-child{border-bottom:none}
 .alpv{margin-top:8px;border-radius:14px;overflow:hidden;border:1px solid var(--border);aspect-ratio:1200/675;background:#FBF8EE}
 .alpv iframe{width:100%;height:100%;border:0;display:block}
+.pta{flex:1;min-height:52px;font-family:inherit;font-size:13px;line-height:1.7}
+.blk{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:8px 0;background:var(--surface)}
+.blk .bh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.blk .bt{font-weight:900;font-size:12px;color:var(--muted);min-width:96px}
+.blk .bh input[type=text]{flex:1;min-width:160px}
+.blk .ent{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 0 104px}
+.blk .ent select{max-width:200px}
+.blk textarea{width:100%;min-height:70px;margin-top:6px;font-family:inherit;font-size:13px;line-height:1.7}
 .mtrow{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1.3fr);gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
 .mtrow:last-child{border-bottom:none}
 .mtrow .who{display:flex;align-items:center;gap:10px;min-width:0}
@@ -970,8 +978,12 @@ body.ad-on{overflow:hidden}
 
     <div class="card">
       <h2>結果</h2>
-      <div class="lead">実施が終わると、ここに各回の順位と合計ポイントが出ます。</div>
+      <div class="lead">実施が終わると、ここに各回の順位と合計ポイントが出ます。試しに実行した回などは、チェックを付けて消せます。</div>
       <div id="snapResults"></div>
+      <div class="row" id="snapDelRow" style="margin-top:8px;gap:8px;flex-wrap:wrap;display:none">
+        <button class="mini" id="snapDel" type="button" style="color:#C8372D;border-color:#E9B4AE">🗑 チェックした記録を消す</button>
+        <span class="hint">消した回は合計ポイントからも外れます（元に戻せません）</span>
+      </div>
       <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
         <select id="snapImgDay"></select>
         <button class="mini" id="snapImgNow" type="button">🧪 この回の画像を実験チャンネルへ投稿</button>
@@ -985,8 +997,12 @@ body.ad-on{overflow:hidden}
     <div class="card">
       <h2>手動で実行する</h2>
       <div class="lead">
-        本番と同じ処理を今すぐ走らせます（<b>談話室に本当に投稿されます</b>）。<br>
-        「日付」を入れると、その回として実行します。やり直したいときは「もう一度やる」をONにしてください。
+        本番と同じ処理を今すぐ走らせます。<b>「🧪 実験」がONなら実験チャンネルに投稿し、記録には残しません</b>（OFFにすると連絡事項に投稿して記録します）。<br>
+        「日付」を入れると、その回として実行します。本番でやり直したいときは「もう一度やる」をONにしてください。
+      </div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="snapTest" checked>🧪 実験（実験チャンネルへ・記録に残さない）</label>
+        <label class="chk"><input type="checkbox" id="snapLive" checked>いまのランクを読み直してから決める</label>
       </div>
       <div class="row">
         <input type="text" id="snapCronKey" placeholder="CRON_KEY" style="min-width:170px">
@@ -997,7 +1013,7 @@ body.ad-on{overflow:hidden}
       </div>
       <div class="row">
         <button class="mini grad" id="snapRun">🏅 いますぐ実行する</button>
-        <span class="hint">実施日でない日に試すときは「もう一度やる」をONに</span>
+        <span class="hint">「いまのランクを読み直す」がOFFだと、前回のLP集計（毎日23:45）の数字で順位を決めます</span>
       </div>
       <textarea id="snapOut" style="margin-top:10px;display:none;min-height:130px" readonly></textarea>
     </div>
@@ -1385,7 +1401,7 @@ body.ad-on{overflow:hidden}
       <h2>📜 証書・まとめ画像のプレビュー</h2>
       <div class="lead">生徒が「画像で保存」するものと同じ証書です。記録がまだ無いときは「🧪 ダミーデータ」（または一覧の最後の「ダミーの生徒・先生」）で試せます。ここで変えた文言・ひとことは<b>保存前でもすぐ反映</b>されます（特別賞は未発表でも表示）。</div>
       <div class="row">
-        <select id="alPvKind" title="どちらの画像を見るか"><option value="cert">📜 証書</option><option value="sum">📊 合宿の記録（2枚目）</option></select>
+        <select id="alPvKind" title="どちらの画像を見るか"><option value="cert">📜 証書</option><option value="sum">📊 合宿の記録（2枚目）</option><option value="all">🏫 全体の合宿の記録</option><option value="group">📸 集合写真</option></select>
         <select id="alPvSel" style="min-width:220px"></select>
         <select id="alPvData" title="どのデータで描くか"><option value="">いまのデータ</option><option value="1">🧪 ダミーデータ</option></select>
         <button class="mini" id="alPvPrev" type="button" title="前の人">‹</button>
@@ -1414,6 +1430,57 @@ body.ad-on{overflow:hidden}
       <div class="row"><label style="min-width:72px">記録の画像</label>
         <input type="text" id="alSTitle" style="width:220px" maxlength="10" placeholder="合宿のきろく">
         <span class="hint">2枚目の「合宿の記録」（グラフ・試合数・VC・仲間・特別賞）のタイトル（毛筆）。生徒・先生の両方に出ます</span></div>
+    </div>
+
+    <div class="card">
+      <h2>🏫 全体の合宿の記録</h2>
+      <div class="lead">みんなのページのいちばん上と、卒業式の投稿の最後に出る1枚です。<b>ブロック</b>を足したり、順番を入れかえたりできます。
+        「🏆 自由な表彰」で、レクリエーションのMVPなども入れられます。上のプレビューで「🏫 全体の合宿の記録」を選ぶと、保存前でも見られます。</div>
+      <div class="row"><label style="min-width:72px">タイトル</label>
+        <input type="text" id="alAllTitle" style="width:260px" maxlength="30" placeholder="みんなの合宿のきろく">
+        <span class="hint">毛筆で出ます</span></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">ひとこと</label>
+        <textarea id="alAllMsg" maxlength="300" style="flex:1;min-height:56px;font-family:inherit;font-size:13px;line-height:1.7" placeholder="タイトルの下に出る文（空欄なら出しません）"></textarea></div>
+      <div id="alBlocks" class="blks"></div>
+      <div class="row"><select id="alBlkType">
+          <option value="mvp">🏆 自由な表彰（MVPなど）</option><option value="rank">📊 ランキング</option><option value="text">📝 自由な文章</option>
+          <option value="stats">🔢 数字のまとめ</option><option value="awards">🎖 特別賞</option></select>
+        <button class="mini" id="alBlkAdd" type="button">＋ ブロックを足す</button></div>
+    </div>
+
+    <div class="card">
+      <h2>📸 集合写真</h2>
+      <div class="lead">先生と担当の生徒をまとめて並べた画像です。みんなのページと、卒業式の投稿の最後に出ます。上のプレビューで「📸 集合写真」を選ぶと見られます。</div>
+      <div class="row"><label style="min-width:72px">タイトル</label>
+        <input type="text" id="alGrpTitle" style="width:220px" maxlength="20" placeholder="集合写真">
+        <select id="alGrpBy"><option value="mentor">先生ごとに並べる</option><option value="all">全員を並べる（先生が前の列）</option></select></div>
+    </div>
+
+    <div class="card">
+      <h2>🎓 卒業式の投稿</h2>
+      <div class="lead">Bot が「連絡事項」へ、卒業証書・感謝状を<b>1人ずつ</b>投稿します（最初に見出し、最後にしめの一言と、全体の合宿の記録・集合写真）。
+        画像はこの画面で作るので、「Bot に頼みました」と出るまでこのページを開いたままにしてください。まずは 🧪 で実験チャンネルに試してください。</div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">見出し</label>
+        <textarea id="alPostHead" maxlength="600" class="pta"></textarea></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">生徒</label>
+        <textarea id="alPostStu" maxlength="600" class="pta"></textarea></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">先生</label>
+        <textarea id="alPostTch" maxlength="600" class="pta"></textarea></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:72px;padding-top:8px">しめ</label>
+        <textarea id="alPostFoot" maxlength="600" class="pta"></textarea></div>
+      <div class="hint" style="margin:-2px 0 8px 80px">使える言葉：{name} 名前／{mention} @メンション／{mentor} 担当の先生／{student} 担当した生徒／{from} 開校時のランク／{to} 期間中の最高ランク／{gain} 最高までの伸び／{term} 合宿の名前／{count} 生徒の人数</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px 16px">
+        <label><input type="checkbox" id="alPostSum"> 1人ずつ「合宿の記録」も付ける</label>
+        <label><input type="checkbox" id="alPostAll"> 最後に「全体の合宿の記録」</label>
+        <label><input type="checkbox" id="alPostGrp"> 最後に「集合写真」</label></div>
+      <div class="row"><label><input type="checkbox" id="alPostOnPub"> 「公開する」にして保存したら、そのまま本番（連絡事項）へ投稿する</label></div>
+      <div class="row" style="flex-wrap:wrap;gap:8px">
+        <button class="btn ghost" id="alPostDummy" type="button">🧪 ダミーで試す（生徒1人＋先生1人・実験チャンネル）</button>
+        <button class="btn ghost" id="alPostTest" type="button">🧪 全員分を実験チャンネルへ</button>
+        <button class="btn" id="alPostMain" type="button">📣 全員分を本番（連絡事項）へ</button>
+        <button class="mini" id="alPostStop" type="button">⏹ 止める</button></div>
+      <div class="hint" id="alPostState" style="margin-top:6px"></div>
+      <iframe id="alExport" title="投稿用の画像" style="position:absolute;width:10px;height:10px;left:-9999px;border:0" aria-hidden="true"></iframe>
     </div>
 
     <div class="card">
@@ -3191,6 +3258,13 @@ body.ad-on{overflow:hidden}
   function renderSnapResults(){
     const box = $("snapResults");
     const dates = Object.keys(snapEdit.results || {}).sort();
+    $("snapDelRow").style.display = "none";
+    if (!dates.length && snapEdit.finalAt){
+      box.innerHTML = '<div class="hint"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" class="snapDelChk" value="__final">' +
+        "🏆 表彰の記録だけ残っています（" + new Date(snapEdit.finalAt).toLocaleString("ja-JP") + "）</label></div>";
+      $("snapDelRow").style.display = "";
+      return;
+    }
     if (!dates.length){
       box.innerHTML = '<div class="hint">まだ結果がありません。実施日の23:45を過ぎると、ここに出ます。</div>';
       return;
@@ -3199,8 +3273,10 @@ body.ad-on{overflow:hidden}
     dates.forEach(d => {
       const r = snapEdit.results[d];
       const idx = (snapEdit.dates || []).indexOf(d);
-      html += '<div class="sgroup">' + (["①","②","③","④","⑤","⑥"][idx] || "") + " " + d +
-        (r.at ? "（" + new Date(r.at).toLocaleString("ja-JP") + " 実施）" : "") + "</div>";
+      html += '<div class="sgroup"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">' +
+        '<input type="checkbox" class="snapDelChk" value="' + d + '">' + (["①","②","③","④","⑤","⑥"][idx] || "") + " " + d +
+        (r.at ? "（" + new Date(r.at).toLocaleString("ja-JP") + " 実施）" : "") + "</label>" +
+        (idx < 0 ? '<span style="color:#C8372D;font-size:12px;margin-left:8px">実施日ではないので合計に入りません</span>' : "") + "</div>";
       html += '<div class="tw"><table><tr><th>順位</th><th>名前</th><th>ランク</th><th style="text-align:right">ポイント</th></tr>';
       (r.rows || []).forEach(x => {
         html += "<tr><td>" + x.rank + "位</td><td>" + esc(x.name) + "</td><td>" +
@@ -3227,11 +3303,13 @@ body.ad-on{overflow:hidden}
       });
       html += "</table></div>";
       if (snapEdit.finalAt){
-        html += '<div class="hint" style="margin-top:8px">🏆 ' +
-          new Date(snapEdit.finalAt).toLocaleString("ja-JP") + " に表彰を投稿済みです。</div>";
+        html += '<div class="hint" style="margin-top:8px"><label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">' +
+          '<input type="checkbox" class="snapDelChk" value="__final">🏆 ' +
+          new Date(snapEdit.finalAt).toLocaleString("ja-JP") + " に表彰を投稿済みです（チェックして消すと、表彰の記録だけ消えます）</label></div>";
       }
     }
     box.innerHTML = html;
+    $("snapDelRow").style.display = "";
   }
 
   $("snapEnabled").onchange = () => { snapEdit.enabled = $("snapEnabled").checked; markSnapDirty(); };
@@ -3285,10 +3363,20 @@ body.ad-on{overflow:hidden}
     $("snapSave").classList.remove("dirty");
     fillSnap();
   };
+  $("snapDel").onclick = async () => {
+    const sel = [...document.querySelectorAll(".snapDelChk:checked")].map(x => x.value);
+    if (!sel.length){ toast("消す記録にチェックを付けてください"); return; }
+    const days = sel.filter(x => x !== "__final"), fin = sel.indexOf("__final") >= 0;
+    if (!confirm("次の記録を消します（元に戻せません）。よろしいですか？\n\n" + days.join("\n") + (fin ? "\n🏆 表彰" : ""))) return;
+    try { await C.deleteSnapshotResults(days, fin); toast("消しました"); await loadSnap(); }
+    catch(e){ toast("消せませんでした：" + e.message); }
+  };
   $("snapRun").onclick = async () => {
     const key = $("snapCronKey").value.trim();
     if (!key){ toast("CRON_KEY を入れてください"); return; }
-    if (!confirm("本番と同じ処理を実行します。談話室に実際に投稿されますが、よろしいですか？")) return;
+    const test = $("snapTest").checked;
+    if (!confirm(test ? "実験チャンネルに投稿します（記録には残しません）。よろしいですか？"
+                      : "本番と同じ処理を実行します。連絡事項に実際に投稿され、結果も記録されます。よろしいですか？")) return;
     const out = $("snapOut");
     const btn = $("snapRun");
     btn.disabled = true;
@@ -3301,6 +3389,8 @@ body.ad-on{overflow:hidden}
       if ($("snapRunDate").value) q.push("date=" + encodeURIComponent($("snapRunDate").value));
       if ($("snapForce").checked) q.push("force=1");
       if ($("snapFinal").checked) q.push("final=1");
+      if (test) q.push("test=1");
+      if ($("snapLive").checked) q.push("live=1");
       const r = await fetch(base + "/snapshot?" + q.join("&"));
       out.value = await r.text();
       if (!r.ok) out.value += "\n\n/snapshot は worker.js v3.3 以降で使えます。Worker のコードが古い可能性があります。";
@@ -4315,8 +4405,21 @@ body.ad-on{overflow:hidden}
     const pvOrigin = () => location.origin === "null" ? "*" : location.origin;
     function alPvLoad(force){
       const f = $("alPvFrame");
+      const kind = ["sum", "all", "group"].indexOf($("alPvKind").value) >= 0 ? $("alPvKind").value : "cert";
+      const whole = kind === "all" || kind === "group";   // 全体の記録・集合写真は人を選ばない
+      $("alPvSel").disabled = whole; $("alPvPrev").disabled = whole; $("alPvNext").disabled = whole;
+      if (whole){
+        const dm = $("alPvData").value === "1" ? "&dummy=1" : "";
+        if (!force && f.dataset.id === kind + dm) return;
+        f.dataset.id = kind + dm;
+        const box = f.parentElement;
+        box.style.aspectRatio = kind === "all" ? "1080/1900" : "1600/1000";   // 開いたあと、画像の大きさに合わせる
+        box.style.maxWidth = kind === "all" ? "520px" : ""; box.style.margin = kind === "all" ? "8px auto 0" : "";
+        f.src = "album.html?embed=" + kind + dm + "&t=" + Date.now();
+        $("alPvOpen").href = "album.html" + (dm ? "?dummy=1" : "");
+        return;
+      }
       if (!alPvId){ f.removeAttribute("src"); return; }
-      const kind = $("alPvKind").value === "sum" ? "sum" : "cert";
       // ダミーの生徒・先生、または「ダミーデータ」を選んだときは、記録をダミーで埋めて描く（保存はしない）
       const dm = $("alPvData").value === "1" || /^__dummy_/.test(alPvId) ? "&dummy=1" : "";
       const url = "album.html?id=" + encodeURIComponent(alPvId) + "&embed=" + kind + dm;
@@ -4333,7 +4436,7 @@ body.ad-on{overflow:hidden}
     }
     function alPvPush(){
       const f = $("alPvFrame");
-      if (!alEdit || !alPvId || !f.contentWindow) return;
+      if (!alEdit || !f.contentWindow) return;
       try { f.contentWindow.postMessage({ type: "album-draft", album: JSON.parse(JSON.stringify(alEdit)), id: alPvId }, pvOrigin()); } catch(e){}
     }
     function alPvSetList(list){   // list = [{id, label}]
@@ -4357,9 +4460,14 @@ body.ad-on{overflow:hidden}
       const i = alPvList.findIndex(x => x.id === alPvId);
       alPvShow(alPvList[(i + d + alPvList.length) % alPvList.length].id);
     });
-    // プレビューが開き終わったら、保存前の編集を送る
+    // プレビューが開き終わったら、保存前の編集を送る。全体の記録・集合写真は、画像の大きさに枠を合わせる
     window.addEventListener("message", ev => {
       if (ev.data && ev.data.type === "album-cert-ready" && alDirty) alPvPush();
+      if (ev.data && ev.data.type === "album-size" && ev.source === $("alPvFrame").contentWindow && ev.data.w && ev.data.h){
+        const box = $("alPvFrame").parentElement;
+        box.style.aspectRatio = ev.data.w + "/" + ev.data.h;
+        box.style.maxWidth = ev.data.h > ev.data.w ? "520px" : ""; box.style.margin = ev.data.h > ev.data.w ? "8px auto 0" : "";
+      }
     });
     const clearAl = () => { alDirty = false; $("alSave").classList.remove("dirty"); };
 
@@ -4377,6 +4485,14 @@ body.ad-on{overflow:hidden}
       $("alTSigner").value = alEdit.tSigner || "";
       $("alPTitle").value = alEdit.pTitle || "";
       $("alSTitle").value = alEdit.sTitle || "";
+      $("alAllTitle").value = (alEdit.all || {}).title || "";
+      $("alAllMsg").value = (alEdit.all || {}).message || "";
+      $("alGrpTitle").value = (alEdit.group || {}).title || "";
+      $("alGrpBy").value = (alEdit.group || {}).by === "all" ? "all" : "mentor";
+      const P = alEdit.post || {};
+      $("alPostHead").value = P.head || ""; $("alPostStu").value = P.student || ""; $("alPostTch").value = P.teacher || ""; $("alPostFoot").value = P.foot || "";
+      $("alPostSum").checked = !!P.withSum; $("alPostAll").checked = !!P.withAll; $("alPostGrp").checked = !!P.withGroup; $("alPostOnPub").checked = !!P.onPublish;
+      renderBlocks();
       $("alYOpen").checked = alEdit.yOpen !== false;
       $("alPubHint").textContent = alEdit.published
         ? "公開中：全員が卒業証書を見られます"
@@ -4521,6 +4637,163 @@ body.ad-on{overflow:hidden}
       if (!box.children.length) box.innerHTML = '<div class="hint" style="padding:10px 0">該当する人がいません。</div>';
     }
 
+    /* ---- 全体の合宿の記録：ブロックの編集 ---- */
+    const BLK_NAME = { stats: "🔢 数字のまとめ", rank: "📊 ランキング", awards: "🎖 特別賞", mvp: "🏆 自由な表彰", text: "📝 自由な文章" };
+    const BLK_TITLE = { stats: "数字で見る合宿", rank: "LPの伸び ランキング", awards: "特別賞", mvp: "レクリエーションMVP", text: "" };
+    const METRIC_NAME = { lp: "LPの伸び（期間中の最高まで）", games: "試合数", vc: "VC時間", thanks: "ありがとうの回数", coach: "コーチング時間" };
+    // 表彰で選べる人（生徒・先生の名簿）
+    function alPeople(){
+      const ids = Array.from(new Set(Object.keys((alLp && alLp.members) || {}).concat(Object.keys(alMem || {}))));
+      return ids.map(id => ({ id, name: (((alLp && alLp.members) || {})[id] || (alMem || {})[id] || {}).name || "—" }))
+        .filter(x => x.name !== "—").sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    }
+    function renderBlocks(){
+      const box = $("alBlocks"); if (!box || !alEdit) return;
+      alEdit.all = alEdit.all || { title: "", message: "", blocks: [] };
+      const bl = alEdit.all.blocks;
+      const people = alPeople();
+      box.innerHTML = "";
+      bl.forEach((b, i) => {
+        const d = document.createElement("div"); d.className = "blk";
+        let h = '<div class="bh"><span class="bt">' + BLK_NAME[b.type] + "</span>" +
+          (b.type === "mvp" ? '<input type="text" class="ic" maxlength="4" style="width:44px;flex:none" value="' + esc(b.icon || "🏆") + '" title="アイコン">' : "") +
+          '<input type="text" class="ti" maxlength="30" placeholder="見出し" value="' + esc(b.title || "") + '">' +
+          (b.type === "rank" ? '<select class="mt">' + Object.keys(METRIC_NAME).map(k => '<option value="' + k + '"' + (b.metric === k ? " selected" : "") + ">" + METRIC_NAME[k] + "</option>").join("") +
+            '</select><select class="nn">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => '<option' + ((b.n || 5) === n ? " selected" : "") + ">" + n + "</option>").join("") + "</select>人" : "") +
+          '<button class="mini up" type="button" title="上へ"' + (i ? "" : " disabled") + '>↑</button>' +
+          '<button class="mini dn" type="button" title="下へ"' + (i < bl.length - 1 ? "" : " disabled") + '>↓</button>' +
+          '<button class="mini del" type="button" title="このブロックを消す">✕</button></div>';
+        if (b.type === "mvp"){
+          (b.entries || []).forEach((x, j) => {
+            const free = !x.who;
+            h += '<div class="ent" data-j="' + j + '"><select class="who"><option value="">✍️ 名前を手入力</option>' +
+              people.map(p => '<option value="' + esc(p.id) + '"' + (x.who === p.id ? " selected" : "") + ">" + esc(p.name) + "</option>").join("") + "</select>" +
+              (free ? '<input type="text" class="nm" maxlength="30" placeholder="名前（チーム名なども可）" value="' + esc(x.name || "") + '" style="width:170px">' : "") +
+              '<input type="text" class="nt" maxlength="40" placeholder="ひとこと（例：謎解き最速クリア）" value="' + esc(x.note || "") + '" style="flex:1;min-width:180px">' +
+              '<button class="mini rm" type="button">✕</button></div>';
+          });
+          h += '<div class="ent"><button class="mini addp" type="button">＋ 人を足す</button></div>';
+        }
+        if (b.type === "text") h += '<textarea class="bd" maxlength="400" placeholder="自由な文章（改行もそのまま）">' + esc(b.body || "") + "</textarea>";
+        if (b.type === "stats") h += '<div class="hint" style="margin:4px 0 0 104px">参加人数・みんなの試合数・VC時間・ありがとう・LPの伸びの合計などを自動で出します</div>';
+        if (b.type === "awards") h += '<div class="hint" style="margin:4px 0 0 104px">上の「特別賞」の受賞者を自動で出します（発表前は「後夜祭で発表！」）</div>';
+        d.innerHTML = h;
+        const q = s => d.querySelector(s);
+        q(".ti").oninput = e => { b.title = e.target.value; markAl(); };
+        if (q(".ic")) q(".ic").oninput = e => { b.icon = e.target.value; markAl(); };
+        if (q(".mt")) q(".mt").onchange = e => { b.metric = e.target.value; markAl(); };
+        if (q(".nn")) q(".nn").onchange = e => { b.n = +e.target.value; markAl(); };
+        if (q(".bd")) q(".bd").oninput = e => { b.body = e.target.value; markAl(); };
+        q(".up").onclick = () => { bl.splice(i - 1, 0, bl.splice(i, 1)[0]); markAl(); renderBlocks(); };
+        q(".dn").onclick = () => { bl.splice(i + 1, 0, bl.splice(i, 1)[0]); markAl(); renderBlocks(); };
+        q(".del").onclick = () => { if (!confirm("「" + (b.title || BLK_NAME[b.type]) + "」を消しますか？")) return; bl.splice(i, 1); markAl(); renderBlocks(); };
+        d.querySelectorAll(".ent[data-j]").forEach(row => {
+          const x = b.entries[+row.dataset.j];
+          row.querySelector(".who").onchange = e => { x.who = e.target.value; if (x.who) x.name = ""; markAl(); renderBlocks(); };
+          if (row.querySelector(".nm")) row.querySelector(".nm").oninput = e => { x.name = e.target.value; markAl(); };
+          row.querySelector(".nt").oninput = e => { x.note = e.target.value; markAl(); };
+          row.querySelector(".rm").onclick = () => { b.entries.splice(+row.dataset.j, 1); markAl(); renderBlocks(); };
+        });
+        if (q(".addp")) q(".addp").onclick = () => { b.entries = b.entries || []; if (b.entries.length >= 12) return toast("12人までです");
+          b.entries.push({ who: "", name: "", note: "" }); markAl(); renderBlocks(); };
+        box.appendChild(d);
+      });
+      if (!bl.length) box.innerHTML = '<div class="hint" style="margin:8px 0">ブロックがありません。下から足してください。</div>';
+    }
+    $("alBlkAdd").onclick = () => {
+      if (!alEdit) return;
+      const t = $("alBlkType").value, bl = alEdit.all.blocks;
+      if (bl.length >= 12) return toast("ブロックは12個までです");
+      const b = { id: "b" + Date.now().toString(36), type: t, title: BLK_TITLE[t] };
+      if (t === "rank"){ b.metric = "lp"; b.n = 5; }
+      if (t === "mvp"){ b.icon = "🏆"; b.entries = [{ who: "", name: "", note: "" }]; }
+      if (t === "text") b.body = "";
+      bl.push(b); markAl(); renderBlocks();
+    };
+    [["alAllTitle", v => alEdit.all.title = v], ["alAllMsg", v => alEdit.all.message = v],
+     ["alGrpTitle", v => alEdit.group.title = v],
+     ["alPostHead", v => alEdit.post.head = v], ["alPostStu", v => alEdit.post.student = v],
+     ["alPostTch", v => alEdit.post.teacher = v], ["alPostFoot", v => alEdit.post.foot = v]].forEach(([id, set]) =>
+      $(id).addEventListener("input", () => { if (!alEdit) return; set($(id).value); markAl(); }));
+    $("alGrpBy").onchange = () => { alEdit.group.by = $("alGrpBy").value; markAl(); };
+    [["alPostSum", "withSum"], ["alPostAll", "withAll"], ["alPostGrp", "withGroup"], ["alPostOnPub", "onPublish"]].forEach(([id, k]) =>
+      $(id).onchange = () => { alEdit.post[k] = $(id).checked; markAl(); });
+
+    /* ---- 卒業式の投稿 ----
+       見えない枠（album.html?embed=export）で、サイトと同じ証書の画像を1枚ずつ作って Firestore に置き、
+       lboard_index/gradpost に「この順で投稿して」と頼む。投稿そのものは Bot（graduation-poster.js） */
+    let expReady = null, expWait = {}, expSeq = 0, gradBusy = false, gradTimer = null;
+    window.addEventListener("message", ev => {
+      const d = ev.data || {};
+      if (!$("alExport") || ev.source !== $("alExport").contentWindow) return;
+      if (d.type === "album-export-ready" && expReady){ const r = expReady; expReady = null; r(d); }
+      if (d.type === "album-export-done" && expWait[d.reqId]){ const r = expWait[d.reqId]; delete expWait[d.reqId]; r(d); }
+    });
+    const waitReady = (start) => new Promise((res, rej) => {
+      expReady = res; start();
+      setTimeout(() => { if (expReady === res){ expReady = null; rej(new Error("画像を作る準備ができませんでした（もう一度押してください）")); } }, 40000);
+    });
+    const exportImg = (id, kind) => new Promise((res, rej) => {
+      const reqId = ++expSeq;
+      expWait[reqId] = d => d.error ? rej(new Error(d.error)) : res(d.dataUrl);
+      $("alExport").contentWindow.postMessage({ type: "album-export", reqId, id, kind }, pvOrigin());
+      setTimeout(() => { if (expWait[reqId]){ delete expWait[reqId]; rej(new Error("画像を作れませんでした（時間切れ）")); } }, 60000);
+    });
+    const gradState = t => { $("alPostState").textContent = t; };
+    const fillT = (t, v) => String(t || "").replace(/\{(\w+)\}/g, (m, k) => v[k] != null && v[k] !== "" ? v[k] : (k === "mentor" || k === "student" ? "—" : m));
+    function gradButtons(on){ ["alPostDummy", "alPostTest", "alPostMain"].forEach(id => { $(id).disabled = on; }); }
+    async function gradPost(mode){
+      if (gradBusy || !alEdit) return;
+      const P = alEdit.post;
+      if (mode === "main" && !confirm("本番（連絡事項）に、全員分の卒業証書・感謝状を投稿します。よろしいですか？")) return;
+      gradBusy = true; gradButtons(true);
+      try {
+        gradState("画像を作る準備をしています…");
+        await waitReady(() => { $("alExport").src = "album.html?embed=export" + (mode === "dummy" ? "&dummy=1" : "") + "&t=" + Date.now(); });
+        // 保存前の編集（文面・ブロックなど）も反映する
+        const info = await waitReady(() => $("alExport").contentWindow.postMessage({ type: "album-draft", album: JSON.parse(JSON.stringify(alEdit)) }, pvOrigin()));
+        let people = info.people || [];
+        if (mode === "dummy") people = [people.find(p => p.kind === "student"), people.find(p => p.kind === "teacher")].filter(Boolean);
+        if (!people.length) throw new Error("投稿する人がいません（生徒・先生の記録がまだありません。🧪 ダミーなら試せます）");
+        const term = info.term || "合宿", count = people.filter(p => p.kind === "student").length;
+        const msgs = []; let n = 0;
+        const put = async (id, kind, name) => { const url = await exportImg(id, kind); const key = "gradimg_" + (n++); await C.saveGradImage(key, url, name); return key; };
+        const head = fillT(P.head, { term, count }).trim();
+        if (head) msgs.push({ content: head, imgs: [] });
+        for (let i = 0; i < people.length; i++){
+          const p = people[i];
+          gradState("画像を作っています… " + (i + 1) + " / " + people.length + "人（" + p.name + "）");
+          const imgs = [await put(p.id, "cert", p.kind === "teacher" ? "appreciation" : "certificate")];
+          if (P.withSum) imgs.push(await put(p.id, "sum", "camp-record"));
+          const v = Object.assign({}, p, { term, count, mention: p.discordId ? "<@" + p.discordId + ">" : p.name });
+          msgs.push({ content: fillT(p.kind === "teacher" ? P.teacher : P.student, v).trim(), imgs });
+        }
+        const last = [];
+        if (P.withAll){ gradState("全体の合宿の記録を作っています…"); last.push(await put("", "all", "our-camp")); }
+        if (P.withGroup){ gradState("集合写真を作っています…"); last.push(await put("", "group", "class-photo")); }
+        const foot = fillT(P.foot, { term, count }).trim();
+        if (foot || last.length) msgs.push({ content: foot, imgs: last });
+        await C.requestGradPost({ test: mode !== "main", dummy: mode === "dummy", messages: msgs });
+        gradState("Bot に頼みました（" + msgs.length + "通・" + (mode === "main" ? "本番（連絡事項）" : "実験チャンネル") + "）。15秒ほどで投稿が始まります…");
+        watchGrad();
+      } catch(e){ gradState("できませんでした：" + e.message); toast(e.message); }
+      gradBusy = false; gradButtons(false);
+    }
+    // Bot の進み具合を表示（終わるまで5秒ごと・最長15分）
+    function watchGrad(){
+      clearInterval(gradTimer);
+      const t0 = Date.now();
+      gradTimer = setInterval(async () => {
+        const d = await C.loadGradPost();
+        if (d.progress || d.lastResult) gradState("Bot：" + (d.progress ? "投稿中 " + d.progress + "　" : "") + (d.lastResult || ""));
+        if ((d.doneAt && d.doneAt >= (d.requestAt || 0)) || Date.now() - t0 > 15 * 60000) clearInterval(gradTimer);
+      }, 5000);
+    }
+    $("alPostDummy").onclick = () => gradPost("dummy");
+    $("alPostTest").onclick = () => gradPost("test");
+    $("alPostMain").onclick = () => gradPost("main");
+    $("alPostStop").onclick = async () => { try { await C.cancelGradPost(); gradState("止めるように Bot に伝えました"); } catch(e){ toast(e.message); } };
+
     async function boot(){
       if (alBooted) return; alBooted = true;
       try { alData = await C.loadAlbum(); } catch(e){ alData = C.normAlbum(null); }
@@ -4535,7 +4808,9 @@ body.ad-on{overflow:hidden}
       } catch(e){}
       renderAwards();
       renderRows();
+      renderBlocks();   // 表彰で選べる名簿が読めたので描き直す
       loadYose();
+      C.loadGradPost().then(d => { if (d && d.lastResult) gradState("前回：" + d.lastResult); }).catch(() => {});
       // 卒業証書のページの「✏️ ひとことを編集」から来たとき：その人の欄へ
       const f = new URLSearchParams(location.search).get("focus");
       const row = f && document.querySelector('.alrow[data-id="' + CSS.escape(f) + '"]');
@@ -4615,6 +4890,8 @@ body.ad-on{overflow:hidden}
     $("alOnlyEmpty").onchange = renderRows;
     $("alApply").onclick = async () => {
       const btn = $("alApply"); btn.disabled = true;
+      // 「公開する」にして保存したら、そのまま卒業式の投稿（設定でオンのときだけ）
+      const goPost = !!(alEdit.published && !(alData && alData.published) && alEdit.post && alEdit.post.onPublish);
       try {
         // 担当は「担当」タブで管理：保存されている最新の担当を引き継ぐ
         try { const cur = await C.loadAlbum(); alEdit.mentors = (cur && cur.mentors) || {}; } catch(e){}
@@ -4623,6 +4900,7 @@ body.ad-on{overflow:hidden}
         clearAl(); fillForm(); renderAwards(); renderRows();
         alPvLoad(true);
         toast("卒業証書を保存しました");
+        if (goPost) setTimeout(() => gradPost("main"), 300);
       } catch(e){ toast(e.message); }
       btn.disabled = false;
     };
