@@ -221,6 +221,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
         <option value="day">前日からの伸び順</option>
         <option value="name">名前順</option>
       </select>
+      <button class="rbtn" id="grpBtn" title="生徒と、それ以外（先生・校長・副校長など）に分けて並べるか、ロールに関係なく全員をまとめて並べるかを切りかえます">ロールごと</button>
       <button class="rbtn" id="scaleBtn" title="全員のグラフの縦幅を同じLP数にそろえて、伸びの傾きを見比べられるようにします">縦をそろえる</button>
       <button class="rbtn" id="tableBtn">表で見る</button>
     </div>
@@ -289,6 +290,9 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
   let range = null;         // {from, to, anchored}
   let sameScale = false;    // 縦幅を全員そろえるか
   let sortBy = "lp";
+  // 並べ方：roles＝ロールごと（生徒／それ以外の2つに分ける・既定）／all＝ロール関係なし（全員まとめて）
+  let groupMode = "roles";
+  try { if (localStorage.getItem("mcc-lp-group") === "all") groupMode = "all"; } catch(e){}
   let order = [];           // 管理コンソールで並べ替えたロールの順
 
   const MIN_VSPAN = 150;    // これより狭くはしない（小さな揺れを誇張しないため）
@@ -356,11 +360,22 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     rows.sort((a, b) => (a._g - b._g) || inner(a, b));   // _g は assignGroups で振る
   }
   // 各メンバーにセクション番号を振る（0,1,2… / その他は最後）
+  /* ★ ロールごとのときは「生徒」と「それ以外」の2つにまとめる（先生・校長・副校長…は1つの見出しに）。
+       生徒＝見出し名に「生徒」が入っているロールのグループ（無ければ並び順のいちばん上のグループ）。
+       ロールが無い人（その他）は「それ以外」に入れる */
   function assignGroups(){
     order = C.lpGroupOrder(lp);
+    let stu = order.map((g, i) => /生徒/.test(g.label) ? i : -1).filter(i => i >= 0);
+    if (!stu.length && order.length) stu = [0];
+    const others = Array.from(new Set(order.filter((g, i) => stu.indexOf(i) < 0).map(g => g.label))).slice(0, 3);
+    const otherLabel = others.length ? others.join("・") + (order.length - stu.length > 3 ? "など" : "") : "それ以外";
+    const stuLabel = stu.length ? order[stu[0]].label : "生徒";
     rows.forEach(m => {
-      m._g = order.length ? C.lpGroupIndex(m, order) : 0;
-      m._label = order.length ? C.lpSectionLabel(m._g, order) : "";
+      m._gi = order.length ? C.lpGroupIndex(m, order) : 0;   // もとのグループ（ロールが無い人の確認用）
+      if (groupMode === "all" || !order.length){ m._g = 0; m._label = ""; return; }
+      const isStu = stu.indexOf(m._gi) >= 0;
+      m._g = isStu ? 0 : 1;
+      m._label = isStu ? stuLabel : otherLabel;
     });
   }
 
@@ -413,13 +428,13 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       if (p.pts.length) drawn++;
       // 見出し名が変わったら新しいセクション。
       // 隣どうしで同じ見出し名にしてあるロールは、ここで自然に1つにまとまる。
-      if (order.length && p.m._label !== curLabel){
+      if (order.length && groupMode !== "all" && p.m._label !== curLabel){
         curLabel = p.m._label;
         nInGroup = 0;
         box.appendChild(groupHead(curLabel, panels.filter(x => x.m._label === curLabel).length));
       }
       nInGroup++;
-      if (order.length && p.m._g >= order.length) noRole++;
+      if (order.length && p.m._gi >= order.length) noRole++;
       box.appendChild(buildRow(p, nInGroup, sameScale ? common : round50(spanOf(p.pts))));
     });
     // ロール情報がまだ入っていない人が居ると、全員「その他」に落ちる
@@ -740,6 +755,16 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     el.classList.toggle("show");
     $("tableBtn").classList.toggle("on", el.classList.contains("show"));
     renderTable();
+  };
+  const paintGrp = () => {
+    $("grpBtn").textContent = groupMode === "all" ? "ロール関係なし" : "ロールごと";
+    $("grpBtn").classList.toggle("on", groupMode === "all");
+  };
+  paintGrp();
+  $("grpBtn").onclick = () => {
+    groupMode = groupMode === "all" ? "roles" : "all";
+    try { localStorage.setItem("mcc-lp-group", groupMode); } catch(e){}
+    paintGrp(); assignGroups(); sortRows(); render(); renderTable();
   };
   $("scaleBtn").onclick = () => {
     sameScale = !sameScale;
