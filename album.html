@@ -355,6 +355,9 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       e.avatar = lm.avatar || (mm.discord && mm.discord.avatar) || "";
       e.avatarAlt = altAv(e.avatar, lm, mm);
       e.teacher = true;
+      // 運営の先生か（運営ロール・校長・副校長）。集合写真で「担任の先生」の帯に入れる
+      const staffIds = C.staffRoleIds ? C.staffRoleIds() : [];
+      e.staff = !!mm.staff || [].concat(lm.roles || [], mm.roles || []).some(r => r && (staffIds.indexOf(String(r.id)) >= 0 || /運営|校長|副校長/.test(r.name || "")));
       e.roleLabel = "講師";
       const card = cards && cards[id];
       e.color = card && THEMES[card.theme.color] ? THEMES[card.theme.color] : "var(--gold)";
@@ -851,7 +854,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     const W = 1600, L = 90, R = W - 90, CW = R - L;
     const ink = "#23384D", muted = "#6D8699", leaf = cssColor("var(--leaf)");
     const goldRing = (x, y, r) => { const gr = document.createElement("canvas").getContext("2d").createLinearGradient(x - r, y - r, x + r, y + r); gr.addColorStop(0, "#E8CD82"); gr.addColorStop(1, "#C9A24A"); return gr; };
-    const top = 250;
+    let top = 250;
     let H, draw;
     if (G.by === "all" || !P.tch.length){
       // 全員：先生を前の列に大きく、生徒をその後ろに
@@ -878,43 +881,72 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         await row(P.stu, sCols, sW, sH, 44, false);
       };
     } else {
-      // 先生ごと：先生＋担当の生徒をひとつのカードに
-      const groups = P.tch.map(t => ({ t, s: P.stu.filter(x => x.mentor && x.mentor.id === t.id) }));
+      /* 先生ごと：先生と担当の生徒のペアを1枚のカードに。生徒のアイコンを大きく、先生は気持ち小さく。
+         運営の先生（運営・校長・副校長のロール）は、卒業アルバムの集合写真のように右上に丸く並べる */
+      const staff = P.tch.filter(t => t.staff);
+      const groups = P.tch.filter(t => P.stu.some(x => x.mentor && x.mentor.id === t.id))
+        .map(t => ({ t, s: P.stu.filter(x => x.mentor && x.mentor.id === t.id) }));
+      // 運営ではなく、担当の生徒もいない先生は、ひとりのカードで出す
+      P.tch.filter(t => !t.staff && !groups.some(gr => gr.t.id === t.id)).forEach(t => groups.push({ t, s: [] }));
       const rest = P.stu.filter(x => !x.mentor || !P.tch.some(t => t.id === x.mentor.id));
       if (rest.length) groups.push({ t: null, s: rest });
-      const cols = groups.length > 6 ? 4 : Math.min(3, Math.max(1, groups.length)), gap = 22;
-      const cw = (CW - gap * (cols - 1)) / cols, iw = 96, sCols = Math.max(1, Math.floor((cw - 24) / iw));
-      const cardH = gr => 24 + (gr.t ? 150 : 40) + Math.max(1, Math.ceil(gr.s.length / sCols)) * 118 + 12;
+      // 右上の運営の先生（1列4人まで）
+      const cw0 = 100, cCols = Math.min(4, Math.max(1, staff.length)), cRows = Math.ceil(staff.length / 4);
+      const cornerBottom = staff.length ? 80 + cRows * 112 : 0;
+      top = Math.max(top, cornerBottom + 22);
+      const cols = groups.length > 12 ? 5 : groups.length > 6 ? 4 : Math.min(3, Math.max(1, groups.length)), gap = 18;
+      const cw = (CW - gap * (cols - 1)) / cols;
+      const cardH = gr => gr.s.length > 3 ? 24 + Math.ceil(gr.s.length / 3) * 136 + 12 : 186;
       const rows = []; for (let i = 0; i < groups.length; i += cols) rows.push(groups.slice(i, i + cols));
       const rowH = rows.map(r => Math.max.apply(null, r.map(cardH)));
       H = top + rowH.reduce((n, h) => n + h + gap, 0) + 90;
       draw = async g => {
+        // 右上：運営の先生
+        if (staff.length){
+          const x1 = R - 4, x0 = x1 - cCols * cw0;
+          g.textAlign = "center"; g.fillStyle = "#8C6A24"; g.font = "900 14px " + JPF;
+          g.fillText("🍎 担任の先生", (x0 + x1) / 2, 74);
+          for (let i = 0; i < staff.length; i++){
+            const t = staff[i], rowN = Math.min(4, staff.length - Math.floor(i / 4) * 4);
+            const cx = x1 - rowN * cw0 + (i % 4) * cw0 + cw0 / 2, cy = 124 + Math.floor(i / 4) * 112;
+            await drawAvatar(g, [t.avatar, t.avatarAlt], t.name, cx, cy, 36, goldRing(cx, cy, 36));
+            g.textAlign = "center"; g.fillStyle = ink; g.font = "900 13px " + JPF; g.fillText(fitText(g, t.name, cw0 - 6), cx, cy + 60);
+          }
+        }
         let y = top;
         for (let ri = 0; ri < rows.length; ri++){
           const r = rows[ri], x0 = W / 2 - (r.length * cw + (r.length - 1) * gap) / 2;
           for (let ci = 0; ci < r.length; ci++){
-            const gr = r[ci], x = x0 + ci * (cw + gap), mx = x + cw / 2;
-            rr(g, x, y, cw, rowH[ri], 18); g.fillStyle = "rgba(255,255,255,.6)"; g.fill();
-            g.lineWidth = 1.5; g.strokeStyle = "rgba(201,162,74,.55)"; g.stroke();
-            let sy = y + 24;
-            if (gr.t){
-              await drawAvatar(g, [gr.t.avatar, gr.t.avatarAlt], gr.t.name, mx, sy + 54, 52, goldRing(mx, sy + 54, 52));
-              g.textAlign = "center"; g.fillStyle = "#9A7426"; g.font = "900 19px " + JPF;
-              g.fillText(fitText(g, gr.t.name + " 先生", cw - 30), mx, sy + 140);
-              sy += 150;
-            } else {
-              g.textAlign = "center"; g.fillStyle = muted; g.font = "900 16px " + JPF; g.fillText("みんな", mx, sy + 20);
-              sy += 40;
-            }
+            const gr = r[ci], x = x0 + ci * (cw + gap), h = rowH[ri];
+            rr(g, x, y, cw, h, 20); g.fillStyle = "rgba(255,255,255,.66)"; g.fill();
+            g.lineWidth = 1.5; g.strokeStyle = "rgba(201,162,74,.5)"; g.stroke();
             const n = gr.s.length;
+            // 先生は右（生徒より気持ち小さく）。生徒は左がわに大きく
+            const tArea = gr.t ? Math.min(118, cw * .36) : 0;
+            const sArea = cw - tArea - 16;
+            const per = Math.min(3, Math.max(1, n));
+            const rS = n ? Math.max(30, Math.min(56, sArea / per / 2 - 10)) : 0;
+            const rT = gr.t ? Math.max(26, Math.min(44, rS ? rS * .78 : 44, tArea / 2 - 8)) : 0;
             for (let i = 0; i < n; i++){
-              const rowN = Math.min(sCols, n - Math.floor(i / sCols) * sCols);
-              const sx = mx - rowN * iw / 2 + (i % sCols) * iw + iw / 2, yy = sy + Math.floor(i / sCols) * 118;
-              const e = gr.s[i];
-              await drawAvatar(g, [e.avatar, e.avatarAlt], e.name, sx, yy + 40, 36, cssColor(e.color || "var(--leaf)"));
-              g.textAlign = "center"; g.fillStyle = ink; g.font = "900 14px " + JPF; g.fillText(fitText(g, e.name, iw - 8), sx, yy + 98);
+              const e = gr.s[i], rowN = Math.min(3, n - Math.floor(i / 3) * 3);
+              const cx = x + 8 + sArea / 2 - rowN * (sArea / per) / 2 + (i % 3) * (sArea / per) + (sArea / per) / 2;
+              const cy = y + 22 + rS + Math.floor(i / 3) * 136;
+              await drawAvatar(g, [e.avatar, e.avatarAlt], e.name, cx, cy, rS, cssColor(e.color || "var(--leaf)"));
+              g.textAlign = "center"; g.fillStyle = ink;
+              let fs = 17; g.font = "900 " + fs + "px " + JPF;
+              while (fs > 12 && g.measureText(e.name).width > sArea / per - 8){ fs -= 1; g.font = "900 " + fs + "px " + JPF; }
+              g.fillText(fitText(g, e.name, sArea / per - 8), cx, cy + rS + 30);
             }
-            if (!n){ g.textAlign = "center"; g.fillStyle = muted; g.font = "500 13px " + JPF; g.fillText("（担当の生徒なし）", mx, sy + 50); }
+            if (gr.t){
+              const cx = n ? x + cw - 10 - tArea / 2 : x + cw / 2, base = n ? y + 22 + rS * 2 : y + 22 + 88;
+              const cy = base - rT;
+              await drawAvatar(g, [gr.t.avatar, gr.t.avatarAlt], gr.t.name, cx, cy, rT, goldRing(cx, cy, rT));
+              g.textAlign = "center"; g.fillStyle = "#9A7426"; g.font = "900 13px " + JPF;
+              g.fillText(fitText(g, gr.t.name + " 先生", tArea + 10), cx, cy + rT + (n ? 30 : 34));
+              if (!n){ g.fillStyle = muted; g.font = "500 12px " + JPF; g.fillText("（担当の生徒なし）", cx, cy + rT + 54); }
+            } else if (n){
+              g.textAlign = "right"; g.fillStyle = muted; g.font = "700 12px " + JPF; g.fillText("担当の先生は未定", x + cw - 14, y + 20);
+            }
           }
           y += rowH[ri] + gap;
         }
