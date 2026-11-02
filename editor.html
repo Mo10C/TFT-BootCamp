@@ -5408,7 +5408,8 @@ body.ad-on{overflow:hidden}
         '<div class="row"><label style="min-width:70px">お題</label><input type="text" class="lb" maxlength="24" style="flex:1" placeholder="例：5人以上で遊ぶ"></div>' +
         '<div class="row"><label style="min-width:70px">説明</label><input type="text" class="ds" maxlength="60" style="flex:1" placeholder="任意"></div>' +
         '<div class="row"><select class="idea" style="max-width:300px"><option value="">💡 候補の中身に入れかえる…</option>' +
-          ideas.map((x, k) => '<option value="' + k + '">' + esc(x.icon + " " + x.label) + "</option>").join("") + "</select>" +
+          Array.from(new Set(ideas.map(x => x.group))).map(g => '<optgroup label="' + esc(g) + '">' +
+            ideas.map((x, k) => x.group === g ? '<option value="' + k + '"' + (sEdit.tasks.some(y => y.label === x.label) ? " disabled" : "") + ">" + esc(x.icon + " " + x.label) + "</option>" : "").join("") + "</optgroup>").join("") + "</select>" +
           '<span style="flex:1"></span><button class="mini del" type="button">✕ このマスを消す</button></div>';
       const q = k => box.querySelector(k), cell = () => $("stTasks").querySelector('.stc[data-id="' + CSS.escape(t.id) + '"]');
       // 選んだマスのすぐ下に吹き出しを出す（下の段なら上に）
