@@ -3592,7 +3592,7 @@
          tasks: [{ id, icon, img, label, desc }]（お題マス）,
          mode（"bingo"＝ビンゴ／"card"＝ふつうのスタンプカード）, free（5×5で24マスのとき真ん中をFREEに）, bingoNeed（何ラインでビンゴ達成か）,
          cols（横のマス数・0は自動）,
-         post: { enabled, complete（達成したときの文面）, fullEnabled, full（ぜんぶうめたときの文面） },
+         post: { enabled, fullEnabled, full（ぜんぶうめたときの文面）, bingoEnabled, complete（ビンゴ達成の文面）, image（お祝い画像） },
          album, awardName, awardIcon, awardImg（卒業証書・合宿の記録に称号として出す）,
          testRequestAt / testHandledAt / testLastResult（Bot のテスト投稿） }
      lboard_index/stamps  … みんなのスタンプ
@@ -3641,7 +3641,9 @@
       post: { enabled: true,
         complete: "🎉 **{name}** さんが「{title}」で **ビンゴ！**（{lines}ライン・{count}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮",
         fullEnabled: true,
-        full: "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！（{count}マス・{lines}ライン）\nすごい！ おめでとうございます 🎊" },
+        full: "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！\nすごい！ おめでとうございます 🎊",
+        bingoEnabled: false,   // ビンゴ（達成）したときも投稿するか（既定はぜんぶうめたときだけ）
+        image: true },         // ランクアップのようなお祝い画像をつける
       album: true, awardName: "スタンプコンプリート", awardIcon: "🎫", awardImg: "",
       // ページの見出し・ボタン・ハンコの言葉（管理コンソールで変えられる）
       texts: { card: "わたしのスタンプカード", cardSub: "お題をクリアしたら、マスを押してスタンプ！", rank: "スタンプランキング",
@@ -3673,7 +3675,10 @@
       bingoNeed: Math.max(1, Math.min(12, (raw.bingoNeed | 0) || d.bingoNeed)),
       tasks,
       post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled, complete: String(p.complete == null ? d.post.complete : p.complete).slice(0, 600),
-              fullEnabled: p.fullEnabled == null ? d.post.fullEnabled : !!p.fullEnabled, full: String(p.full == null ? d.post.full : p.full).slice(0, 600) },
+              fullEnabled: p.fullEnabled == null ? d.post.fullEnabled : !!p.fullEnabled,
+              full: String(p.full == null || p.full === "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！（{count}マス・{lines}ライン）\nすごい！ おめでとうございます 🎊" ? d.post.full : p.full).slice(0, 600),
+              bingoEnabled: p.bingoEnabled == null ? d.post.bingoEnabled : !!p.bingoEnabled,
+              image: p.image == null ? d.post.image : !!p.image },
       album: raw.album == null ? d.album : !!raw.album,
       awardName: String(raw.awardName || "").trim().slice(0, 20) || d.awardName,
       awardIcon: String(raw.awardIcon || "").slice(0, 4) || d.awardIcon, awardImg: img(raw.awardImg),

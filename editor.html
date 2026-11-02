@@ -1613,15 +1613,17 @@ body.ad-on{overflow:hidden}
     </div>
     <div class="card">
       <h2>お祝い（Discord）</h2>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostOn"> 達成した人（ビンゴ／コンプリート）を Bot が連絡事項でお祝いする</label></div>
-      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">達成の文面</label>
-        <textarea id="stPostTx" maxlength="600" style="flex:1;min-height:80px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostFullOn"> ぜんぶのマスをうめた人もお祝いする</label></div>
-      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">ぜんぶの文面</label>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostOn"> Bot が連絡事項でお祝いする</label></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostFullOn"> ぜんぶのマスをうめた人をお祝いする</label></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">文面</label>
         <textarea id="stPostFull" maxlength="600" style="flex:1;min-height:70px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostImg"> ランクアップのようなお祝い画像をつける（アイコン・カード・マス数）</label></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostBingoOn"> ビンゴ（達成）した人もお祝いする</label></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">ビンゴの文面</label>
+        <textarea id="stPostTx" maxlength="600" style="flex:1;min-height:70px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
       <div class="hint" style="margin-left:92px">使える言葉：{name} 名前／{mention} @メンション／{count} 押したマス／{lines} そろったライン／{total} マスの数／{title} タイトル<br>
-        達成と「ぜんぶうめた」が同時のときは、ぜんぶうめたほうだけ投稿します</div>
-      <div class="row" style="margin-top:8px"><button class="mini" id="stTest" type="button">🧪 実験チャンネルにテスト投稿</button>
+        ビンゴと「ぜんぶうめた」が同時のときは、ぜんぶうめたほうだけ投稿します</div>
+      <div class="row" style="margin-top:8px"><button class="mini" id="stTest" type="button">🧪 実験チャンネルにテスト投稿（ぜんぶうめた）</button>
         <span class="hint" id="stTestStat"></span></div>
     </div>
     <div class="card">
@@ -5323,6 +5325,7 @@ body.ad-on{overflow:hidden}
       $("stOn").checked = sEdit.enabled; $("stTitle").value = sEdit.title; $("stStart").value = sEdit.start; $("stEnd").value = sEdit.end;
       $("stPostOn").checked = sEdit.post.enabled; $("stPostTx").value = sEdit.post.complete;
       $("stPostFullOn").checked = sEdit.post.fullEnabled !== false; $("stPostFull").value = sEdit.post.full || "";
+      $("stPostImg").checked = sEdit.post.image !== false; $("stPostBingoOn").checked = !!sEdit.post.bingoEnabled;
       $("stMode").value = sEdit.mode || "bingo"; $("stFree").checked = sEdit.free !== false;
       $("stBingoNeed").innerHTML = Array.from({ length: 12 }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + "ライン</option>").join("");
       $("stBingoNeed").value = String(sEdit.bingoNeed || 1); paintMode();
@@ -5478,6 +5481,8 @@ body.ad-on{overflow:hidden}
     $("stFree").onchange = () => { sEdit.free = $("stFree").checked; mark(); paintTasks(); };
     $("stBingoNeed").onchange = () => { sEdit.bingoNeed = +$("stBingoNeed").value; mark(); };
     $("stPostFullOn").onchange = () => { sEdit.post.fullEnabled = $("stPostFullOn").checked; mark(); };
+    $("stPostImg").onchange = () => { sEdit.post.image = $("stPostImg").checked; mark(); };
+    $("stPostBingoOn").onchange = () => { sEdit.post.bingoEnabled = $("stPostBingoOn").checked; mark(); };
     $("stPostFull").addEventListener("input", () => { if (sEdit){ sEdit.post.full = $("stPostFull").value; mark(); } });
     function paintMode(){
       const b = (sEdit.mode || "bingo") === "bingo";
@@ -5530,7 +5535,7 @@ body.ad-on{overflow:hidden}
     $("stReset").onclick = () => { if (sDirty && !confirm("編集中の内容を捨てますか？")) return; sEdit = JSON.parse(JSON.stringify(sData)); fill(); clear(); };
     $("stReload").onclick = loadUsers;
     $("stTest").onclick = async () => {
-      if (!confirm("実験チャンネルに、コンプリートのお祝いをテスト投稿します（保存済みの文面）。よろしいですか？")) return;
+      if (!confirm("実験チャンネルに、「ぜんぶうめた」のお祝いをテスト投稿します（保存済みの文面・画像つき）。よろしいですか？")) return;
       try { await C.requestStampTestPost(); $("stTestStat").textContent = "Botに頼みました。1分以内に実験チャンネルへ出ます"; } catch(e){ toast(e.message); }
     };
     window.addEventListener("beforeunload", e => { if (sDirty){ e.preventDefault(); e.returnValue = ""; } });
