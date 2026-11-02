@@ -490,6 +490,31 @@ body.ad-on{overflow:hidden}
   .ad-side .tab{width:auto;padding:8px 11px}
   .ad-main{overflow:visible;padding:14px 14px 60px}
 }
+/* ---- スタンプ：カードの見た目のまま編集 ---- */
+.stGrid{display:grid;grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));gap:8px;max-width:640px;margin:6px 0 10px;user-select:none}
+.stEdWrap{position:relative;max-width:640px}
+.stc{position:relative;aspect-ratio:1/.86;border:2px dashed color-mix(in srgb,#8A6CFF 45%,var(--border));border-radius:14px;background:var(--surface);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6px 4px;cursor:grab;touch-action:none;transition:transform .1s,box-shadow .1s}
+.stc:hover{border-color:#8A6CFF}
+.stc .i{font-size:26px;line-height:1}.stc .i img{width:30px;height:30px;border-radius:50%;object-fit:cover}
+.stc b{font-size:11.5px;font-weight:900;line-height:1.25;margin-top:4px;word-break:break-all;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.stc small{font-size:9.5px;color:var(--muted);line-height:1.3;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.stc .no{position:absolute;left:6px;top:4px;font-size:9.5px;color:var(--muted);font-weight:700}
+.stc.sel{border-style:solid;border-color:#8A6CFF;box-shadow:0 0 0 3px color-mix(in srgb,#8A6CFF 30%,transparent)}
+.stc.empty b{color:#C8372D}
+.stc.free{border-style:solid;border-color:#FFB627;background:color-mix(in srgb,#FFF4CC 60%,var(--surface));cursor:default}
+.stc.free b{font-size:15px;letter-spacing:.08em;color:#C78A00}
+.stc.add{border-style:dashed;color:var(--muted);cursor:pointer;font-weight:900;font-size:12px}
+.stc.add .i{font-size:22px}
+.stc.drag{opacity:.35}
+.stc.over{border-style:solid;border-color:#FF6FA8;transform:scale(1.04);box-shadow:0 0 0 3px color-mix(in srgb,#FF6FA8 30%,transparent)}
+.stGhost{position:fixed;z-index:999;pointer-events:none;opacity:.9;transform:rotate(-4deg) scale(1.05);box-shadow:0 14px 30px -10px rgba(0,0,0,.45)}
+.stCellEd{position:absolute;z-index:6;width:min(360px,100%);border:1.5px solid #8A6CFF;border-radius:14px;padding:10px 12px 4px;background:var(--surface);
+  box-shadow:0 18px 40px -14px rgba(40,20,110,.45)}
+.stCellEd::before{content:"";position:absolute;top:-8px;left:var(--ax,40px);width:14px;height:14px;background:var(--surface);border-left:1.5px solid #8A6CFF;border-top:1.5px solid #8A6CFF;transform:rotate(45deg)}
+.stCellEd.up::before{top:auto;bottom:-8px;transform:rotate(225deg)}
+.stCellEd .hd{display:flex;align-items:center;gap:8px;font-weight:900;margin-bottom:4px}
+.stCellEd .row{margin:6px 0}
 </style>
 </head>
 <body>
@@ -1541,22 +1566,27 @@ body.ad-on{overflow:hidden}
   <div class="panel" id="p-stamp">
     <div class="card">
       <h2>🎫 スタンプカード（みんなで遊ぼう週間など）</h2>
-      <div class="lead">生徒が遊んだら <a href="stamp.html" target="_blank" rel="noopener">stamp.html</a> で自分でスタンプを押します。<b>お題マス</b>をそろえるとコンプリート。
-        コンプリートすると Bot が Discord でお祝いし、卒業証書・合宿の記録に称号が付きます。HOMEに出すときは「HOME編集」でタイルに stamp.html を足してください。</div>
+      <div class="lead">生徒が遊んだら <a href="stamp.html" target="_blank" rel="noopener">stamp.html</a> で自分でスタンプを押します。<b>お題マス</b>をたて・よこ・ななめにそろえるとビンゴ（ふつうのカードにもできます）。
+        達成すると Bot が Discord でお祝いし、卒業証書・合宿の記録に称号が付きます。HOMEに出すときは「HOME編集」でタイルに stamp.html を足してください。</div>
       <div class="row"><label class="chk"><input type="checkbox" id="stOn"> スタンプを押せるようにする</label></div>
       <div class="row"><label style="min-width:84px">タイトル</label><input type="text" id="stTitle" maxlength="30" style="width:260px" placeholder="みんなで遊ぼう週間"></div>
       <div class="row"><label style="min-width:84px">期間</label><input type="date" id="stStart"> 〜 <input type="date" id="stEnd">
         <span class="hint">この間だけ生徒が押せます（管理者はいつでも）</span></div>
-      <div class="row"><label style="min-width:84px">コンプリート</label><select id="stNeed"></select><span class="hint">何マスそろえたらコンプリートにするか</span></div>
+      <div class="row"><label style="min-width:84px">形式</label>
+        <select id="stMode"><option value="bingo">ビンゴ（たて・よこ・ななめがそろったら達成）</option><option value="card">ふつうのスタンプカード（マスの数で達成）</option></select></div>
+      <div class="row stBingoOnly"><label style="min-width:84px">ビンゴ達成</label><select id="stBingoNeed"></select>
+        <label class="chk" style="margin-left:10px"><input type="checkbox" id="stFree"> 真ん中を FREE にする</label>
+        <span class="hint">FREE は「5×5で24マス」「3×3で8マス」のとき真ん中に入ります（最初から押してある扱い）</span></div>
+      <div class="row stCardOnly"><label style="min-width:84px">コンプリート</label><select id="stNeed"></select><span class="hint">何マスそろえたらコンプリートにするか</span></div>
     </div>
     <div class="card">
       <h2>お題マス</h2>
-      <div class="lead">アイコンは絵文字か画像。上から順にカードに並びます（25マスまで）。</div>
-      <div id="stTasks"></div>
+      <div class="lead">実際のカードと同じ並びです。<b>マスをクリック</b>すると吹き出しで中身を編集、<b>ドラッグ</b>するとほかのマスと場所を入れかえます（25マスまで）。</div>
       <div class="row"><label style="min-width:84px">並べ方</label>
         <select id="stCols"><option value="0">自動（マスの数に合わせる）</option><option value="3">横3マス（3×3）</option><option value="4">横4マス（4×4）</option><option value="5">横5マス（5×5）</option></select>
-        <button class="mini" id="st55" type="button">🎯 5×5（25マス）にする</button>
+        <button class="mini" id="st55" type="button">🎯 5×5 にする</button>
         <span class="hint" id="stColsHint"></span></div>
+      <div class="stEdWrap" id="stEdWrap"><div class="stGrid" id="stTasks"></div><div class="stCellEd" id="stCellEd" style="display:none"></div></div>
       <div class="row"><button class="mini" id="stAdd" type="button">＋ マスを足す</button>
         <select id="stIdea" style="max-width:340px"><option value="">💡 候補から足す…</option></select></div>
     </div>
@@ -1571,6 +1601,8 @@ body.ad-on{overflow:hidden}
         <span class="hint">ハンコの文字（言葉の丸ハンコ用・短いほうがきれいです・例：あそんだ！／クリア！／GET!）</span></div>
       <div class="row"><label style="min-width:110px">押すボタン</label><input type="text" class="stTx" data-k="press" maxlength="20" style="width:200px">
         <label style="min-width:80px;margin-left:10px">そろったとき</label><input type="text" class="stTx" data-k="complete" maxlength="20" style="width:200px"></div>
+      <div class="row"><label style="min-width:110px">ビンゴのとき</label><input type="text" class="stTx" data-k="bingo" maxlength="20" style="width:200px">
+        <label style="min-width:80px;margin-left:10px">ぜんぶうめた</label><input type="text" class="stTx" data-k="full" maxlength="20" style="width:200px"></div>
       <div class="row"><label style="min-width:110px">上の帯の画像</label><span id="stHeroBox"></span>
         <span class="hint">右に出る画像（無ければマスコット）。背景が透明なPNGがきれいです</span></div>
       <div class="row"><label style="min-width:110px">ハンコの見た目</label>
@@ -1580,17 +1612,21 @@ body.ad-on{overflow:hidden}
         <span class="hint">「好きな画像」のときに押す画像（透明なPNGがおすすめ）</span></div>
     </div>
     <div class="card">
-      <h2>コンプリートのお祝い（Discord）</h2>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostOn"> コンプリートした人を Bot が連絡事項でお祝いする</label></div>
-      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">文面</label>
+      <h2>お祝い（Discord）</h2>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostOn"> 達成した人（ビンゴ／コンプリート）を Bot が連絡事項でお祝いする</label></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">達成の文面</label>
         <textarea id="stPostTx" maxlength="600" style="flex:1;min-height:80px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
-      <div class="hint" style="margin-left:92px">使える言葉：{name} 名前／{mention} @メンション／{count} 押したマス／{total} コンプリートに必要なマス／{title} タイトル</div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostFullOn"> ぜんぶのマスをうめた人もお祝いする</label></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">ぜんぶの文面</label>
+        <textarea id="stPostFull" maxlength="600" style="flex:1;min-height:70px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
+      <div class="hint" style="margin-left:92px">使える言葉：{name} 名前／{mention} @メンション／{count} 押したマス／{lines} そろったライン／{total} マスの数／{title} タイトル<br>
+        達成と「ぜんぶうめた」が同時のときは、ぜんぶうめたほうだけ投稿します</div>
       <div class="row" style="margin-top:8px"><button class="mini" id="stTest" type="button">🧪 実験チャンネルにテスト投稿</button>
         <span class="hint" id="stTestStat"></span></div>
     </div>
     <div class="card">
       <h2>卒業証書・合宿の記録</h2>
-      <div class="row"><label class="chk"><input type="checkbox" id="stAlbum"> コンプリートした人に称号を付ける（合宿の記録の特別賞の欄・1人のページ）</label></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stAlbum"> 達成した人（ビンゴ／コンプリート）に称号を付ける（合宿の記録の特別賞の欄・1人のページ）</label></div>
       <div class="row"><label style="min-width:84px">称号</label><input type="text" id="stAwIcon" maxlength="4" style="width:52px"><span id="stAwImgBox"></span>
         <input type="text" id="stAwName" maxlength="20" style="width:220px" placeholder="スタンプコンプリート"></div>
     </div>
@@ -5286,6 +5322,10 @@ body.ad-on{overflow:hidden}
       paintPageImgs();
       $("stOn").checked = sEdit.enabled; $("stTitle").value = sEdit.title; $("stStart").value = sEdit.start; $("stEnd").value = sEdit.end;
       $("stPostOn").checked = sEdit.post.enabled; $("stPostTx").value = sEdit.post.complete;
+      $("stPostFullOn").checked = sEdit.post.fullEnabled !== false; $("stPostFull").value = sEdit.post.full || "";
+      $("stMode").value = sEdit.mode || "bingo"; $("stFree").checked = sEdit.free !== false;
+      $("stBingoNeed").innerHTML = Array.from({ length: 12 }, (_, i) => '<option value="' + (i + 1) + '">' + (i + 1) + "ライン</option>").join("");
+      $("stBingoNeed").value = String(sEdit.bingoNeed || 1); paintMode();
       $("stAlbum").checked = sEdit.album; $("stAwIcon").value = sEdit.awardIcon; $("stAwName").value = sEdit.awardName;
       $("stTestStat").textContent = sEdit.testLastResult ? "前回：" + sEdit.testLastResult : "";
       $("stCols").value = String(sEdit.cols || 0); paintColsHint();
@@ -5303,44 +5343,117 @@ body.ad-on{overflow:hidden}
         Array.from({ length: Math.max(0, n - 1) }, (_, i) => i + 1).map(k => '<option value="' + k + '">' + k + "マス</option>").join("");
       $("stNeed").value = String(sEdit.need && sEdit.need < n ? sEdit.need : 0);
     }
+    /* お題マス：実際のカードと同じ並びで描く。クリック＝選んで下で編集／ドラッグ＝場所を入れかえ */
+    let sSel = null, sOpen = false;   // sOpen＝編集の吹き出しを出しているか
     function paintTasks(){
       paintColsHint();
-      const box = $("stTasks"); box.innerHTML = "";
-      sEdit.tasks.forEach((t, i) => {
-        const d = document.createElement("div"); d.className = "blk";
-        d.innerHTML = '<div class="bh"><span class="bt">' + (i + 1) + "マス目</span>" +
-          '<input type="text" class="ic" maxlength="4" style="width:48px;flex:none" title="絵文字">' + imgBtns(t.img) +
-          '<input type="text" class="lb" maxlength="24" placeholder="お題（例：5人以上で遊ぶ）">' +
-          '<button class="mini up" type="button"' + (i ? "" : " disabled") + '>↑</button><button class="mini dn" type="button"' + (i < sEdit.tasks.length - 1 ? "" : " disabled") + '>↓</button>' +
-          '<button class="mini del" type="button">✕</button></div>' +
-          '<input type="text" class="ds" maxlength="60" placeholder="説明（任意）" style="margin:6px 0 0 104px;width:calc(100% - 104px)">';
-        const q = s => d.querySelector(s);
-        q(".ic").value = t.icon; q(".lb").value = t.label; q(".ds").value = t.desc;
-        q(".ic").oninput = e => { t.icon = e.target.value; mark(); };
-        q(".lb").oninput = e => { t.label = e.target.value; mark(); };
-        q(".ds").oninput = e => { t.desc = e.target.value; mark(); };
-        q(".pk").onclick = () => pickImg(u => { t.img = u; mark(); paintTasks(); });
-        if (q(".cl")) q(".cl").onclick = () => { t.img = ""; mark(); paintTasks(); };
-        q(".up").onclick = () => { sEdit.tasks.splice(i - 1, 0, sEdit.tasks.splice(i, 1)[0]); mark(); paintTasks(); };
-        q(".dn").onclick = () => { sEdit.tasks.splice(i + 1, 0, sEdit.tasks.splice(i, 1)[0]); mark(); paintTasks(); };
-        q(".del").onclick = () => { if (!confirm("「" + (t.label || "お題") + "」のマスを消しますか？（押したスタンプは数えなくなります）")) return;
-          sEdit.tasks.splice(i, 1); mark(); paintTasks(); paintNeed(); };
-        box.appendChild(d);
+      const box = $("stTasks"), g = C.stampGrid(C.normStampCfg(sEdit));
+      box.style.setProperty("--cols", g.cols);
+      if (!sEdit.tasks.some(t => t.id === sSel)) sSel = sEdit.tasks.length ? sEdit.tasks[0].id : null;
+      const ic = t => t.img ? '<img src="' + t.img + '" alt="">' : esc(t.icon || "⭐");
+      let no = 0;
+      box.innerHTML = g.cells.map(id => {
+        if (id === C.STAMP_FREE) return '<div class="stc free"><span class="i">⭐</span><b>FREE</b><small>最初から押してある</small></div>';
+        const t = sEdit.tasks.find(x => x.id === id); no++;
+        return '<div class="stc' + (t.id === sSel ? " sel" : "") + (t.label.trim() ? "" : " empty") + '" data-id="' + esc(t.id) + '"><span class="no">' + no + "</span>" +
+          '<span class="i">' + ic(t) + "</span><b>" + esc(t.label.trim() || "（お題を入れてください）") + "</b>" + (t.desc ? "<small>" + esc(t.desc) + "</small>" : "") + "</div>";
+      }).join("") + (sEdit.tasks.length < 25 && g.cells.length % g.cols ? '<div class="stc add" id="stAddCell"><span class="i">＋</span>マスを足す</div>' : "");
+      if ($("stAddCell")) $("stAddCell").onclick = () => $("stAdd").click();
+      box.querySelectorAll(".stc[data-id]").forEach(el => bindDrag(el));
+      paintCellEd();
+    }
+    // ドラッグで入れかえ（マウス・タッチどちらも）。少し動かすまではクリック扱い
+    function bindDrag(el){
+      el.addEventListener("pointerdown", e => {
+        if (e.button) return;
+        const st = { x: e.clientX, y: e.clientY, moved: false, ghost: null, over: null };
+        el.setPointerCapture(e.pointerId);
+        const move = ev => {
+          if (!st.moved){
+            if (Math.hypot(ev.clientX - st.x, ev.clientY - st.y) < 6) return;
+            st.moved = true; const r = el.getBoundingClientRect();
+            st.ghost = el.cloneNode(true); st.ghost.classList.add("stGhost"); st.ghost.classList.remove("sel");
+            st.ghost.style.width = r.width + "px"; st.ghost.style.height = r.height + "px"; st.dx = st.x - r.left; st.dy = st.y - r.top;
+            document.body.appendChild(st.ghost); el.classList.add("drag");
+          }
+          st.ghost.style.left = (ev.clientX - st.dx) + "px"; st.ghost.style.top = (ev.clientY - st.dy) + "px";
+          const hit = document.elementFromPoint(ev.clientX, ev.clientY), tg = hit && hit.closest("#stTasks .stc[data-id]");
+          if (st.over && st.over !== tg) st.over.classList.remove("over");
+          st.over = tg && tg !== el ? tg : null;
+          if (st.over) st.over.classList.add("over");
+        };
+        const up = () => {
+          el.removeEventListener("pointermove", move); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up);
+          if (st.ghost) st.ghost.remove();
+          el.classList.remove("drag");
+          if (!st.moved){ if (sSel === el.dataset.id && sOpen) sOpen = false; else { sSel = el.dataset.id; sOpen = true; } paintTasks(); return; }
+          if (st.over){
+            const T = sEdit.tasks, i = T.findIndex(t => t.id === el.dataset.id), j = T.findIndex(t => t.id === st.over.dataset.id);
+            if (i >= 0 && j >= 0){ [T[i], T[j]] = [T[j], T[i]]; sSel = el.dataset.id; mark(); }
+          }
+          paintTasks();
+        };
+        el.addEventListener("pointermove", move); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
       });
+    }
+    // 選んだマスの中身を編集
+    function paintCellEd(){
+      const box = $("stCellEd"), i = sEdit.tasks.findIndex(t => t.id === sSel), t = sEdit.tasks[i];
+      const wrap = $("stEdWrap"); wrap.style.paddingBottom = "";
+      if (!t || !sOpen){ box.style.display = "none"; box.innerHTML = ""; return; }
+      const ideas = C.STAMP_IDEAS || [];
+      box.innerHTML = '<div class="hd">✏️ ' + (i + 1) + "マス目<span style=\"flex:1\"></span>" +
+        '<button class="mini x" type="button" title="とじる">✕</button></div>' +
+        '<div class="row"><label style="min-width:70px">アイコン</label><input type="text" class="ic" maxlength="4" style="width:56px" title="絵文字">' + imgBtns(t.img) + "</div>" +
+        '<div class="row"><label style="min-width:70px">お題</label><input type="text" class="lb" maxlength="24" style="flex:1" placeholder="例：5人以上で遊ぶ"></div>' +
+        '<div class="row"><label style="min-width:70px">説明</label><input type="text" class="ds" maxlength="60" style="flex:1" placeholder="任意"></div>' +
+        '<div class="row"><select class="idea" style="max-width:300px"><option value="">💡 候補の中身に入れかえる…</option>' +
+          ideas.map((x, k) => '<option value="' + k + '">' + esc(x.icon + " " + x.label) + "</option>").join("") + "</select>" +
+          '<span style="flex:1"></span><button class="mini del" type="button">✕ このマスを消す</button></div>';
+      const q = k => box.querySelector(k), cell = () => $("stTasks").querySelector('.stc[data-id="' + CSS.escape(t.id) + '"]');
+      // 選んだマスのすぐ下に吹き出しを出す（下の段なら上に）
+      box.style.display = ""; box.classList.remove("up");
+      const c = cell();
+      if (c){
+        const W = wrap.clientWidth, bw = box.offsetWidth, bh = box.offsetHeight;
+        const left = Math.max(0, Math.min(W - bw, c.offsetLeft + c.offsetWidth / 2 - bw / 2));
+        const below = c.offsetTop + c.offsetHeight + 10, above = c.offsetTop - bh - 10;
+        const useUp = below + bh > $("stTasks").offsetHeight + 40 && above >= 0;
+        box.style.left = left + "px"; box.style.top = (useUp ? above : below) + "px"; box.classList.toggle("up", useUp);
+        box.style.setProperty("--ax", (c.offsetLeft + c.offsetWidth / 2 - left - 7) + "px");
+        if (!useUp) wrap.style.paddingBottom = Math.max(0, below + bh - $("stTasks").offsetHeight + 8) + "px";
+      }
+      q(".x").onclick = () => { sOpen = false; paintTasks(); };
+      // 入力中はマス1つだけ描き直す（入力欄のフォーカスを保つ）
+      const redraw = () => { const el = cell(); if (!el) return;
+        el.querySelector(".i").innerHTML = t.img ? '<img src="' + t.img + '" alt="">' : esc(t.icon || "⭐");
+        el.querySelector("b").textContent = t.label.trim() || "（お題を入れてください）"; el.classList.toggle("empty", !t.label.trim());
+        const sm = el.querySelector("small"); if (t.desc){ if (sm) sm.textContent = t.desc; else el.insertAdjacentHTML("beforeend", "<small>" + esc(t.desc) + "</small>"); } else if (sm) sm.remove(); };
+      q(".ic").value = t.icon; q(".lb").value = t.label; q(".ds").value = t.desc;
+      q(".ic").oninput = e => { t.icon = e.target.value; mark(); redraw(); };
+      q(".lb").oninput = e => { t.label = e.target.value; mark(); redraw(); };
+      q(".ds").oninput = e => { t.desc = e.target.value; mark(); redraw(); };
+      q(".pk").onclick = () => pickImg(u => { t.img = u; mark(); paintTasks(); });
+      if (q(".cl")) q(".cl").onclick = () => { t.img = ""; mark(); paintTasks(); };
+      q(".idea").onchange = e => { const x = ideas[+e.target.value]; if (!x) return;
+        Object.assign(t, { icon: x.icon, img: "", label: x.label, desc: x.desc }); mark(); paintTasks(); };
+      q(".del").onclick = () => { if (!confirm("「" + (t.label || "お題") + "」のマスを消しますか？（押したスタンプは数えなくなります）")) return;
+        sEdit.tasks.splice(i, 1); sSel = (sEdit.tasks[i] || sEdit.tasks[i - 1] || {}).id; sOpen = false; mark(); paintTasks(); paintNeed(); };
     }
     async function loadUsers(){
       const box = $("stUsers");
       try { sRec = await C.loadStamps(); } catch(e){ box.innerHTML = '<div class="hint">読み込めませんでした：' + esc(e.message) + "</div>"; return; }
-      const need = C.stampNeed(sData), ids = Object.keys(sRec.users);
-      const cnt = id => sData.tasks.filter(t => sRec.users[id].stamps[t.id]).length;
-      ids.sort((a, b) => cnt(b) - cnt(a) || String(sRec.users[a].name).localeCompare(String(sRec.users[b].name), "ja"));
+      const ids = Object.keys(sRec.users), S = {};
+      ids.forEach(id => { S[id] = C.stampStatus(sData, sRec.users[id].stamps); });
+      const cnt = id => S[id].count;
+      ids.sort((a, b) => (S[b].lines - S[a].lines) || cnt(b) - cnt(a) || String(sRec.users[a].name).localeCompare(String(sRec.users[b].name), "ja"));
       if (!ids.length){ box.innerHTML = '<div class="hint">まだだれも押していません。</div>'; return; }
-      box.innerHTML = '<div class="tw"><table><tr><th>名前</th><th>マス</th><th>スタンプ（✕で消す）</th><th>お祝い</th></tr>' + ids.map(id => {
+      box.innerHTML = '<div class="tw"><table><tr><th>名前</th><th>進み具合</th><th>スタンプ（✕で消す）</th><th>お祝い</th></tr>' + ids.map(id => {
         const u = sRec.users[id];
-        return "<tr><td><a href=\"stamp.html?id=" + encodeURIComponent(id) + "\" target=\"_blank\" rel=\"noopener\">" + esc(u.name) + "</a></td><td>" + cnt(id) + " / " + need + (cnt(id) >= need ? " 🎫" : "") + "</td><td>" +
+        return "<tr><td><a href=\"stamp.html?id=" + encodeURIComponent(id) + "\" target=\"_blank\" rel=\"noopener\">" + esc(u.name) + "</a></td><td>" + (S[id].bingo ? S[id].lines + "ライン・" + cnt(id) + " / " + S[id].total : cnt(id) + " / " + S[id].need) + (S[id].full ? " 🏆" : S[id].complete ? " 🎫" : "") + "</td><td>" +
           sData.tasks.filter(t => u.stamps[t.id]).map(t => '<span class="chip" style="display:inline-flex;gap:4px;align-items:center;margin:2px">' + esc(t.icon) + " " + esc(t.label) +
             '<button class="mini" data-u="' + esc(id) + '" data-t="' + esc(t.id) + '" type="button" style="padding:0 6px">✕</button></span>').join("") +
-          "</td><td>" + (u.postedAt ? "投稿済み" : u.completeAt ? "待ち" : "—") + "</td></tr>";
+          "</td><td>" + (u.postedAt ? "投稿済み" : u.completeAt ? "待ち" : "—") + (u.fullAt ? "／ぜんぶ：" + (u.fullPostedAt ? "投稿済み" : "待ち") : "") + "</td></tr>";
       }).join("") + "</table></div>";
       box.querySelectorAll("[data-u]").forEach(b => b.onclick = async () => {
         const u = sRec.users[b.dataset.u], t = sData.tasks.find(x => x.id === b.dataset.t);
@@ -5359,25 +5472,37 @@ body.ad-on{overflow:hidden}
       $(id).onchange = () => { if (sEdit){ f($(id).checked); mark(); } });
     $("stNeed").onchange = () => { sEdit.need = +$("stNeed").value; mark(); };
     $("stMarkStyle").onchange = () => { sEdit.markStyle = $("stMarkStyle").value; $("stMarkImgRow").style.display = sEdit.markStyle === "img" ? "" : "none"; mark(); };
-    $("stCols").onchange = () => { sEdit.cols = +$("stCols").value; paintColsHint(); mark(); };
+    $("stCols").onchange = () => { sEdit.cols = +$("stCols").value; mark(); paintTasks(); };
+    $("stMode").onchange = () => { sEdit.mode = $("stMode").value; paintMode(); mark(); paintTasks(); };
+    $("stFree").onchange = () => { sEdit.free = $("stFree").checked; mark(); paintTasks(); };
+    $("stBingoNeed").onchange = () => { sEdit.bingoNeed = +$("stBingoNeed").value; mark(); };
+    $("stPostFullOn").onchange = () => { sEdit.post.fullEnabled = $("stPostFullOn").checked; mark(); };
+    $("stPostFull").addEventListener("input", () => { if (sEdit){ sEdit.post.full = $("stPostFull").value; mark(); } });
+    function paintMode(){
+      const b = (sEdit.mode || "bingo") === "bingo";
+      document.querySelectorAll("#p-stamp .stBingoOnly").forEach(el => el.style.display = b ? "" : "none");
+      document.querySelectorAll("#p-stamp .stCardOnly").forEach(el => el.style.display = b ? "none" : "");
+    }
+    const usesFree = () => (sEdit.mode || "bingo") === "bingo" && sEdit.free !== false;
     function paintColsHint(){
       if (!sEdit) return;
-      const n = sEdit.tasks.length, c = sEdit.cols || Math.max(2, Math.min(5, Math.ceil(Math.sqrt(n))));
-      const rows = Math.ceil(n / c);
-      $("stColsHint").textContent = "いま " + n + "マス → 横" + c + "×縦" + rows + (n % c ? "（最後の段は" + (n % c) + "マス）" : "");
+      const g = C.stampGrid(C.normStampCfg(sEdit)), n = sEdit.tasks.length;
+      const rest = g.cells.length % g.cols;
+      $("stColsHint").textContent = "いま " + n + "マス" + (g.free ? "＋FREE" : "") + " → 横" + g.cols + "×縦" + g.rows + (rest ? "（最後の段は" + rest + "マス・ビンゴのラインにならない段があります）" : "") +
+        (usesFree() && !g.free && g.cols % 2 === 1 ? "（FREE を入れるなら " + (g.cols * g.cols - 1) + "マスに）" : "");
     }
-    // 候補から足りない分を足して 25マス・横5 にする
+    // 候補から足りない分を足して 5×5 にする（FREE ありなら24マス）
     $("st55").onclick = () => {
       if (!sEdit) return;
-      const n0 = sEdit.tasks.length;
-      if (n0 > 25) return toast("25マスまでです");
+      const goal = usesFree() ? 24 : 25, n0 = sEdit.tasks.length;
+      if (n0 > goal) return toast("いま " + n0 + "マスあります。5×5 にするには " + goal + "マスまで減らしてください");
       const have = new Set(sEdit.tasks.map(t => t.label));
-      const add = (C.STAMP_IDEAS || []).filter(x => !have.has(x.label)).slice(0, 25 - n0);
+      const add = (C.STAMP_IDEAS || []).filter(x => !have.has(x.label)).slice(0, goal - n0);
       add.forEach((x, i) => sEdit.tasks.push({ id: "t" + Date.now().toString(36) + i, icon: x.icon, img: "", label: x.label, desc: x.desc }));
-      while (sEdit.tasks.length < 25) sEdit.tasks.push({ id: "t" + Date.now().toString(36) + "x" + sEdit.tasks.length, icon: "⭐", img: "", label: "", desc: "" });
+      while (sEdit.tasks.length < goal) sEdit.tasks.push({ id: "t" + Date.now().toString(36) + "x" + sEdit.tasks.length, icon: "⭐", img: "", label: "", desc: "" });
       sEdit.cols = 5; $("stCols").value = "5";
-      mark(); paintTasks(); paintNeed(); paintColsHint();
-      toast(n0 === 25 ? "横5マスにしました" : "候補から" + (25 - n0) + "マス足して 5×5 にしました（あとで書きかえられます）");
+      mark(); paintTasks(); paintNeed();
+      toast(n0 === goal ? "横5マスにしました" : "候補から" + (goal - n0) + "マス足して 5×5 にしました（あとで書きかえられます）");
     };
     document.querySelectorAll(".stTx").forEach(i => i.addEventListener("input", () => { if (sEdit){ sEdit.texts[i.dataset.k] = i.value; mark(); } }));
     // お題の候補（core.js の STAMP_IDEAS）
@@ -5391,10 +5516,12 @@ body.ad-on{overflow:hidden}
       if (sEdit.tasks.length >= 25) return toast("25マスまでです");
       if (sEdit.tasks.some(t => t.label === x.label)) return toast("「" + x.label + "」はもうあります");
       sEdit.tasks.push({ id: "t" + Date.now().toString(36), icon: x.icon, img: "", label: x.label, desc: x.desc });
+      sSel = sEdit.tasks[sEdit.tasks.length - 1].id; sOpen = true;
       mark(); paintTasks(); paintNeed(); toast("「" + x.label + "」を足しました");
     };
     $("stAdd").onclick = () => { if (sEdit.tasks.length >= 25) return toast("25マスまでです");
-      sEdit.tasks.push({ id: "t" + Date.now().toString(36), icon: "⭐", img: "", label: "", desc: "" }); mark(); paintTasks(); paintNeed(); };
+      sEdit.tasks.push({ id: "t" + Date.now().toString(36), icon: "⭐", img: "", label: "", desc: "" }); sSel = sEdit.tasks[sEdit.tasks.length - 1].id; sOpen = true;
+      mark(); paintTasks(); paintNeed(); setTimeout(() => { const i = $("stCellEd").querySelector(".lb"); if (i) i.focus(); }, 0); };
     $("stApply").onclick = async () => {
       try { sData = await C.saveStampCfg(sEdit); sEdit = JSON.parse(JSON.stringify(sData)); fill(); clear(); toast("スタンプカードの設定を保存しました"); loadUsers(); }
       catch(e){ toast(e.message); }

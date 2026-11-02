@@ -3590,11 +3590,13 @@
      lboard_index/stamp   … 設定（管理コンソール →「スタンプ」）
        { enabled, title, start, end, need（コンプリートに必要なマス・0なら全部）,
          tasks: [{ id, icon, img, label, desc }]（お題マス）,
-         post: { enabled, complete（コンプリートしたときの文面） },
+         mode（"bingo"＝ビンゴ／"card"＝ふつうのスタンプカード）, free（5×5で24マスのとき真ん中をFREEに）, bingoNeed（何ラインでビンゴ達成か）,
+         cols（横のマス数・0は自動）,
+         post: { enabled, complete（達成したときの文面）, fullEnabled, full（ぜんぶうめたときの文面） },
          album, awardName, awardIcon, awardImg（卒業証書・合宿の記録に称号として出す）,
          testRequestAt / testHandledAt / testLastResult（Bot のテスト投稿） }
      lboard_index/stamps  … みんなのスタンプ
-       { users: { "u_<id>": { name, avatar, stamps: { <お題ID>: { at, game, with:[id], note } }, completeAt, postedAt } } }
+       { users: { "u_<id>": { name, avatar, stamps: { <お題ID>: { at, game, with:[id], note } }, completeAt, postedAt, fullAt, fullPostedAt } } }
      ・スタンプは本人が押す（期間中だけ。管理者はいつでも・だれのでも消せる）
      ・コンプリートしたら completeAt を書く → Bot（stamp-poster.js）が Discord にお祝いを投稿して postedAt を書く
      ============================================================= */
@@ -3607,6 +3609,9 @@
       start: "2026-11-03", end: "2026-11-09",
       need: 0,
       cols: 5,            // 横に並べるマスの数（0＝マスの数に合わせて自動。5なら5×5）
+      mode: "bingo",      // bingo＝たて・よこ・ななめがそろったら達成／card＝決めたマス数で達成
+      free: true,         // 5×5で24マスのとき、真ん中をFREE（最初から押してある）にする
+      bingoNeed: 1,       // 何ラインそろったら達成か
       tasks: [
         t("t1", "🤝", "はじめての人と遊ぶ", "まだ遊んだことのない人といっしょに"),
         t("t2", "👥", "5人以上で遊ぶ", "大人数でワイワイ"),
@@ -3625,7 +3630,6 @@
         t("t15", "😂", "負けても大笑い", "負けたけど笑って楽しめた"),
         t("t16", "⚔️", "チーム戦をする", "チームに分かれて勝負"),
         t("t17", "🧠", "頭脳戦をする", "考えるゲームでひらめき勝負"),
-        t("t18", "🎲", "運だめし", "運で決まるゲームで遊んだ"),
         t("t19", "🎮", "3種類のゲーム", "ちがうゲームを3つ遊んだ"),
         t("t20", "🔁", "リベンジ成功", "負けた相手にもう一度挑んで勝った"),
         t("t21", "☀️", "昼から遊ぶ", "お昼のうちに遊んだ"),
@@ -3635,11 +3639,14 @@
         t("t25", "👑", "MVPに選ばれる", "その回のMVPに選ばれた")
       ],
       post: { enabled: true,
-        complete: "🎉 **{name}** さんが「{title}」のスタンプカードを **コンプリート**！（{count} / {total}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" },
+        complete: "🎉 **{name}** さんが「{title}」で **ビンゴ！**（{lines}ライン・{count}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮",
+        fullEnabled: true,
+        full: "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！（{count}マス・{lines}ライン）\nすごい！ おめでとうございます 🎊" },
       album: true, awardName: "スタンプコンプリート", awardIcon: "🎫", awardImg: "",
       // ページの見出し・ボタン・ハンコの言葉（管理コンソールで変えられる）
       texts: { card: "わたしのスタンプカード", cardSub: "お題をクリアしたら、マスを押してスタンプ！", rank: "スタンプランキング",
-               feed: "みんなのさいきんのスタンプ", mark: "あそんだ！", press: "スタンプを押す", complete: "コンプリート！" },
+               feed: "みんなのさいきんのスタンプ", mark: "あそんだ！", press: "スタンプを押す", complete: "コンプリート！",
+               bingo: "ビンゴ！", full: "ぜんぶうめた！" },
       // ページの画像：hero＝上の帯の右（無ければマスコット）／stamp＝押したマスのハンコ（無ければ赤い丸のハンコ）
       images: { hero: "", stamp: "" }, markStyle: "mascot",
       testRequestAt: 0, testHandledAt: 0, testLastResult: "", updatedAt: 0
@@ -3661,8 +3668,12 @@
       start: okDay(raw.start) ? raw.start : d.start, end: okDay(raw.end) ? raw.end : d.end,
       need: Math.max(0, Math.min(tasks.length, raw.need | 0)),
       cols: [0, 3, 4, 5].includes(raw.cols) ? raw.cols : (raw.cols == null ? (raw.tasks ? 0 : d.cols) : 0),
+      mode: raw.mode === "card" || raw.mode === "bingo" ? raw.mode : d.mode,
+      free: raw.free == null ? d.free : !!raw.free,
+      bingoNeed: Math.max(1, Math.min(12, (raw.bingoNeed | 0) || d.bingoNeed)),
       tasks,
-      post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled, complete: String(p.complete == null ? d.post.complete : p.complete).slice(0, 600) },
+      post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled, complete: String(p.complete == null ? d.post.complete : p.complete).slice(0, 600),
+              fullEnabled: p.fullEnabled == null ? d.post.fullEnabled : !!p.fullEnabled, full: String(p.full == null ? d.post.full : p.full).slice(0, 600) },
       album: raw.album == null ? d.album : !!raw.album,
       awardName: String(raw.awardName || "").trim().slice(0, 20) || d.awardName,
       awardIcon: String(raw.awardIcon || "").slice(0, 4) || d.awardIcon, awardImg: img(raw.awardImg),
@@ -3703,8 +3714,38 @@
     ["盛り上げ", "🎭", "罰ゲームをやりきる", "罰ゲームまで楽しんだ"],
     ["盛り上げ", "👑", "MVPに選ばれる", "その回のMVPに選ばれた"]
   ].map(([group, icon, label, desc]) => ({ group, icon, label, desc }));
-  // コンプリートに必要なマスの数
+  // コンプリートに必要なマスの数（ふつうのカードのとき）
   const stampNeed = cfg => (cfg.need > 0 ? Math.min(cfg.need, cfg.tasks.length) : cfg.tasks.length);
+  // マスの並び：cells はお題IDの並び（FREE のマスは "__free"）。cols×rows のマス目
+  const STAMP_FREE = "__free";
+  function stampGrid(cfg) {
+    const n = cfg.tasks.length, bingo = cfg.mode === "bingo";
+    const cols = cfg.cols || Math.max(2, Math.min(5, Math.ceil(Math.sqrt(n + (bingo && cfg.free ? 1 : 0)))));
+    const cells = cfg.tasks.map(t => t.id);
+    // FREE は「正方形で奇数（3×3・5×5）」かつ「お題がちょうど1マス足りない」ときだけ真ん中に入る
+    const free = bingo && cfg.free && cols % 2 === 1 && n + 1 === cols * cols;
+    if (free) cells.splice((cols * cols - 1) / 2, 0, STAMP_FREE);
+    return { cols, rows: Math.ceil(cells.length / cols), cells, free };
+  }
+  // そろったライン（たて・よこ・ななめ）。ライン＝cells の番号の配列
+  function stampLines(cfg, stamps) {
+    const g = stampGrid(cfg), has = i => g.cells[i] === STAMP_FREE || !!(stamps && stamps[g.cells[i]]);
+    const L = [], { cols, rows, cells } = g, N = cells.length;
+    if (rows < 2 && cols < 2) return { grid: g, lines: [] };
+    for (let r = 0; r < rows; r++) { if ((r + 1) * cols > N) break; const a = Array.from({ length: cols }, (_, c) => r * cols + c); L.push(a); }
+    for (let c = 0; c < cols; c++) { const a = []; for (let r = 0; r < rows; r++) if (r * cols + c < N) a.push(r * cols + c); if (a.length === rows && rows > 1) L.push(a); }
+    if (rows === cols && N === cols * cols) { L.push(Array.from({ length: cols }, (_, i) => i * cols + i)); L.push(Array.from({ length: cols }, (_, i) => i * cols + (cols - 1 - i))); }
+    return { grid: g, lines: L.filter(a => a.every(has)), all: L, has };
+  }
+  // いまの状態：count（押したマス）／lines（そろったライン数）／complete（達成）／full（ぜんぶうめた）
+  function stampStatus(cfg, stamps) {
+    const count = cfg.tasks.filter(t => stamps && stamps[t.id]).length;
+    const ln = stampLines(cfg, stamps), lines = ln.lines.length;
+    const bingo = cfg.mode === "bingo";
+    const full = cfg.tasks.length > 0 && count >= cfg.tasks.length;
+    const complete = bingo ? lines >= cfg.bingoNeed || full : count >= stampNeed(cfg);
+    return { count, total: cfg.tasks.length, lines, lineList: ln.lines, grid: ln.grid, bingo, need: bingo ? cfg.bingoNeed : stampNeed(cfg), complete, full };
+  }
   async function loadStampCfg() {
     const db = openDb();
     try {
@@ -3715,7 +3756,7 @@
   async function saveStampCfg(cfg) {
     if (!isAdmin()) throw new Error("スタンプカードの設定は管理者のみです");
     const c = normStampCfg(cfg); c.updatedAt = Date.now();
-    const keep = { enabled: c.enabled, title: c.title, start: c.start, end: c.end, need: c.need, cols: c.cols, tasks: c.tasks, post: c.post,
+    const keep = { enabled: c.enabled, title: c.title, start: c.start, end: c.end, need: c.need, cols: c.cols, mode: c.mode, free: c.free, bingoNeed: c.bingoNeed, tasks: c.tasks, post: c.post,
       album: c.album, awardName: c.awardName, awardIcon: c.awardIcon, awardImg: c.awardImg, texts: c.texts, images: c.images, markStyle: c.markStyle, updatedAt: c.updatedAt };
     const db = openDb();
     if (db) await db.collection("lboard_index").doc(STAMP_DOC).set(keep, { merge: true });
@@ -3735,7 +3776,8 @@
       if (!v) return;
       stamps[k] = { at: v.at || 0, game: String(v.game || "").slice(0, 40), with: (Array.isArray(v.with) ? v.with : []).map(String).slice(0, 20), note: String(v.note || "").slice(0, 80) };
     });
-    return { name: String(u.name || "—"), avatar: String(u.avatar || ""), stamps, completeAt: u.completeAt || 0, postedAt: u.postedAt || 0 };
+    return { name: String(u.name || "—"), avatar: String(u.avatar || ""), stamps, completeAt: u.completeAt || 0, postedAt: u.postedAt || 0,
+      fullAt: u.fullAt || 0, fullPostedAt: u.fullPostedAt || 0 };
   }
   async function loadStamps() {
     const db = openDb();
@@ -3759,10 +3801,12 @@
     const st = { at: Date.now(), game: String((data && data.game) || "").trim().slice(0, 40),
       with: ((data && data.with) || []).map(String).filter(x => x !== uid).slice(0, 20), note: String((data && data.note) || "").trim().slice(0, 80) };
     const cur = (await loadStamps()).users[uid] || normStampUser(null);
+    const before = stampStatus(cfg, cur.stamps);
     const after = Object.assign({}, cur.stamps, { [taskId]: st });
-    const n = cfg.tasks.filter(t => after[t.id]).length;
+    const S = stampStatus(cfg, after);
     const patch = { name: String((who && who.name) || cur.name || "—"), avatar: String((who && who.avatar) || cur.avatar || ""), stamps: { [taskId]: st } };
-    if (n >= stampNeed(cfg) && !cur.completeAt) patch.completeAt = Date.now();
+    if (S.complete && !cur.completeAt) patch.completeAt = Date.now();
+    if (S.full && !cur.fullAt) patch.fullAt = Date.now();
     const db = openDb();
     if (db) await db.collection("lboard_index").doc(STAMPS_DOC).set({ users: { [uid]: patch }, updatedAt: Date.now() }, { merge: true });
     else {
@@ -3771,7 +3815,8 @@
       Object.assign(u, patch, { stamps: Object.assign({}, u.stamps || {}, patch.stamps) });
       localStorage.setItem("mcc-lb2-" + STAMPS_DOC, JSON.stringify(raw));
     }
-    return { count: n, complete: n >= stampNeed(cfg), justCompleted: !!patch.completeAt };
+    return { count: S.count, lines: S.lines, newLines: Math.max(0, S.lines - before.lines), complete: S.complete,
+      justCompleted: !!patch.completeAt, justFull: !!patch.fullAt };
   }
   /* スタンプを消す（本人か管理者）。コンプリートでなくなり、まだお祝いを投稿していなければ completeAt も消す */
   async function removeStamp(cfg, uid, taskId) {
@@ -3780,16 +3825,19 @@
     const cur = (await loadStamps()).users[uid];
     if (!cur || !cur.stamps[taskId]) return;
     const rest = Object.assign({}, cur.stamps); delete rest[taskId];
-    const drop = cur.completeAt && !cur.postedAt && cfg.tasks.filter(t => rest[t.id]).length < stampNeed(cfg);
+    const S = stampStatus(cfg, rest);
+    const drop = cur.completeAt && !cur.postedAt && !S.complete;
+    const dropFull = cur.fullAt && !cur.fullPostedAt && !S.full;
     const db = openDb();
     if (db) {
       const FV = firebase.firestore.FieldValue, P = (...a) => new firebase.firestore.FieldPath(...a);
       const args = [P("users", uid, "stamps", taskId), FV.delete()];
       if (drop) args.push(P("users", uid, "completeAt"), FV.delete());
+      if (dropFull) args.push(P("users", uid, "fullAt"), FV.delete());
       await db.collection("lboard_index").doc(STAMPS_DOC).update(...args);
     } else {
       const raw = JSON.parse(localStorage.getItem("mcc-lb2-" + STAMPS_DOC) || "{}");
-      const u = raw.users && raw.users[uid]; if (u){ delete u.stamps[taskId]; if (drop) delete u.completeAt; }
+      const u = raw.users && raw.users[uid]; if (u){ delete u.stamps[taskId]; if (drop) delete u.completeAt; if (dropFull) delete u.fullAt; }
       localStorage.setItem("mcc-lb2-" + STAMPS_DOC, JSON.stringify(raw));
     }
   }
@@ -5059,7 +5107,7 @@
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     loadThanksConfig, saveThanksConfig, loadThanksRange, THANKS_DEFAULT, loadCampGames,
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, vcColor, vcIcon, vcAvatars, loadVcCompanions, loadExamScores, rankOfAbs,
-    defaultStampCfg, normStampCfg, STAMP_IDEAS, loadStampCfg, saveStampCfg, requestStampTestPost, loadStamps, pressStamp, removeStamp, stampNeed,
+    defaultStampCfg, normStampCfg, STAMP_IDEAS, loadStampCfg, saveStampCfg, requestStampTestPost, loadStamps, pressStamp, removeStamp, stampNeed, stampGrid, stampLines, stampStatus, STAMP_FREE,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry, saveGradImage, requestGradPost, loadGradPost, cancelGradPost,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
     defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf, loadTeacherRoleIds,

@@ -418,14 +418,16 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     });
     /* スタンプカード：押したマスの数。コンプリートした人には称号（特別賞と同じ形・発表前でも出す always）を付ける */
     const [stCfg, stRec] = stp || [null, null];
-    const stNeed = stCfg ? C.stampNeed(stCfg) : 0;
     allStu.concat(teachers).forEach(x => {
       const u = stCfg && stRec && stRec.users[x.id];
-      const n = u ? stCfg.tasks.filter(t => u.stamps[t.id]).length : 0;
-      x.stamp = n ? { n, need: stNeed, complete: n >= stNeed, title: stCfg.title } : null;
+      const S = u && C.stampStatus ? C.stampStatus(stCfg, u.stamps) : null;
+      const n = S ? S.count : 0;
+      // ビンゴのときは「◯ライン」、ふつうのカードは「◯/◯マス」
+      const sub = S ? (S.bingo ? S.lines + "ライン・" + n + "マス" : n + "/" + S.need + "マス") : "";
+      x.stamp = n ? { n, need: S.bingo ? S.total : S.need, lines: S.lines, bingo: S.bingo, complete: S.complete, title: stCfg.title, sub } : null;
       if (x.stamp && x.stamp.complete && stCfg.album)
         x.awards = (x.awards || []).concat([{ id: "__stamp", icon: stCfg.awardIcon, img: stCfg.awardImg, name: stCfg.awardName,
-          desc: stCfg.title + "（" + n + "/" + stNeed + "マス）", winners: [x.id], always: true }]);
+          desc: stCfg.title + "（" + sub + "）", winners: [x.id], always: true }]);
     });
     // 毛筆の字（タイトル・殿・ハンコ）だけを読み込む
     ensureBrush(album.title + album.tTitle + (album.pTitle || "") + (album.sTitle || "") + BRUSH_FIXED);
@@ -766,7 +768,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         if (bs.length) tiles.push(["📈", "LPの伸びの合計", "+" + gain + "LP", "期間中の最高まで"]);
         if (bs.length) tiles.push(["⬆️", "ティアが上がった人", up + "人", "記録のある " + bs.length + "人のうち"]);
         const stc = stu.filter(e => e.stamp && e.stamp.complete).length;
-        if (stc) tiles.push(["🎫", "スタンプコンプリート", stc + "人", (stu.find(e => e.stamp) || {}).stamp.title]);
+        if (stc) { const s0 = (stu.find(e => e.stamp) || {}).stamp; tiles.push(["🎫", s0.bingo ? "スタンプビンゴ達成" : "スタンプコンプリート", stc + "人", s0.title]); }
         plan.push({ b, head, tiles, h: 34 + Math.ceil(tiles.length / 3) * 108 - 12 });
       } else if (b.type === "rank"){
         const M = METRIC[b.metric] || METRIC.lp;
@@ -1717,7 +1719,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     if (e.vc && e.vc.seconds) tiles.push(["🎧", "VCにいた時間", hours(e.vc.seconds) + "時間", "合宿期間中の合計"]);
     if (co) tiles.push(["🎓", "コーチング時間", hours(co.sec) + "時間", co.ch[0] + (co.ch.length > 1 ? " ほか" : "") + "で"]);
     if (e.thanks) tiles.push(["🙏", "ありがとうの回数", e.thanks + "回", "チャットで言った回数"]);
-    if (e.stamp) tiles.push(["🎫", "スタンプカード", e.stamp.n + " / " + e.stamp.need + "マス", e.stamp.complete ? "コンプリート！" : e.stamp.title]);
+    if (e.stamp) tiles.push(["🎫", e.stamp.bingo ? "スタンプビンゴ" : "スタンプカード", e.stamp.bingo ? e.stamp.lines + "ライン" : e.stamp.n + " / " + e.stamp.need + "マス",
+      e.stamp.bingo ? e.stamp.n + "マス" + (e.stamp.complete ? "・ビンゴ！" : "") : (e.stamp.complete ? "コンプリート！" : e.stamp.title)]);
     // 結果（最高）はランクの変化に出すので、ここは最後の記録のランク
     if (e.end) tiles.push(["🏁", "最終ランク", jpRank(e.end.rank), e.end.rank.lp + "LP ・ " + md(e.end.day)]);
     if (e.bestDay) tiles.push(["🚀", "いちばん伸びた日", "+" + e.bestDay.delta + "LP", md(e.bestDay.day)]);

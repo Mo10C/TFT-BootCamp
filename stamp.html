@@ -140,6 +140,28 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
   .card.wide .stampmark span{font-size:9px}.card.wide .stampmark em{font-size:8px}
   .card.wide .stampmark.img em{bottom:-3px;font-size:8.5px}
 }
+/* ---- ビンゴ ---- */
+.card{position:relative}
+.bgsvg{position:absolute;left:0;top:0;pointer-events:none;overflow:visible;z-index:3}
+.bgsvg line{stroke:#FFB627;stroke-width:12;stroke-linecap:round;opacity:.62}
+.bgsvg line.new{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:lineIn .7s .25s ease-out forwards}
+@keyframes lineIn{to{stroke-dashoffset:0}}
+.cell.hit{border-color:#FFB627;box-shadow:0 0 0 3px color-mix(in srgb,#FFB627 35%,transparent)}
+.cell.reach:not(.done){border-color:#FF6FA8;border-style:solid;animation:reach 1.3s ease-in-out infinite}
+@keyframes reach{50%{box-shadow:0 0 0 5px color-mix(in srgb,#FF6FA8 35%,transparent)}}
+.cell.reach:not(.done)::after{content:"リーチ";position:absolute;left:50%;top:-9px;transform:translateX(-50%);font-size:10px;font-weight:900;color:#fff;background:#FF6FA8;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.cell.free{border-style:solid;border-color:#FFB627;background:color-mix(in srgb,#FFF4CC 60%,var(--surface));cursor:default}
+.cell.free b{font-family:"Space Grotesk",sans-serif;font-size:18px;letter-spacing:.08em;color:#C78A00}
+.prog .reach{display:inline-block;background:#FF6FA8;color:#fff;font-size:12px;padding:2px 10px;border-radius:999px;margin-left:6px;vertical-align:2px}
+.rk .mini{display:grid;grid-template-columns:repeat(var(--c),7px);gap:2px;margin-left:auto;flex:none}
+.rk .mini i{width:7px;height:7px;border-radius:2px;background:color-mix(in srgb,#8A6CFF 14%,var(--surface))}
+.rk .mini i.on{background:#E0384D}.rk .mini i.ln{background:#FFB627}.rk .mini i.fr{background:#F4D47A}
+.rk .ct small{display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.bingoban{position:fixed;left:50%;top:38%;z-index:70;pointer-events:none;font-family:"Mochiy Pop One",sans-serif;font-size:clamp(54px,14vw,120px);color:#FFE45C;
+  -webkit-text-stroke:10px #E2477E;paint-order:stroke fill;transform:translate(-50%,-50%) scale(0);animation:ban 1.8s cubic-bezier(.2,1.5,.4,1) forwards;white-space:nowrap}
+.bingoban small{display:block;text-align:center;font-size:.32em;-webkit-text-stroke:6px #E2477E}
+@keyframes ban{0%{transform:translate(-50%,-50%) scale(0) rotate(-12deg)}25%{transform:translate(-50%,-50%) scale(1.08) rotate(-6deg)}35%{transform:translate(-50%,-50%) scale(1) rotate(-6deg)}80%{opacity:1}100%{transform:translate(-50%,-50%) scale(1) rotate(-6deg);opacity:0}}
+@media (max-width:600px){.bgsvg line{stroke-width:7}.cell.reach:not(.done)::after{font-size:8px;top:2px;padding:0 5px}.rk .mini{grid-template-columns:repeat(var(--c),5px)}.rk .mini i{width:5px;height:5px}.card.wide .cell.free b{font-size:11px}}
 </style>
 </head>
 <body>
@@ -254,11 +276,20 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     const t = today();
     $("st").textContent = !CFG.enabled ? "おやすみ中" : t < CFG.start ? "もうすぐスタート！" : t > CFG.end ? "おわりました" : "開催中！";
     $("st").classList.toggle("off", !isOpen());
-    const need = C.stampNeed(CFG);
-    const mine = REC.users[VIEW], n = countOf(mine);
-    $("progLb").innerHTML = (VIEW === ME ? "" : esc(person(VIEW).name) + " さん　") + "<b>" + n + "</b> / " + need + " マス" +
-      (n >= need ? "　🎉 " + esc(CFG.texts.complete) : "　あと " + (need - n) + " マスでコンプリート");
-    $("progBar").style.width = Math.min(100, n / Math.max(1, need) * 100) + "%";
+    const mine = REC.users[VIEW], S = C.stampStatus(CFG, mine ? mine.stamps : {});
+    const who = VIEW === ME ? "" : esc(person(VIEW).name) + " さん　";
+    if (S.bingo){
+      const rc = reachOf(mine).size;
+      $("progLb").innerHTML = who + "<b>" + S.lines + "</b> ライン　" + S.count + " / " + S.total + " マス" +
+        (S.full ? "　🏆 " + esc(TX.full) : S.complete ? "　🎉 " + esc(TX.bingo) : "　あと " + (S.need - S.lines) + " ラインで" + esc(TX.bingo)) +
+        (rc && !S.full ? '<span class="reach">リーチ ×' + rc + "</span>" : "");
+      $("progBar").style.width = Math.min(100, S.count / Math.max(1, S.total) * 100) + "%";
+    } else {
+      const n = S.count, need = S.need;
+      $("progLb").innerHTML = who + "<b>" + n + "</b> / " + need + " マス" +
+        (n >= need ? "　🎉 " + esc(TX.complete) : "　あと " + (need - n) + " マスでコンプリート");
+      $("progBar").style.width = Math.min(100, n / Math.max(1, need) * 100) + "%";
+    }
     renderCard();
     renderRank();
     renderFeed();
@@ -274,17 +305,26 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     const u = REC.users[VIEW];
     const box = $("card");
     if (!CFG.tasks.length){ box.innerHTML = '<div class="muted">お題がまだありません（管理コンソール →「スタンプ」で作れます）</div>'; return; }
-    const cols = CFG.cols || Math.max(2, Math.min(5, Math.ceil(Math.sqrt(CFG.tasks.length))));   // 自動なら9マスで3×3・25マスで5×5
+    // マスの並び（ビンゴで24マスなら真ん中に FREE が入る）
+    const L = C.stampLines(CFG, u ? u.stamps : {}), G = L.grid;
+    const cols = G.cols;
     box.style.setProperty("--cols", cols); box.classList.toggle("wide", cols >= 4);
-    box.innerHTML = CFG.tasks.map(t => {
+    const bingo = CFG.mode === "bingo";
+    const hit = new Set([].concat(...L.lines)), reach = bingo ? reachOf(u) : new Set();
+    box.innerHTML = G.cells.map((id, i) => {
+      if (id === C.STAMP_FREE)
+        return '<div class="cell free' + (hit.has(i) ? " hit" : "") + '" data-i="' + i + '"><span class="ic">⭐</span><b>FREE</b>' + stampMark({ at: 0 }) + "</div>";
+      const t = CFG.tasks.find(x => x.id === id);
       const s = u && u.stamps[t.id];
       const can = own ? (s || isOpen() || IS_ADMIN) : (s && IS_ADMIN);
-      return '<div class="cell' + (s ? " done" : "") + (can ? "" : " locked") + '" data-t="' + esc(t.id) + '">' +
+      return '<div class="cell' + (s ? " done" : "") + (can ? "" : " locked") + (hit.has(i) ? " hit" : "") + (own && reach.has(i) ? " reach" : "") +
+        '" data-t="' + esc(t.id) + '" data-i="' + i + '">' +
         '<span class="ic">' + icHtml(t) + "</span><b>" + esc(t.label) + "</b>" + (t.desc ? "<small>" + esc(t.desc) + "</small>" : "") +
         (s && s.game ? '<span class="game">🎮 ' + esc(s.game) + "</span>" : "") +
         (s ? stampMark(s) : "") + "</div>";
     }).join("");
-    box.querySelectorAll(".cell").forEach(el => el.onclick = () => {
+    if (bingo) drawLines(L.lines);
+    box.querySelectorAll(".cell[data-t]").forEach(el => el.onclick = () => {
       if (el.classList.contains("locked")) return;
       const t = CFG.tasks.find(x => x.id === el.dataset.t);
       const s = u && u.stamps[t.id];
@@ -292,15 +332,50 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     });
   }
 
+  // リーチのマス（あと1つでそろうラインの、空いているマスの番号）
+  function reachOf(u){
+    const L = C.stampLines(CFG, u ? u.stamps : {}), out = new Set();
+    L.all.forEach(a => { const miss = a.filter(i => !L.has(i)); if (miss.length === 1) out.add(miss[0]); });
+    return out;
+  }
+  // そろったラインに線を引く（newKeys にあるラインはアニメーション）
+  let LAST_LINES = null, NEW_LINES = new Set();
+  function drawLines(lines){
+    const box = $("card");
+    const old = box.querySelector(".bgsvg"); if (old) old.remove();
+    if (!lines.length) return;
+    const ns = "http://www.w3.org/2000/svg", sv = document.createElementNS(ns, "svg");
+    sv.setAttribute("class", "bgsvg"); sv.setAttribute("width", box.clientWidth); sv.setAttribute("height", box.clientHeight);
+    const cells = box.querySelectorAll(".cell");
+    const ctr = i => { const el = cells[i]; return [el.offsetLeft + el.offsetWidth / 2, el.offsetTop + el.offsetHeight / 2]; };
+    lines.forEach(a => {
+      const [x1, y1] = ctr(a[0]), [x2, y2] = ctr(a[a.length - 1]);
+      const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ex = dx / len * 26, ey = dy / len * 26;
+      const ln = document.createElementNS(ns, "line");
+      ln.setAttribute("x1", x1 - ex); ln.setAttribute("y1", y1 - ey); ln.setAttribute("x2", x2 + ex); ln.setAttribute("y2", y2 + ey);
+      if (NEW_LINES.has(a.join(","))) { ln.setAttribute("class", "new"); ln.style.setProperty("--len", len + 52); }
+      sv.appendChild(ln);
+    });
+    box.appendChild(sv);
+    NEW_LINES = new Set();
+  }
+  let rzT = 0;
+  window.addEventListener("resize", () => { clearTimeout(rzT); rzT = setTimeout(() => { if (CFG && CFG.mode === "bingo") { const u = REC.users[VIEW]; drawLines(C.stampLines(CFG, u ? u.stamps : {}).lines); } }, 150); });
+  function bingoBanner(sub){
+    const d = document.createElement("div"); d.className = "bingoban";
+    d.innerHTML = "BINGO!" + (sub ? "<small>" + esc(sub) + "</small>" : "");
+    document.body.appendChild(d); setTimeout(() => d.remove(), 2000);
+  }
   // ハンコ：画像を設定していれば画像、無ければ赤い丸に言葉（管理コンソールで変えられる）
   // ハンコ：マスコット（assets/stamp.png）／言葉の丸／好きな画像。画像が読めないときは言葉の丸にもどす
-  const textMark = s => '<div class="stampmark"><div><span>' + esc(CFG.texts.mark) + "</span><em>" + mdAt(s.at) + "</em></div></div>";
+  const textMark = s => '<div class="stampmark"><div><span>' + esc(s.at ? CFG.texts.mark : "FREE") + "</span>" + (s.at ? "<em>" + mdAt(s.at) + "</em>" : "") + "</div></div>";
   window.stampFallback = im => { const b = im.closest(".stampmark"); if (!b) return;
     b.className = "stampmark"; b.innerHTML = "<div><span>" + esc(CFG.texts.mark) + "</span>" + (b.dataset.at ? "<em>" + b.dataset.at + "</em>" : "") + "</div>"; };
   const stampMark = s => {
     const src = CFG.markStyle === "img" ? CFG.images.stamp : CFG.markStyle === "mascot" ? "assets/stamp.png" : "";
     if (!src) return textMark(s);
-    return '<div class="stampmark img" data-at="' + mdAt(s.at) + '"><img src="' + esc(src) + '" alt="' + esc(CFG.texts.mark) + '" onerror="stampFallback(this)"><em>' + mdAt(s.at) + "</em></div>";
+    const at = s.at ? mdAt(s.at) : "";
+    return '<div class="stampmark img" data-at="' + at + '"><img src="' + esc(src) + '" alt="' + esc(CFG.texts.mark) + '" onerror="stampFallback(this)">' + (at ? "<em>" + at + "</em>" : "") + "</div>";
   };
   /* ---- 押す ---- */
   function openPress(t){
@@ -327,13 +402,20 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     $("mOk").onclick = async () => {
       $("mOk").disabled = true;
       try {
+        const u0 = REC.users[ME], before = new Set(C.stampLines(CFG, u0 ? u0.stamps : {}).lines.map(a => a.join(",")));
         const r = await C.pressStamp(CFG, ME, MEM[ME], t.id, { game: $("mGame").value, with: [...sel], note: $("mNote").value });
         close();
-        await reload();
+        REC = await C.loadStamps();
+        const u1 = REC.users[ME];
+        C.stampLines(CFG, u1 ? u1.stamps : {}).lines.forEach(a => { const k = a.join(","); if (!before.has(k)) NEW_LINES.add(k); });
+        render();
         const el = document.querySelector('.cell[data-t="' + CSS.escape(t.id) + '"] .stampmark');
         if (el) el.classList.add("drop");
-        burst(r.justCompleted);
-        if (r.justCompleted) openComplete(r.count);
+        const bingo = CFG.mode === "bingo";
+        burst(r.justCompleted || (bingo && r.newLines > 0));
+        if (bingo && r.newLines > 0) setTimeout(() => bingoBanner(r.lines + "ライン" + (r.newLines > 1 ? "（+" + r.newLines + "）" : "")), 350);
+        if (r.justFull) setTimeout(() => openFull(r.count, r.lines), bingo && r.newLines ? 1900 : 0);
+        else if (r.justCompleted) setTimeout(() => openComplete(r.count, r.lines), bingo && r.newLines ? 1900 : 0);
       } catch(e){ toast(e.message); $("mOk").disabled = false; }
     };
   }
@@ -353,9 +435,20 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
       try { await C.removeStamp(CFG, VIEW, t.id); close(); await reload(); toast("消しました"); } catch(e){ toast(e.message); }
     };
   }
-  function openComplete(n){
-    $("modc").innerHTML = '<div class="cpwin"><div style="font-size:54px">🎉</div><div class="big">' + esc(CFG.texts.complete) + '</div>' +
-      "<div>「" + esc(CFG.title) + "」のスタンプを <b>" + n + "マス</b> 集めました！</div>" +
+  function openFull(n, lines){
+    $("modc").innerHTML = '<div class="cpwin"><div style="font-size:54px">🏆</div><div class="big">' + esc(CFG.texts.full) + '</div>' +
+      "<div>「" + esc(CFG.title) + "」の <b>" + n + "マス</b> をぜんぶうめました！" + (CFG.mode === "bingo" ? "（" + lines + "ライン）" : "") + "</div>" +
+      '<div class="muted" style="margin-top:6px">Discord でもお祝いされます</div>' +
+      '<div class="acts" style="justify-content:center"><button class="btn" id="mCancel">やったー！</button></div></div>';
+    $("mod").classList.add("on");
+    $("mCancel").onclick = close;
+    setTimeout(() => burst(true), 400);
+  }
+  function openComplete(n, lines){
+    const bingo = CFG.mode === "bingo";
+    $("modc").innerHTML = '<div class="cpwin"><div style="font-size:54px">🎉</div><div class="big">' + esc(bingo ? CFG.texts.bingo : CFG.texts.complete) + '</div>' +
+      (bingo ? "<div>「" + esc(CFG.title) + "」で <b>" + lines + "ライン</b> そろいました！</div>"
+             : "<div>「" + esc(CFG.title) + "」のスタンプを <b>" + n + "マス</b> 集めました！</div>") +
       '<div class="muted" style="margin-top:6px">Discord でもお祝いされます' + (CFG.album ? "。卒業証書には「" + esc(CFG.awardName) + "」が付きます" : "") + "</div>" +
       '<div class="acts" style="justify-content:center"><button class="btn" id="mCancel">やったー！</button></div></div>';
     $("mod").classList.add("on");
@@ -368,23 +461,30 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
 
   /* ---- ランキング ---- */
   function renderRank(){
-    const need = C.stampNeed(CFG);
-    const list = Object.entries(REC.users).map(([id, u]) => ({ id, u, n: countOf(u) })).filter(x => x.n > 0)
-      .sort((a, b) => (b.n - a.n) || ((a.u.completeAt || 9e15) - (b.u.completeAt || 9e15)) || person(a.id).name.localeCompare(person(b.id).name, "ja"));
+    const bingo = CFG.mode === "bingo";
+    const list = Object.entries(REC.users).map(([id, u]) => ({ id, u, n: countOf(u), S: C.stampStatus(CFG, u.stamps) })).filter(x => x.n > 0)
+      .sort((a, b) => (bingo ? b.S.lines - a.S.lines : 0) || (b.n - a.n) || ((a.u.completeAt || 9e15) - (b.u.completeAt || 9e15)) || person(a.id).name.localeCompare(person(b.id).name, "ja"));
     const box = $("rank");
     if (!list.length){ box.innerHTML = '<div class="muted">まだだれもスタンプを押していません。いちばん乗りしよう！</div>'; return; }
     box.innerHTML = list.map((x, i) => {
       const p = person(x.id);
       return '<div class="rk' + (x.id === ME ? " me" : "") + '" data-id="' + esc(x.id) + '"><span class="no' + (i < 3 ? " m" + (i + 1) : "") + '">' + (i + 1) + "</span>" +
-        avHtml(p) + '<span class="nm">' + esc(p.name) + "</span>" + (x.n >= need ? '<span class="cp">🎫 コンプリート</span>' : "") +
-        '<span class="dots">' + CFG.tasks.map(t => '<i class="' + (x.u.stamps[t.id] ? "on" : "") + '"></i>').join("") + "</span>" +
-        '<span class="ct">' + x.n + " / " + need + "</span></div>";
+        avHtml(p) + '<span class="nm">' + esc(p.name) + "</span>" +
+        (x.S.full && bingo ? '<span class="cp">🏆 ' + esc(CFG.texts.full) + "</span>" : x.S.complete ? '<span class="cp">🎫 ' + esc(bingo ? CFG.texts.bingo : "コンプリート") + "</span>" : "") +
+        (bingo ? miniGrid(x.u) : '<span class="dots">' + CFG.tasks.map(t => '<i class="' + (x.u.stamps[t.id] ? "on" : "") + '"></i>').join("") + "</span>") +
+        '<span class="ct">' + (bingo ? x.S.lines + "ライン<small>" + x.n + " / " + x.S.total + "</small>" : x.n + " / " + x.S.need) + "</span></div>";
     }).join("");
     box.querySelectorAll(".rk").forEach(el => el.onclick = () => {
       VIEW = el.dataset.id;
       history.replaceState(null, "", VIEW === ME ? "stamp.html" : "?id=" + encodeURIComponent(VIEW));
       render(); window.scrollTo({ top: 0, behavior: "smooth" });
     });
+  }
+  // ランキングの小さなビンゴカード
+  function miniGrid(u){
+    const L = C.stampLines(CFG, u.stamps), hit = new Set([].concat(...L.lines));
+    return '<span class="mini" style="--c:' + L.grid.cols + '">' + L.grid.cells.map((id, i) =>
+      '<i class="' + (id === C.STAMP_FREE ? "fr" : hit.has(i) ? "ln" : u.stamps[id] ? "on" : "") + '"></i>').join("") + "</span>";
   }
   /* ---- さいきんのスタンプ ---- */
   function renderFeed(){
