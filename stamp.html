@@ -59,19 +59,20 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
 .cell.done .ic{opacity:.45}
 .cell.done small{display:none}
 .cell .game{display:block;font-size:11px;font-weight:900;color:#E2477E;margin-top:6px;opacity:1}
-@media (max-width:600px){
-  .stampmark{right:auto;left:50%;top:6px;width:64px;height:64px;margin-left:-32px;border-width:4px}
-  .stampmark span{font-size:13px}.stampmark em{font-size:9.5px}
-  .cell.done .ic{visibility:hidden}.cell.done b{margin-top:24px}
-}
 .stampmark{position:absolute;right:8px;top:8px;width:74px;height:74px;border-radius:50%;border:5px double #E0384D;color:#E0384D;
   display:grid;place-items:center;text-align:center;font-weight:900;transform:rotate(-14deg);background:rgba(255,255,255,.35);pointer-events:none}
 .stampmark span{font-family:"Mochiy Pop One",sans-serif;font-size:15px;line-height:1.05}
 .stampmark em{display:block;font-style:normal;font-family:"Space Grotesk",sans-serif;font-size:11px;margin-top:2px}
-.stampmark.img{border:none;background:none;border-radius:0}
+.stampmark.img{border:none;background:none;width:84px;height:84px;right:4px;top:4px}
 .stampmark.img img{width:100%;height:100%;object-fit:contain}
 .stampmark.img em{position:absolute;left:0;right:0;bottom:-4px;text-align:center;color:#E0384D;text-shadow:0 0 3px #fff,0 0 3px #fff}
 .stampmark.drop{animation:drop .45s cubic-bezier(.2,1.6,.4,1) both}
+@media (max-width:600px){
+  .stampmark{right:auto;left:50%;top:6px;width:64px;height:64px;margin-left:-32px;border-width:4px}
+  .stampmark span{font-size:13px}.stampmark em{font-size:9.5px}
+  .stampmark.img{right:auto;top:2px;width:72px;height:72px;margin-left:-36px}
+  .cell.done .ic{visibility:hidden}.cell.done b{margin-top:30px}
+}
 @keyframes drop{0%{transform:rotate(-14deg) scale(2.4);opacity:0}60%{opacity:1}100%{transform:rotate(-14deg) scale(1)}}
 .locked{opacity:.6;cursor:default}
 
@@ -116,6 +117,29 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
 .viewbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-weight:900}
 /* スマホ：ランキングは名前と数だけ（点は出さない）。コンプリートの札は🎫だけ */
 @media (max-width:600px){.rk .dots{display:none}.rk .nm{flex:1}.rk .cp{font-size:0;padding:2px 6px}.rk .cp::before{content:"🎫";font-size:12px}}
+/* 4×4・5×5 のときは、ハンコをマスのまん中に大きく押す。スマホでも列をそのままにしてマスを小さくする */
+.card.wide .cell{min-height:132px;padding:12px 6px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.card.wide .cell .ic{font-size:34px}.card.wide .cell .ic img{width:42px;height:42px}
+.card.wide .cell b{font-size:13px}
+.card.wide .cell.done .ic,.card.wide .cell.done b,.card.wide .cell.done .game{visibility:visible;opacity:.28;margin-top:0}
+.card.wide .cell.done small{display:none}
+.card.wide .stampmark{left:50%;top:50%;right:auto;margin:0;transform:translate(-50%,-50%) rotate(-14deg);width:96px;height:96px}
+.card.wide .stampmark.img{width:116px;height:116px;margin:0}
+.card.wide .stampmark.img em{bottom:-6px;font-size:12px}
+.card.wide .stampmark.drop{animation-name:dropc}
+@keyframes dropc{0%{transform:translate(-50%,-50%) rotate(-14deg) scale(2.4);opacity:0}60%{opacity:1}100%{transform:translate(-50%,-50%) rotate(-14deg) scale(1)}}
+@media (max-width:600px){
+  .cell small{display:none}
+  .card.wide{grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:5px}
+  .card.wide .cell{min-height:0;aspect-ratio:1/1.15;padding:4px 2px;border-radius:12px;border-width:2px;overflow:hidden}
+  .card.wide .cell small,.card.wide .cell .game{display:none}
+  .card.wide .cell .ic{font-size:22px;margin-bottom:3px}.card.wide .cell .ic img{width:26px;height:26px}
+  .card.wide .cell b{font-size:9.5px;line-height:1.2;word-break:break-all}
+  .card.wide .stampmark{width:50px;height:50px;border-width:3px}
+  .card.wide .stampmark.img{width:58px;height:58px}
+  .card.wide .stampmark span{font-size:9px}.card.wide .stampmark em{font-size:8px}
+  .card.wide .stampmark.img em{bottom:-3px;font-size:8.5px}
+}
 </style>
 </head>
 <body>
@@ -250,7 +274,8 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     const u = REC.users[VIEW];
     const box = $("card");
     if (!CFG.tasks.length){ box.innerHTML = '<div class="muted">お題がまだありません（管理コンソール →「スタンプ」で作れます）</div>'; return; }
-    box.style.setProperty("--cols", Math.max(2, Math.min(5, Math.ceil(Math.sqrt(CFG.tasks.length)))));   // 9マスなら3×3
+    const cols = CFG.cols || Math.max(2, Math.min(5, Math.ceil(Math.sqrt(CFG.tasks.length))));   // 自動なら9マスで3×3・25マスで5×5
+    box.style.setProperty("--cols", cols); box.classList.toggle("wide", cols >= 4);
     box.innerHTML = CFG.tasks.map(t => {
       const s = u && u.stamps[t.id];
       const can = own ? (s || isOpen() || IS_ADMIN) : (s && IS_ADMIN);
@@ -268,9 +293,15 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
   }
 
   // ハンコ：画像を設定していれば画像、無ければ赤い丸に言葉（管理コンソールで変えられる）
-  const stampMark = s => CFG.images.stamp
-    ? '<div class="stampmark img"><img src="' + esc(CFG.images.stamp) + '" alt=""><em>' + mdAt(s.at) + "</em></div>"
-    : '<div class="stampmark"><div><span>' + esc(CFG.texts.mark) + "</span><em>" + mdAt(s.at) + "</em></div></div>";
+  // ハンコ：マスコット（assets/stamp.png）／言葉の丸／好きな画像。画像が読めないときは言葉の丸にもどす
+  const textMark = s => '<div class="stampmark"><div><span>' + esc(CFG.texts.mark) + "</span><em>" + mdAt(s.at) + "</em></div></div>";
+  window.stampFallback = im => { const b = im.closest(".stampmark"); if (!b) return;
+    b.className = "stampmark"; b.innerHTML = "<div><span>" + esc(CFG.texts.mark) + "</span>" + (b.dataset.at ? "<em>" + b.dataset.at + "</em>" : "") + "</div>"; };
+  const stampMark = s => {
+    const src = CFG.markStyle === "img" ? CFG.images.stamp : CFG.markStyle === "mascot" ? "assets/stamp.png" : "";
+    if (!src) return textMark(s);
+    return '<div class="stampmark img" data-at="' + mdAt(s.at) + '"><img src="' + esc(src) + '" alt="' + esc(CFG.texts.mark) + '" onerror="stampFallback(this)"><em>' + mdAt(s.at) + "</em></div>";
+  };
   /* ---- 押す ---- */
   function openPress(t){
     const others = Object.values(MEM).filter(m => m.id !== ME).sort((a, b) => a.name.localeCompare(b.name, "ja"));

@@ -3606,6 +3606,7 @@
       title: "みんなで遊ぼう週間",
       start: "2026-11-03", end: "2026-11-09",
       need: 0,
+      cols: 5,            // 横に並べるマスの数（0＝マスの数に合わせて自動。5なら5×5）
       tasks: [
         t("t1", "🤝", "はじめての人と遊ぶ", "まだ遊んだことのない人といっしょに"),
         t("t2", "👥", "5人以上で遊ぶ", "大人数でワイワイ"),
@@ -3615,16 +3616,32 @@
         t("t6", "🧩", "協力してクリア", "みんなで力を合わせて"),
         t("t7", "🌙", "夜ふかし勝負", "22時すぎまで遊んだ"),
         t("t8", "🎧", "VCで1時間", "VCで1時間以上いっしょに遊んだ"),
-        t("t9", "📣", "ゲームを提案", "自分からゲームを提案して遊んだ")
+        t("t9", "📢", "ゲームを提案", "自分からゲームを提案して遊んだ"),
+        t("t10", "📣", "自分からさそう", "「遊ぼう！」と声をかけて遊んだ"),
+        t("t11", "🙋", "募集に乗っかる", "だれかの募集に参加した"),
+        t("t12", "🌏", "ほかの班の人と遊ぶ", "担当の先生がちがう人といっしょに"),
+        t("t13", "💌", "ありがとうを伝える", "遊んだあとに「ありがとう」を言った"),
+        t("t14", "🌟", "だれかをほめる", "ナイスプレイをほめた"),
+        t("t15", "😂", "負けても大笑い", "負けたけど笑って楽しめた"),
+        t("t16", "⚔️", "チーム戦をする", "チームに分かれて勝負"),
+        t("t17", "🧠", "頭脳戦をする", "考えるゲームでひらめき勝負"),
+        t("t18", "🎲", "運だめし", "運で決まるゲームで遊んだ"),
+        t("t19", "🎮", "3種類のゲーム", "ちがうゲームを3つ遊んだ"),
+        t("t20", "🔁", "リベンジ成功", "負けた相手にもう一度挑んで勝った"),
+        t("t21", "☀️", "昼から遊ぶ", "お昼のうちに遊んだ"),
+        t("t22", "📅", "2日つづけて遊ぶ", "2日連続でだれかと遊んだ"),
+        t("t23", "📸", "スクショを共有", "楽しかった場面をみんなに共有"),
+        t("t24", "🎭", "罰ゲームをやりきる", "罰ゲームまで楽しんだ"),
+        t("t25", "👑", "MVPに選ばれる", "その回のMVPに選ばれた")
       ],
       post: { enabled: true,
         complete: "🎉 **{name}** さんが「{title}」のスタンプカードを **コンプリート**！（{count} / {total}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" },
       album: true, awardName: "スタンプコンプリート", awardIcon: "🎫", awardImg: "",
       // ページの見出し・ボタン・ハンコの言葉（管理コンソールで変えられる）
       texts: { card: "わたしのスタンプカード", cardSub: "お題をクリアしたら、マスを押してスタンプ！", rank: "スタンプランキング",
-               feed: "みんなのさいきんのスタンプ", mark: "遊んだ！", press: "スタンプを押す", complete: "コンプリート！" },
+               feed: "みんなのさいきんのスタンプ", mark: "あそんだ！", press: "スタンプを押す", complete: "コンプリート！" },
       // ページの画像：hero＝上の帯の右（無ければマスコット）／stamp＝押したマスのハンコ（無ければ赤い丸のハンコ）
-      images: { hero: "", stamp: "" },
+      images: { hero: "", stamp: "" }, markStyle: "mascot",
       testRequestAt: 0, testHandledAt: 0, testLastResult: "", updatedAt: 0
     };
   }
@@ -3643,6 +3660,7 @@
       title: String(raw.title || "").trim().slice(0, 30) || d.title,
       start: okDay(raw.start) ? raw.start : d.start, end: okDay(raw.end) ? raw.end : d.end,
       need: Math.max(0, Math.min(tasks.length, raw.need | 0)),
+      cols: [0, 3, 4, 5].includes(raw.cols) ? raw.cols : (raw.cols == null ? (raw.tasks ? 0 : d.cols) : 0),
       tasks,
       post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled, complete: String(p.complete == null ? d.post.complete : p.complete).slice(0, 600) },
       album: raw.album == null ? d.album : !!raw.album,
@@ -3650,6 +3668,8 @@
       awardIcon: String(raw.awardIcon || "").slice(0, 4) || d.awardIcon, awardImg: img(raw.awardImg),
       texts: (t => { const o = {}; Object.keys(d.texts).forEach(k => { o[k] = String(t[k] || "").trim().slice(0, 40) || d.texts[k]; }); return o; })(raw.texts || {}),
       images: (m => ({ hero: bigImg(m.hero), stamp: img(m.stamp) }))(raw.images || {}),
+      // ハンコの見た目：mascot＝マスコットのハンコ（assets/stamp.png）／text＝言葉の丸ハンコ／img＝好きな画像
+      markStyle: ["mascot", "text", "img"].includes(raw.markStyle) ? raw.markStyle : (raw.images && raw.images.stamp ? "img" : d.markStyle),
       testRequestAt: raw.testRequestAt || 0, testHandledAt: raw.testHandledAt || 0, testLastResult: String(raw.testLastResult || ""),
       updatedAt: raw.updatedAt || 0
     };
@@ -3695,8 +3715,8 @@
   async function saveStampCfg(cfg) {
     if (!isAdmin()) throw new Error("スタンプカードの設定は管理者のみです");
     const c = normStampCfg(cfg); c.updatedAt = Date.now();
-    const keep = { enabled: c.enabled, title: c.title, start: c.start, end: c.end, need: c.need, tasks: c.tasks, post: c.post,
-      album: c.album, awardName: c.awardName, awardIcon: c.awardIcon, awardImg: c.awardImg, texts: c.texts, images: c.images, updatedAt: c.updatedAt };
+    const keep = { enabled: c.enabled, title: c.title, start: c.start, end: c.end, need: c.need, cols: c.cols, tasks: c.tasks, post: c.post,
+      album: c.album, awardName: c.awardName, awardIcon: c.awardIcon, awardImg: c.awardImg, texts: c.texts, images: c.images, markStyle: c.markStyle, updatedAt: c.updatedAt };
     const db = openDb();
     if (db) await db.collection("lboard_index").doc(STAMP_DOC).set(keep, { merge: true });
     else localStorage.setItem("mcc-lb2-" + STAMP_DOC, JSON.stringify(Object.assign(normStampCfg(JSON.parse(localStorage.getItem("mcc-lb2-" + STAMP_DOC) || "null")), keep)));

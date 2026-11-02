@@ -1553,6 +1553,10 @@ body.ad-on{overflow:hidden}
       <h2>お題マス</h2>
       <div class="lead">アイコンは絵文字か画像。上から順にカードに並びます（25マスまで）。</div>
       <div id="stTasks"></div>
+      <div class="row"><label style="min-width:84px">並べ方</label>
+        <select id="stCols"><option value="0">自動（マスの数に合わせる）</option><option value="3">横3マス（3×3）</option><option value="4">横4マス（4×4）</option><option value="5">横5マス（5×5）</option></select>
+        <button class="mini" id="st55" type="button">🎯 5×5（25マス）にする</button>
+        <span class="hint" id="stColsHint"></span></div>
       <div class="row"><button class="mini" id="stAdd" type="button">＋ マスを足す</button>
         <select id="stIdea" style="max-width:340px"><option value="">💡 候補から足す…</option></select></div>
     </div>
@@ -1564,13 +1568,16 @@ body.ad-on{overflow:hidden}
       <div class="row"><label style="min-width:110px">ランキング</label><input type="text" class="stTx" data-k="rank" maxlength="40" style="width:260px"></div>
       <div class="row"><label style="min-width:110px">さいきんのスタンプ</label><input type="text" class="stTx" data-k="feed" maxlength="40" style="width:260px"></div>
       <div class="row"><label style="min-width:110px">ハンコの言葉</label><input type="text" class="stTx" data-k="mark" maxlength="8" style="width:140px">
-        <span class="hint">押したマスの赤いハンコ（短いほうがきれいです・例：遊んだ！／クリア！／GET!）</span></div>
+        <span class="hint">ハンコの文字（言葉の丸ハンコ用・短いほうがきれいです・例：あそんだ！／クリア！／GET!）</span></div>
       <div class="row"><label style="min-width:110px">押すボタン</label><input type="text" class="stTx" data-k="press" maxlength="20" style="width:200px">
         <label style="min-width:80px;margin-left:10px">そろったとき</label><input type="text" class="stTx" data-k="complete" maxlength="20" style="width:200px"></div>
       <div class="row"><label style="min-width:110px">上の帯の画像</label><span id="stHeroBox"></span>
         <span class="hint">右に出る画像（無ければマスコット）。背景が透明なPNGがきれいです</span></div>
-      <div class="row"><label style="min-width:110px">ハンコの画像</label><span id="stMarkBox"></span>
-        <span class="hint">押したマスに、赤い丸のハンコの代わりにこの画像を押します（透明なPNGがおすすめ）</span></div>
+      <div class="row"><label style="min-width:110px">ハンコの見た目</label>
+        <select id="stMarkStyle"><option value="mascot">マスコットのハンコ（あそんだ！）</option><option value="text">言葉の丸ハンコ</option><option value="img">好きな画像</option></select>
+        <span class="hint">「言葉の丸ハンコ」は上の「ハンコの言葉」を使います</span></div>
+      <div class="row" id="stMarkImgRow"><label style="min-width:110px">ハンコの画像</label><span id="stMarkBox"></span>
+        <span class="hint">「好きな画像」のときに押す画像（透明なPNGがおすすめ）</span></div>
     </div>
     <div class="card">
       <h2>コンプリートのお祝い（Discord）</h2>
@@ -5281,6 +5288,8 @@ body.ad-on{overflow:hidden}
       $("stPostOn").checked = sEdit.post.enabled; $("stPostTx").value = sEdit.post.complete;
       $("stAlbum").checked = sEdit.album; $("stAwIcon").value = sEdit.awardIcon; $("stAwName").value = sEdit.awardName;
       $("stTestStat").textContent = sEdit.testLastResult ? "前回：" + sEdit.testLastResult : "";
+      $("stCols").value = String(sEdit.cols || 0); paintColsHint();
+      $("stMarkStyle").value = sEdit.markStyle || "mascot"; $("stMarkImgRow").style.display = sEdit.markStyle === "img" ? "" : "none";
       paintAwImg(); paintNeed(); paintTasks();
     }
     function paintAwImg(){
@@ -5295,6 +5304,7 @@ body.ad-on{overflow:hidden}
       $("stNeed").value = String(sEdit.need && sEdit.need < n ? sEdit.need : 0);
     }
     function paintTasks(){
+      paintColsHint();
       const box = $("stTasks"); box.innerHTML = "";
       sEdit.tasks.forEach((t, i) => {
         const d = document.createElement("div"); d.className = "blk";
@@ -5348,6 +5358,27 @@ body.ad-on{overflow:hidden}
     [["stOn", v => sEdit.enabled = v], ["stPostOn", v => sEdit.post.enabled = v], ["stAlbum", v => sEdit.album = v]].forEach(([id, f]) =>
       $(id).onchange = () => { if (sEdit){ f($(id).checked); mark(); } });
     $("stNeed").onchange = () => { sEdit.need = +$("stNeed").value; mark(); };
+    $("stMarkStyle").onchange = () => { sEdit.markStyle = $("stMarkStyle").value; $("stMarkImgRow").style.display = sEdit.markStyle === "img" ? "" : "none"; mark(); };
+    $("stCols").onchange = () => { sEdit.cols = +$("stCols").value; paintColsHint(); mark(); };
+    function paintColsHint(){
+      if (!sEdit) return;
+      const n = sEdit.tasks.length, c = sEdit.cols || Math.max(2, Math.min(5, Math.ceil(Math.sqrt(n))));
+      const rows = Math.ceil(n / c);
+      $("stColsHint").textContent = "いま " + n + "マス → 横" + c + "×縦" + rows + (n % c ? "（最後の段は" + (n % c) + "マス）" : "");
+    }
+    // 候補から足りない分を足して 25マス・横5 にする
+    $("st55").onclick = () => {
+      if (!sEdit) return;
+      const n0 = sEdit.tasks.length;
+      if (n0 > 25) return toast("25マスまでです");
+      const have = new Set(sEdit.tasks.map(t => t.label));
+      const add = (C.STAMP_IDEAS || []).filter(x => !have.has(x.label)).slice(0, 25 - n0);
+      add.forEach((x, i) => sEdit.tasks.push({ id: "t" + Date.now().toString(36) + i, icon: x.icon, img: "", label: x.label, desc: x.desc }));
+      while (sEdit.tasks.length < 25) sEdit.tasks.push({ id: "t" + Date.now().toString(36) + "x" + sEdit.tasks.length, icon: "⭐", img: "", label: "", desc: "" });
+      sEdit.cols = 5; $("stCols").value = "5";
+      mark(); paintTasks(); paintNeed(); paintColsHint();
+      toast(n0 === 25 ? "横5マスにしました" : "候補から" + (25 - n0) + "マス足して 5×5 にしました（あとで書きかえられます）");
+    };
     document.querySelectorAll(".stTx").forEach(i => i.addEventListener("input", () => { if (sEdit){ sEdit.texts[i.dataset.k] = i.value; mark(); } }));
     // お題の候補（core.js の STAMP_IDEAS）
     const ideas = C.STAMP_IDEAS || [];
