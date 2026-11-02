@@ -3869,7 +3869,7 @@
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const db = openDb();
     if (!db) throw new Error("Firebase に接続していないため使えません");
-    await db.collection("lboard_index").doc(STAMP_DOC).set({ testRequestAt: Date.now(), testKind: kind === "bingo" ? "bingo" : "full" }, { merge: true });
+    await db.collection("lboard_index").doc(STAMP_DOC).set({ testRequestAt: Date.now(), testKind: kind === "bingo" || kind === "full" ? kind : "both" }, { merge: true });
   }
   function normStampUser(u) {
     u = u || {};
