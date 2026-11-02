@@ -3584,6 +3584,196 @@
     return a;
   }
 
+  /* =============================================================
+     スタンプカード（stamp.html・みんなで遊ぼう週間など）
+
+     lboard_index/stamp   … 設定（管理コンソール →「スタンプ」）
+       { enabled, title, start, end, need（コンプリートに必要なマス・0なら全部）,
+         tasks: [{ id, icon, img, label, desc }]（お題マス）,
+         post: { enabled, complete（コンプリートしたときの文面） },
+         album, awardName, awardIcon, awardImg（卒業証書・合宿の記録に称号として出す）,
+         testRequestAt / testHandledAt / testLastResult（Bot のテスト投稿） }
+     lboard_index/stamps  … みんなのスタンプ
+       { users: { "u_<id>": { name, avatar, stamps: { <お題ID>: { at, game, with:[id], note } }, completeAt, postedAt } } }
+     ・スタンプは本人が押す（期間中だけ。管理者はいつでも・だれのでも消せる）
+     ・コンプリートしたら completeAt を書く → Bot（stamp-poster.js）が Discord にお祝いを投稿して postedAt を書く
+     ============================================================= */
+  const STAMP_DOC = "stamp", STAMPS_DOC = "stamps";
+  function defaultStampCfg() {
+    const t = (id, icon, label, desc) => ({ id, icon, img: "", label, desc });
+    return {
+      enabled: true,
+      title: "みんなで遊ぼう週間",
+      start: "2026-11-03", end: "2026-11-09",
+      need: 0,
+      tasks: [
+        t("t1", "🤝", "はじめての人と遊ぶ", "まだ遊んだことのない人といっしょに"),
+        t("t2", "👥", "5人以上で遊ぶ", "大人数でワイワイ"),
+        t("t3", "🎓", "先生と遊ぶ", "先生をさそってみよう"),
+        t("t4", "🆕", "はじめてのゲーム", "やったことのないゲームに挑戦"),
+        t("t5", "🏆", "1回勝つ", "勝負ゲームで勝ったら"),
+        t("t6", "🧩", "協力してクリア", "みんなで力を合わせて"),
+        t("t7", "🌙", "夜ふかし勝負", "22時すぎまで遊んだ"),
+        t("t8", "🎧", "VCで1時間", "VCで1時間以上いっしょに遊んだ"),
+        t("t9", "📣", "ゲームを提案", "自分からゲームを提案して遊んだ")
+      ],
+      post: { enabled: true,
+        complete: "🎉 **{name}** さんが「{title}」のスタンプカードを **コンプリート**！（{count} / {total}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" },
+      album: true, awardName: "スタンプコンプリート", awardIcon: "🎫", awardImg: "",
+      // ページの見出し・ボタン・ハンコの言葉（管理コンソールで変えられる）
+      texts: { card: "わたしのスタンプカード", cardSub: "お題をクリアしたら、マスを押してスタンプ！", rank: "スタンプランキング",
+               feed: "みんなのさいきんのスタンプ", mark: "遊んだ！", press: "スタンプを押す", complete: "コンプリート！" },
+      // ページの画像：hero＝上の帯の右（無ければマスコット）／stamp＝押したマスのハンコ（無ければ赤い丸のハンコ）
+      images: { hero: "", stamp: "" },
+      testRequestAt: 0, testHandledAt: 0, testLastResult: "", updatedAt: 0
+    };
+  }
+  const okDay = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+  function normStampCfg(raw) {
+    const d = defaultStampCfg(); raw = raw || {};
+    const img = v => (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(v || "")) && String(v).length < 200000) ? String(v) : "";
+    const bigImg = v => (/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(v || "")) && String(v).length < 400000) ? String(v) : "";
+    const tasks = (Array.isArray(raw.tasks) ? raw.tasks : d.tasks).slice(0, 25).map((x, i) => ({
+      id: /^[\w-]{1,24}$/.test(String((x && x.id) || "")) ? String(x.id) : "t" + Date.now().toString(36) + i,
+      icon: String((x && x.icon) || "⭐").slice(0, 4), img: img(x && x.img),
+      label: String((x && x.label) || "").trim().slice(0, 24) || "お題", desc: String((x && x.desc) || "").slice(0, 60) }));
+    const p = raw.post || {};
+    return {
+      enabled: raw.enabled == null ? d.enabled : !!raw.enabled,
+      title: String(raw.title || "").trim().slice(0, 30) || d.title,
+      start: okDay(raw.start) ? raw.start : d.start, end: okDay(raw.end) ? raw.end : d.end,
+      need: Math.max(0, Math.min(tasks.length, raw.need | 0)),
+      tasks,
+      post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled, complete: String(p.complete == null ? d.post.complete : p.complete).slice(0, 600) },
+      album: raw.album == null ? d.album : !!raw.album,
+      awardName: String(raw.awardName || "").trim().slice(0, 20) || d.awardName,
+      awardIcon: String(raw.awardIcon || "").slice(0, 4) || d.awardIcon, awardImg: img(raw.awardImg),
+      texts: (t => { const o = {}; Object.keys(d.texts).forEach(k => { o[k] = String(t[k] || "").trim().slice(0, 40) || d.texts[k]; }); return o; })(raw.texts || {}),
+      images: (m => ({ hero: bigImg(m.hero), stamp: img(m.stamp) }))(raw.images || {}),
+      testRequestAt: raw.testRequestAt || 0, testHandledAt: raw.testHandledAt || 0, testLastResult: String(raw.testLastResult || ""),
+      updatedAt: raw.updatedAt || 0
+    };
+  }
+  /* お題の候補（管理コンソールの「候補から足す」） */
+  const STAMP_IDEAS = [
+    ["交流", "🤝", "はじめての人と遊ぶ", "まだ遊んだことのない人といっしょに"],
+    ["交流", "🎓", "先生と遊ぶ", "先生をさそってみよう"],
+    ["交流", "👥", "5人以上で遊ぶ", "大人数でワイワイ"],
+    ["交流", "📣", "自分からさそう", "「遊ぼう！」と声をかけて遊んだ"],
+    ["交流", "🙋", "募集に乗っかる", "だれかの募集に参加した"],
+    ["交流", "🌏", "ほかの班の人と遊ぶ", "担当の先生がちがう人といっしょに"],
+    ["交流", "💌", "ありがとうを伝える", "遊んだあとに「ありがとう」を言った"],
+    ["交流", "🌟", "だれかをほめる", "ナイスプレイをほめた"],
+    ["ゲーム", "🆕", "はじめてのゲーム", "やったことのないゲームに挑戦"],
+    ["ゲーム", "🏆", "1回勝つ", "勝負ゲームで勝ったら"],
+    ["ゲーム", "😂", "負けても大笑い", "負けたけど笑って楽しめた"],
+    ["ゲーム", "🧩", "協力してクリア", "みんなで力を合わせて"],
+    ["ゲーム", "⚔️", "チーム戦をする", "チームに分かれて勝負"],
+    ["ゲーム", "🧠", "頭脳戦をする", "考えるゲームでひらめき勝負"],
+    ["ゲーム", "🎲", "運だめし", "運で決まるゲームで遊んだ"],
+    ["ゲーム", "🎮", "3種類のゲーム", "ちがうゲームを3つ遊んだ"],
+    ["ゲーム", "🔁", "リベンジ成功", "負けた相手にもう一度挑んで勝った"],
+    ["時間", "🎧", "VCで1時間", "VCで1時間以上いっしょに遊んだ"],
+    ["時間", "🌙", "夜ふかし勝負", "22時すぎまで遊んだ"],
+    ["時間", "☀️", "昼から遊ぶ", "お昼のうちに遊んだ"],
+    ["時間", "📅", "2日つづけて遊ぶ", "2日連続でだれかと遊んだ"],
+    ["盛り上げ", "📢", "ゲームを提案", "自分からゲームを提案して遊んだ"],
+    ["盛り上げ", "📸", "スクショを共有", "楽しかった場面をみんなに共有"],
+    ["盛り上げ", "🎤", "実況してみる", "プレイを実況・ナレーションした"],
+    ["盛り上げ", "🎭", "罰ゲームをやりきる", "罰ゲームまで楽しんだ"],
+    ["盛り上げ", "👑", "MVPに選ばれる", "その回のMVPに選ばれた"]
+  ].map(([group, icon, label, desc]) => ({ group, icon, label, desc }));
+  // コンプリートに必要なマスの数
+  const stampNeed = cfg => (cfg.need > 0 ? Math.min(cfg.need, cfg.tasks.length) : cfg.tasks.length);
+  async function loadStampCfg() {
+    const db = openDb();
+    try {
+      if (db) { const s = await db.collection("lboard_index").doc(STAMP_DOC).get(); return normStampCfg(s.exists ? s.data() : null); }
+      return normStampCfg(JSON.parse(localStorage.getItem("mcc-lb2-" + STAMP_DOC) || "null"));
+    } catch (e) { console.warn("スタンプの設定を読めませんでした", e); return normStampCfg(null); }
+  }
+  async function saveStampCfg(cfg) {
+    if (!isAdmin()) throw new Error("スタンプカードの設定は管理者のみです");
+    const c = normStampCfg(cfg); c.updatedAt = Date.now();
+    const keep = { enabled: c.enabled, title: c.title, start: c.start, end: c.end, need: c.need, tasks: c.tasks, post: c.post,
+      album: c.album, awardName: c.awardName, awardIcon: c.awardIcon, awardImg: c.awardImg, texts: c.texts, images: c.images, updatedAt: c.updatedAt };
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc(STAMP_DOC).set(keep, { merge: true });
+    else localStorage.setItem("mcc-lb2-" + STAMP_DOC, JSON.stringify(Object.assign(normStampCfg(JSON.parse(localStorage.getItem("mcc-lb2-" + STAMP_DOC) || "null")), keep)));
+    return c;
+  }
+  async function requestStampTestPost() {
+    if (!isAdmin()) throw new Error("この操作は管理者のみです");
+    const db = openDb();
+    if (!db) throw new Error("Firebase に接続していないため使えません");
+    await db.collection("lboard_index").doc(STAMP_DOC).set({ testRequestAt: Date.now() }, { merge: true });
+  }
+  function normStampUser(u) {
+    u = u || {};
+    const stamps = {};
+    Object.entries(u.stamps || {}).forEach(([k, v]) => {
+      if (!v) return;
+      stamps[k] = { at: v.at || 0, game: String(v.game || "").slice(0, 40), with: (Array.isArray(v.with) ? v.with : []).map(String).slice(0, 20), note: String(v.note || "").slice(0, 80) };
+    });
+    return { name: String(u.name || "—"), avatar: String(u.avatar || ""), stamps, completeAt: u.completeAt || 0, postedAt: u.postedAt || 0 };
+  }
+  async function loadStamps() {
+    const db = openDb();
+    let raw = null;
+    try {
+      if (db) { const s = await db.collection("lboard_index").doc(STAMPS_DOC).get(); raw = s.exists ? s.data() : null; }
+      else raw = JSON.parse(localStorage.getItem("mcc-lb2-" + STAMPS_DOC) || "null");
+    } catch (e) { console.warn("スタンプを読めませんでした", e); }
+    const users = {};
+    Object.entries((raw && raw.users) || {}).forEach(([id, u]) => { users[id] = normStampUser(u); });
+    return { users };
+  }
+  /* スタンプを押す（本人。管理者はだれのでも）。押したあとコンプリートなら completeAt を書く */
+  async function pressStamp(cfg, uid, who, taskId, data) {
+    const me = Session.get(), myId = me && me.discord ? "u_" + me.discord.id : "";
+    if (uid !== myId && !isAdmin()) throw new Error("自分のカードにだけ押せます");
+    if (!/^u_[\w-]+$/.test(uid) || !/^[\w-]{1,24}$/.test(taskId)) throw new Error("IDが正しくありません");
+    if (!cfg.tasks.some(t => t.id === taskId)) throw new Error("このお題はありません");
+    const today = dayKey();
+    if (!isAdmin() && (!cfg.enabled || today < cfg.start || today > cfg.end)) throw new Error("スタンプを押せるのは " + cfg.start + " 〜 " + cfg.end + " です");
+    const st = { at: Date.now(), game: String((data && data.game) || "").trim().slice(0, 40),
+      with: ((data && data.with) || []).map(String).filter(x => x !== uid).slice(0, 20), note: String((data && data.note) || "").trim().slice(0, 80) };
+    const cur = (await loadStamps()).users[uid] || normStampUser(null);
+    const after = Object.assign({}, cur.stamps, { [taskId]: st });
+    const n = cfg.tasks.filter(t => after[t.id]).length;
+    const patch = { name: String((who && who.name) || cur.name || "—"), avatar: String((who && who.avatar) || cur.avatar || ""), stamps: { [taskId]: st } };
+    if (n >= stampNeed(cfg) && !cur.completeAt) patch.completeAt = Date.now();
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc(STAMPS_DOC).set({ users: { [uid]: patch }, updatedAt: Date.now() }, { merge: true });
+    else {
+      const raw = JSON.parse(localStorage.getItem("mcc-lb2-" + STAMPS_DOC) || "{}"); raw.users = raw.users || {};
+      const u = raw.users[uid] = raw.users[uid] || { stamps: {} };
+      Object.assign(u, patch, { stamps: Object.assign({}, u.stamps || {}, patch.stamps) });
+      localStorage.setItem("mcc-lb2-" + STAMPS_DOC, JSON.stringify(raw));
+    }
+    return { count: n, complete: n >= stampNeed(cfg), justCompleted: !!patch.completeAt };
+  }
+  /* スタンプを消す（本人か管理者）。コンプリートでなくなり、まだお祝いを投稿していなければ completeAt も消す */
+  async function removeStamp(cfg, uid, taskId) {
+    const me = Session.get(), myId = me && me.discord ? "u_" + me.discord.id : "";
+    if (uid !== myId && !isAdmin()) throw new Error("自分のカードのスタンプだけ消せます");
+    const cur = (await loadStamps()).users[uid];
+    if (!cur || !cur.stamps[taskId]) return;
+    const rest = Object.assign({}, cur.stamps); delete rest[taskId];
+    const drop = cur.completeAt && !cur.postedAt && cfg.tasks.filter(t => rest[t.id]).length < stampNeed(cfg);
+    const db = openDb();
+    if (db) {
+      const FV = firebase.firestore.FieldValue, P = (...a) => new firebase.firestore.FieldPath(...a);
+      const args = [P("users", uid, "stamps", taskId), FV.delete()];
+      if (drop) args.push(P("users", uid, "completeAt"), FV.delete());
+      await db.collection("lboard_index").doc(STAMPS_DOC).update(...args);
+    } else {
+      const raw = JSON.parse(localStorage.getItem("mcc-lb2-" + STAMPS_DOC) || "{}");
+      const u = raw.users && raw.users[uid]; if (u){ delete u.stamps[taskId]; if (drop) delete u.completeAt; }
+      localStorage.setItem("mcc-lb2-" + STAMPS_DOC, JSON.stringify(raw));
+    }
+  }
+
   /* ---- 卒業式の投稿（chc-vc-bot の graduation-poster.js が投稿する） ----
      画像は管理コンソールの画面で作り、lboard_index/gradimg_<番号> に置く（1枚1ドキュメント・1MB未満）。
      lboard_index/gradpost に依頼（request・requestAt）を書くと、Bot が15秒以内に投稿を始める */
@@ -4849,6 +5039,7 @@
     scheduleWeeks, eventsOn, upcomingEvents, weekdayOf, startOfWeek, endOfWeek, WEEK_JA,
     loadThanksConfig, saveThanksConfig, loadThanksRange, THANKS_DEFAULT, loadCampGames,
     loadVcMeta, loadVcRange, vcMonthsBetween, vcHm, vcColor, vcIcon, vcAvatars, loadVcCompanions, loadExamScores, rankOfAbs,
+    defaultStampCfg, normStampCfg, STAMP_IDEAS, loadStampCfg, saveStampCfg, requestStampTestPost, loadStamps, pressStamp, removeStamp, stampNeed,
     defaultAlbum, normAlbum, loadAlbum, saveAlbum, albumEntry, saveGradImage, requestGradPost, loadGradPost, cancelGradPost,
     YOSE_MAX, YOSE_COLORS, loadYosegaki, saveYosegaki, removeYosegaki,
     defaultAdmission, normAdmission, loadAdmission, saveAdmission, studentNumbers, admissionRank, isTeacherOf, loadTeacherRoleIds,

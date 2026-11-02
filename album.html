@@ -294,6 +294,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
   let D = null;   // 読み込んだデータ一式
   // 特別賞を見せるか（発表前は管理者だけ）
   const showAwards = () => D.album.awardsOpen || IS_ADMIN;
+  // 見せてよい賞（特別賞は発表後か管理者だけ。スタンプカードの称号などの always はいつでも）
+  const visAwards = e => ((e && e.awards) || []).filter(a => showAwards() || a.always);
   // 賞のアイコン：画像があれば画像、無ければ絵文字
   const awIcon = a => a && a.img ? '<img class="awimg" src="' + esc(a.img) + '" alt="">' : esc((a && a.icon) || "🏆");
   /* 画像の上に賞のアイコンを描く（金の丸の中）。画像があれば丸く切り抜いて、無ければ絵文字 */
@@ -329,10 +331,12 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       safe(C.loadYosegaki ? C.loadYosegaki() : Promise.resolve({})),
       // 感謝ワード（チャットで「ありがとう」などを言った回数）。管理画面で外したチャンネルは数えない
       safe(C.loadThanksConfig ? C.loadThanksConfig().then(c => C.loadThanksRange(S, E, c.exclude)) : Promise.resolve(null)),
-      safe(C.loadCampGames ? C.loadCampGames() : Promise.resolve({}))
+      safe(C.loadCampGames ? C.loadCampGames() : Promise.resolve({})),
+      // スタンプカード（設定と、みんなのスタンプ）
+      safe(C.loadStampCfg ? Promise.all([C.loadStampCfg(), C.loadStamps()]) : Promise.resolve(null))
     ]);
     RAW = { key: rawKey, v: raw };
-    const [lp, snap, exam, vcr, vcc, cards, members, yose, thx, games] = raw;
+    const [lp, snap, exam, vcr, vcc, cards, members, yose, thx, games, stp] = raw;
     const mem = members || {};
     // 講師＝「講師（先生）のロール」を持っている人（管理コンソール →「入学許可書」で選ぶ）
     const teacherRoles = C.loadTeacherRoleIds ? await C.loadTeacherRoleIds() : [];
@@ -411,6 +415,17 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     allStu.concat(teachers).forEach(x => {
       const u = vcUsers.find(v => "u_" + v.id === x.id || v.id === x.id);
       x.vcCh = u && u.byChannel ? u.byChannel.slice(0, 5) : [];
+    });
+    /* スタンプカード：押したマスの数。コンプリートした人には称号（特別賞と同じ形・発表前でも出す always）を付ける */
+    const [stCfg, stRec] = stp || [null, null];
+    const stNeed = stCfg ? C.stampNeed(stCfg) : 0;
+    allStu.concat(teachers).forEach(x => {
+      const u = stCfg && stRec && stRec.users[x.id];
+      const n = u ? stCfg.tasks.filter(t => u.stamps[t.id]).length : 0;
+      x.stamp = n ? { n, need: stNeed, complete: n >= stNeed, title: stCfg.title } : null;
+      if (x.stamp && x.stamp.complete && stCfg.album)
+        x.awards = (x.awards || []).concat([{ id: "__stamp", icon: stCfg.awardIcon, img: stCfg.awardImg, name: stCfg.awardName,
+          desc: stCfg.title + "（" + n + "/" + stNeed + "マス）", winners: [x.id], always: true }]);
     });
     // 毛筆の字（タイトル・殿・ハンコ）だけを読み込む
     ensureBrush(album.title + album.tTitle + (album.pTitle || "") + (album.sTitle || "") + BRUSH_FIXED);
@@ -501,8 +516,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       (list.length ? '<div class="grid">' + list.map(e =>
         '<a class="st' + (e.id === ME ? " me" : "") + (e.pending ? " pend" : "") + '" href="?id=' + encodeURIComponent(e.id) + '" style="--c:' + e.color + '">' +
           (e.id === ME ? '<span class="you">あなた</span>' : "") +
-          (showAwards() && e.awards.length ? '<span class="awb" title="' + esc(e.awards.map(a => a.name).join("・")) + '">' +
-            awIcon(e.awards[0]) + "</span>" : "") +
+          (visAwards(e).length ? '<span class="awb" title="' + esc(visAwards(e).map(a => a.name).join("・")) + '">' +
+            awIcon(visAwards(e)[0]) + "</span>" : "") +
           (e.pending ? '<span class="pendb" title="期間中の記録がまだありません（生徒には表示されません）">記録待ち</span>' : "") +
           avatar(e.avatar, e.name) +
           '<div class="nm">' + esc(e.name) + "</div>" +
@@ -750,6 +765,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         if (th) tiles.push(["🙏", "ありがとうの合計", th + "回", "チャットで言った回数"]);
         if (bs.length) tiles.push(["📈", "LPの伸びの合計", "+" + gain + "LP", "期間中の最高まで"]);
         if (bs.length) tiles.push(["⬆️", "ティアが上がった人", up + "人", "記録のある " + bs.length + "人のうち"]);
+        const stc = stu.filter(e => e.stamp && e.stamp.complete).length;
+        if (stc) tiles.push(["🎫", "スタンプコンプリート", stc + "人", (stu.find(e => e.stamp) || {}).stamp.title]);
         plan.push({ b, head, tiles, h: 34 + Math.ceil(tiles.length / 3) * 108 - 12 });
       } else if (b.type === "rank"){
         const M = METRIC[b.metric] || METRIC.lp;
@@ -1094,9 +1111,9 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
         (e.mentor ? '<div class="pg-sec"><a class="role mentor-chip" href="?id=' + encodeURIComponent(e.mentor.id) + '">' +
           avatar(e.mentor.avatar, e.mentor.name) + "担当：" + esc(e.mentor.name) + "先生の" + esc(D.album.tTitle) + "を見る</a></div>" : "") +
 
-        (showAwards() && e.awards.length ?
-          '<div class="pg-sec"><h3>特別賞' + pendingTag() + '</h3><div class="pg-awards">' +
-            e.awards.map(a => '<div class="pg-aw"><span class="ic">' + awIcon(a) + "</span><span><b>" + esc(a.name) + "</b>" +
+        (visAwards(e).length ?
+          '<div class="pg-sec"><h3>特別賞' + (showAwards() ? pendingTag() : "") + '</h3><div class="pg-awards">' +
+            visAwards(e).map(a => '<div class="pg-aw"><span class="ic">' + awIcon(a) + "</span><span><b>" + esc(a.name) + "</b>" +
               (a.desc ? "<small>" + esc(a.desc) + "</small>" : "") + "</span></div>").join("") +
           "</div></div>" : "") +
 
@@ -1700,6 +1717,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     if (e.vc && e.vc.seconds) tiles.push(["🎧", "VCにいた時間", hours(e.vc.seconds) + "時間", "合宿期間中の合計"]);
     if (co) tiles.push(["🎓", "コーチング時間", hours(co.sec) + "時間", co.ch[0] + (co.ch.length > 1 ? " ほか" : "") + "で"]);
     if (e.thanks) tiles.push(["🙏", "ありがとうの回数", e.thanks + "回", "チャットで言った回数"]);
+    if (e.stamp) tiles.push(["🎫", "スタンプカード", e.stamp.n + " / " + e.stamp.need + "マス", e.stamp.complete ? "コンプリート！" : e.stamp.title]);
     // 結果（最高）はランクの変化に出すので、ここは最後の記録のランク
     if (e.end) tiles.push(["🏁", "最終ランク", jpRank(e.end.rank), e.end.rank.lp + "LP ・ " + md(e.end.day)]);
     if (e.bestDay) tiles.push(["🚀", "いちばん伸びた日", "+" + e.bestDay.delta + "LP", md(e.bestDay.day)]);
@@ -1763,7 +1781,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     head("特別賞", y, LX); if (withCm) head("先生からのひとこと", y, RX);
     y += 14;
     const awOpen = D.album.awardsOpen || EMBED || !!e._dummy;
-    const aws = awOpen ? (e.awards || []).slice(0, 3) : [];
+    const aws = (e.awards || []).filter(a => awOpen || a.always).slice(0, 3);
     if (aws.length){
       card(LX, y, aW, boxH);
       const rh = Math.min(48, (boxH - 12) / aws.length);
