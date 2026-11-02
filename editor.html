@@ -5227,7 +5227,17 @@ body.ad-on{overflow:hidden}
      ============================================================= */
   (function(){
     let sData = null, sEdit = null, sDirty = false, sBooted = false, sRec = null;
-    const mark = () => { sDirty = true; $("stSave").classList.add("dirty"); $("stState").textContent = "未保存の変更があります"; };
+    // 右のプレビュー（stamp.html）に、保存前の設定を送ってその場で描き直してもらう
+    const pushDraft = () => {
+      const f = $("pvFrame");
+      if (!sEdit || !f || !f.contentWindow || !/stamp\.html/.test(f.src || "")) return;
+      try { f.contentWindow.postMessage({ type: "stamp-draft", cfg: JSON.parse(JSON.stringify(sEdit)) }, location.origin === "null" ? "*" : location.origin); } catch(e){}
+    };
+    let pushT = null;
+    const mark = () => { sDirty = true; $("stSave").classList.add("dirty"); $("stState").textContent = "未保存の変更があります";
+      clearTimeout(pushT); pushT = setTimeout(pushDraft, 250); };
+    // プレビューが開き直したら（読み込み完了の合図）、編集中の内容をもう一度送る
+    window.addEventListener("message", ev => { if (ev.data && ev.data.type === "stamp-ready" && sDirty) pushDraft(); });
     const clear = () => { sDirty = false; $("stSave").classList.remove("dirty"); $("stState").textContent = ""; };
     // アイコン画像を選ぶ（正方形に切りぬいて128px）
     function pickImg(done){
@@ -5391,6 +5401,7 @@ body.ad-on{overflow:hidden}
     "p-rkicon":  ["ランクの紋章（サイト用の画像と、Discord用の絵文字）", "lp.html", "LPランキング"],
     "p-adm":     ["生徒ひとりずつの入学許可書と、Xに投稿する文面", "admission.html", "入学許可書"],
     "p-album":   ["合宿の歩みを1人1枚にまとめた卒業証書（文言と公開設定）", "album.html", "卒業証書"],
+    "p-stamp":   ["みんなで遊ぼう週間などのスタンプカード（お題・期間・言葉・画像・お祝い）", "stamp.html", "スタンプカード"],
     "p-board":   ["いま編集中の大会の名前・形式・公開範囲", "index.html" + bq, "大会ページ"],
     "p-teams":   ["ダブルアップのペア分け", "index.html" + bq, "大会ページ"],
     "p-boards":  ["大会（ボード）の一覧・切り替え・削除", "boards.html", "大会一覧"],

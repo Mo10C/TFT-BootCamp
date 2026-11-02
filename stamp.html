@@ -225,7 +225,7 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     $("ttl").textContent = CFG.title;
     const TX = CFG.texts;
     $("rankTitle").textContent = "🏅 " + TX.rank; $("feedTitle").textContent = "🕒 " + TX.feed;
-    if (CFG.images.hero && $("heroImg")) $("heroImg").src = CFG.images.hero;
+    if ($("heroImg")) $("heroImg").src = CFG.images.hero || "assets/mascot.png";
     $("per").textContent = md(CFG.start) + " 〜 " + md(CFG.end);
     const t = today();
     $("st").textContent = !CFG.enabled ? "おやすみ中" : t < CFG.start ? "もうすぐスタート！" : t > CFG.end ? "おわりました" : "開催中！";
@@ -383,7 +383,16 @@ input[type=text],textarea{border:1.5px solid var(--border);border-radius:11px;ba
     requestAnimationFrame(step);
   }
 
-  load().catch(e => { $("card").innerHTML = '<div class="muted">読み込めませんでした：' + esc(e.message) + "</div>"; });
+  /* 管理コンソールの右のプレビューで開かれたとき：保存前の設定が届いたら、その内容で描き直す（管理者だけ・保存はしない） */
+  if (IS_ADMIN && window.parent !== window){
+    window.addEventListener("message", ev => {
+      if (ev.origin !== location.origin || !ev.data || ev.data.type !== "stamp-draft" || !CFG) return;
+      CFG = C.normStampCfg(ev.data.cfg); render();
+    });
+  }
+  load().then(() => {
+    if (IS_ADMIN && window.parent !== window) try { parent.postMessage({ type: "stamp-ready" }, location.origin === "null" ? "*" : location.origin); } catch(x){}
+  }).catch(e => { $("card").innerHTML = '<div class="muted">読み込めませんでした：' + esc(e.message) + "</div>"; });
 })();
 </script>
 </body>
