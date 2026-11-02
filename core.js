@@ -3675,7 +3675,7 @@
       bingoNeed: Math.max(1, Math.min(12, (raw.bingoNeed | 0) || d.bingoNeed)),
       tasks,
       post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled,
-              complete: String(p.complete == null || p.complete === "🎉 **{name}** さんが「{title}」で **ビンゴ！**（{lines}ライン・{count}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" ? d.post.complete : p.complete).slice(0, 600),
+              complete: String(p.complete == null || p.complete === "🎉 **{name}** さんが「{title}」のスタンプカードを **コンプリート**！（{count} / {total}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" || p.complete === "🎉 **{name}** さんが「{title}」で **ビンゴ！**（{lines}ライン・{count}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" ? d.post.complete : p.complete).slice(0, 600),
               fullEnabled: p.fullEnabled == null ? d.post.fullEnabled : !!p.fullEnabled,
               full: String(p.full == null || p.full === "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！（{count}マス・{lines}ライン）\nすごい！ おめでとうございます 🎊" ? d.post.full : p.full).slice(0, 600),
               bingoEnabled: p.bingoEnabled == null ? d.post.bingoEnabled : !!p.bingoEnabled,
