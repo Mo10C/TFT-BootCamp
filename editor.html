@@ -1613,17 +1613,19 @@ body.ad-on{overflow:hidden}
     </div>
     <div class="card">
       <h2>お祝い（Discord）</h2>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostOn"> Bot が連絡事項でお祝いする</label></div>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostFullOn"> ぜんぶのマスをうめた人をお祝いする</label></div>
-      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">文面</label>
-        <textarea id="stPostFull" maxlength="600" style="flex:1;min-height:70px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostImg"> ランクアップのようなお祝い画像をつける（アイコン・カード・マス数）</label></div>
-      <div class="row"><label class="chk"><input type="checkbox" id="stPostBingoOn"> ビンゴ（達成）した人もお祝いする</label></div>
-      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">ビンゴの文面</label>
+      <div class="lead">お祝いは2パターン。どちらも画像つきで連絡事項に1人ずつ投稿します。</div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostOn"> Bot が連絡事項でお祝いする</label>
+        <label class="chk" style="margin-left:14px"><input type="checkbox" id="stPostImg"> お祝い画像をつける（ランクアップのような画像）</label></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostBingoOn"> <b>① ビンゴした人</b>（はじめてビンゴしたとき）</label></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">①の文面</label>
         <textarea id="stPostTx" maxlength="600" style="flex:1;min-height:70px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="stPostFullOn"> <b>② ぜんぶうめた人</b></label></div>
+      <div class="row" style="align-items:flex-start"><label style="min-width:84px;padding-top:8px">②の文面</label>
+        <textarea id="stPostFull" maxlength="600" style="flex:1;min-height:70px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
       <div class="hint" style="margin-left:92px">使える言葉：{name} 名前／{mention} @メンション／{count} 押したマス／{lines} そろったライン／{total} マスの数／{title} タイトル<br>
-        ビンゴと「ぜんぶうめた」が同時のときは、ぜんぶうめたほうだけ投稿します</div>
-      <div class="row" style="margin-top:8px"><button class="mini" id="stTest" type="button">🧪 実験チャンネルにテスト投稿（ぜんぶうめた）</button>
+        ①と②が同時のときは、②だけ投稿します</div>
+      <div class="row" style="margin-top:8px"><button class="mini stTestBtn" data-kind="bingo" type="button">🧪 ①ビンゴをテスト投稿</button>
+        <button class="mini stTestBtn" data-kind="full" type="button">🧪 ②ぜんぶうめたをテスト投稿</button>
         <span class="hint" id="stTestStat"></span></div>
     </div>
     <div class="card">
@@ -5534,10 +5536,11 @@ body.ad-on{overflow:hidden}
     };
     $("stReset").onclick = () => { if (sDirty && !confirm("編集中の内容を捨てますか？")) return; sEdit = JSON.parse(JSON.stringify(sData)); fill(); clear(); };
     $("stReload").onclick = loadUsers;
-    $("stTest").onclick = async () => {
-      if (!confirm("実験チャンネルに、「ぜんぶうめた」のお祝いをテスト投稿します（保存済みの文面・画像つき）。よろしいですか？")) return;
-      try { await C.requestStampTestPost(); $("stTestStat").textContent = "Botに頼みました。1分以内に実験チャンネルへ出ます"; } catch(e){ toast(e.message); }
-    };
+    document.querySelectorAll(".stTestBtn").forEach(btn => btn.onclick = async () => {
+      const kind = btn.dataset.kind, nm = kind === "full" ? "②ぜんぶうめた" : "①ビンゴ";
+      if (!confirm("実験チャンネルに「" + nm + "」のお祝いをテスト投稿します（保存済みの文面・画像つき）。よろしいですか？")) return;
+      try { await C.requestStampTestPost(kind); $("stTestStat").textContent = nm + "：Botに頼みました。1分以内に実験チャンネルへ出ます"; } catch(e){ toast(e.message); }
+    });
     window.addEventListener("beforeunload", e => { if (sDirty){ e.preventDefault(); e.returnValue = ""; } });
     const tb = document.querySelector('[data-panel="p-stamp"]');
     if (tb) tb.addEventListener("click", boot);

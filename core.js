@@ -3639,10 +3639,10 @@
         t("t25", "👑", "MVPに選ばれる", "その回のMVPに選ばれた")
       ],
       post: { enabled: true,
-        complete: "🎉 **{name}** さんが「{title}」で **ビンゴ！**（{lines}ライン・{count}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮",
+        complete: "🎉 **{name}** さんが「{title}」で **ビンゴ**しました！\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮",
         fullEnabled: true,
         full: "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！\nすごい！ おめでとうございます 🎊",
-        bingoEnabled: false,   // ビンゴ（達成）したときも投稿するか（既定はぜんぶうめたときだけ）
+        bingoEnabled: true,    // ①ビンゴした人のお祝い（②ぜんぶうめた人は fullEnabled）
         image: true },         // ランクアップのようなお祝い画像をつける
       album: true, awardName: "スタンプコンプリート", awardIcon: "🎫", awardImg: "",
       // ページの見出し・ボタン・ハンコの言葉（管理コンソールで変えられる）
@@ -3674,7 +3674,8 @@
       free: raw.free == null ? d.free : !!raw.free,
       bingoNeed: Math.max(1, Math.min(12, (raw.bingoNeed | 0) || d.bingoNeed)),
       tasks,
-      post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled, complete: String(p.complete == null ? d.post.complete : p.complete).slice(0, 600),
+      post: { enabled: p.enabled == null ? d.post.enabled : !!p.enabled,
+              complete: String(p.complete == null || p.complete === "🎉 **{name}** さんが「{title}」で **ビンゴ！**（{lines}ライン・{count}マス）\nおめでとうございます！ まだの人も、いっしょに遊ぼう 🎮" ? d.post.complete : p.complete).slice(0, 600),
               fullEnabled: p.fullEnabled == null ? d.post.fullEnabled : !!p.fullEnabled,
               full: String(p.full == null || p.full === "🏆 **{name}** さんが「{title}」のカードを **ぜんぶうめました**！（{count}マス・{lines}ライン）\nすごい！ おめでとうございます 🎊" ? d.post.full : p.full).slice(0, 600),
               bingoEnabled: p.bingoEnabled == null ? d.post.bingoEnabled : !!p.bingoEnabled,
@@ -3864,11 +3865,11 @@
     else localStorage.setItem("mcc-lb2-" + STAMP_DOC, JSON.stringify(Object.assign(normStampCfg(JSON.parse(localStorage.getItem("mcc-lb2-" + STAMP_DOC) || "null")), keep)));
     return c;
   }
-  async function requestStampTestPost() {
+  async function requestStampTestPost(kind) {
     if (!isAdmin()) throw new Error("この操作は管理者のみです");
     const db = openDb();
     if (!db) throw new Error("Firebase に接続していないため使えません");
-    await db.collection("lboard_index").doc(STAMP_DOC).set({ testRequestAt: Date.now() }, { merge: true });
+    await db.collection("lboard_index").doc(STAMP_DOC).set({ testRequestAt: Date.now(), testKind: kind === "bingo" ? "bingo" : "full" }, { merge: true });
   }
   function normStampUser(u) {
     u = u || {};
