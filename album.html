@@ -430,7 +430,9 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
           desc: stCfg.title + "（" + sub + "）", winners: [x.id], always: true }]);
     });
     // 毛筆の字（タイトル・殿・ハンコ）だけを読み込む
-    ensureBrush(album.title + album.tTitle + (album.pTitle || "") + (album.sTitle || "") + BRUSH_FIXED);
+    // 集合写真・全体の合宿の記録のタイトルも毛筆（入れ忘れると、その字だけふつうの字になる）
+    ensureBrush(album.title + album.tTitle + (album.pTitle || "") + (album.sTitle || "") +
+      ((album.group && album.group.title) || "集合写真") + ((album.all && album.all.title) || "みんなの合宿のきろく") + BRUSH_FIXED);
     teachers.forEach(t => { t.t.coach = t.t.s ? coachOf(t.t.s.id, t.name) : null; });
     const byId = {};
     list.forEach(e => { byId[e.id] = e; });
@@ -946,8 +948,11 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
             const t = staff[i], rowN = Math.min(4, staff.length - Math.floor(i / 4) * 4);
             const cx = x1 - rowN * cw0 + (i % 4) * cw0 + cw0 / 2, cy = 124 + Math.floor(i / 4) * 118;
             await drawAvatar(g, [t.avatar, t.avatarAlt], t.name, cx, cy, 36, goldRing(cx, cy, 36));
-            g.textAlign = "center"; g.fillStyle = ink; g.font = "900 13px " + JPF;
-            wrapText(g, t.name, cw0 - 6, 2).forEach((ln, k) => g.fillText(ln, cx, cy + 58 + k * 15));   // 長い名前は2行に
+            // 名前は1行。入らないときは字を小さく（それでも入らなければ「…」）
+            g.textAlign = "center"; g.fillStyle = ink;
+            let nf = 13; g.font = "900 " + nf + "px " + JPF;
+            while (nf > 9 && g.measureText(t.name).width > cw0 - 4){ nf -= 0.5; g.font = "900 " + nf + "px " + JPF; }
+            g.fillText(fitText(g, t.name, cw0 - 4), cx, cy + 58);
           }
         }
         let y = top;
