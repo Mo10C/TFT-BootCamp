@@ -31,7 +31,7 @@
 .row{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:9px}
 .row:last-child{margin-bottom:0}
 .row > label{font-size:11.5px;font-weight:700;color:var(--muted)}
-input[type=date]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
+input[type=date],input[type=datetime-local]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
   border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
 input[type=text]{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink);
   border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
@@ -428,9 +428,9 @@ body.ad-on{overflow:hidden}
   box-shadow:var(--ad-card-shadow);padding:18px 20px;margin-bottom:16px}
 .ad-main .card > h2{font-size:14.5px;margin-bottom:6px}
 .ad-main .card > .lead{font-size:12px;line-height:1.75}
-.ad-main input[type=text],.ad-main input[type=date],.ad-main input[type=number],
+.ad-main input[type=text],.ad-main input[type=date],.ad-main input[type=datetime-local],.ad-main input[type=number],
 .ad-main select,.ad-main textarea{border-radius:10px}
-.ad-main input[type=text]:focus,.ad-main input[type=date]:focus,.ad-main input[type=number]:focus,
+.ad-main input[type=text]:focus,.ad-main input[type=date]:focus,.ad-main input[type=datetime-local]:focus,.ad-main input[type=number]:focus,
 .ad-main select:focus,.ad-main textarea:focus{outline:2px solid var(--ad-accent);outline-offset:-1px;border-color:transparent}
 /* ボタン（参考: ed-btn）— 通常は淡色、主ボタンは濃色、危険は赤枠 */
 .ad .mini{border-radius:10px!important;padding:7px 12px!important;font-size:12.5px!important;font-weight:700!important;
