@@ -331,7 +331,21 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     return { txt:(v>0?"+":"−") + Math.abs(v) + "LP", cls: v>0?"up":"down" };
   }
   function md(k){ return k ? k.slice(5).replace("-","/") : ""; }
-  function rankOf(m){ return m.tier ? { tier:m.tier, division:m.division, lp:m.lp } : null; }
+  /* しめきり（管理コンソール →「LP」）を過ぎたら、ランクもしめきりの記録の値で止める（記録は続いている） */
+  const ended = () => !!(C.lpEnded && lp && C.lpEnded(lp));
+  function frozenOf(m){
+    const h = C.lpHistOf(lp, m.id);
+    const ks = Object.keys(h).sort(), k = ks[ks.length - 1];
+    if (!k) return null;
+    const r = C.rankOfAbs(h[k]), ht = C.lpHtierOf(lp, m.id, k);
+    if (r && ht) r.tier = ht;   // マスター以上はその日のティアで
+    return { abs: h[k], rank: r };
+  }
+  function rankOf(m){
+    if (ended()){ const f = frozenOf(m); if (f) return f.rank; }
+    return m.tier ? { tier:m.tier, division:m.division, lp:m.lp } : null;
+  }
+  const absOf = m => { if (ended()){ const f = frozenOf(m); if (f) return f.abs; } return m.abs; };
   function escapeHtml(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
       ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -349,7 +363,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
     };
     const inner = (a, b) => {
       if (sortBy === "name") return String(a.name).localeCompare(String(b.name), "ja");
-      if (sortBy === "lp") return (b.abs || -1) - (a.abs || -1) ||
+      if (sortBy === "lp") return (absOf(b) || -1) - (absOf(a) || -1) ||
         String(a.name).localeCompare(String(b.name), "ja");
       const ka = key(a), kb = key(b);
       if (ka == null && kb == null) return String(a.name).localeCompare(String(b.name), "ja");
@@ -456,7 +470,8 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       md(range.from) + " 〜 " + md(range.to) + "（" + (days + 1) + "日）" +
       " ・ " + rows.length + "人中" + drawn + "人に記録あり" +
       (sameScale ? " ・ 縦幅はどれも " + common + "LPぶん" : " ・ 縦幅は人ごとに自動") +
-      (range.anchored ? " ・ 左端＝基準日 " + lp.baseline : "");
+      (range.anchored ? " ・ 左端＝基準日 " + lp.baseline : "") +
+      (ended() ? " ・ 右端＝しめきり " + md(lp.endline) + " " + lp.endAt.slice(11) : "");
 
     drawAll();
   }
@@ -744,7 +759,7 @@ select.sortsel{border:1.5px solid var(--border-strong);background:var(--surface)
       ids.map(id => "<th>" + escapeHtml((lp.members[id]||{name:id}).name) + "</th>").join("") + "</tr>";
     ds.forEach(d => {
       html += "<tr><td>" + d + (d === lp.baseline ? " ★基準" : "") + "</td>" + ids.map(id => {
-        const h = (lp.hist[id] || {});
+        const h = C.lpHistOf ? C.lpHistOf(lp, id) : (lp.hist[id] || {});
         return "<td>" + (h[d] != null ? C.absToLabel(h[d]) : "—") + "</td>";
       }).join("") + "</tr>";
     });

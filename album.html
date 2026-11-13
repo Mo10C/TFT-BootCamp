@@ -1547,7 +1547,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       g.textAlign = "right"; g.fillStyle = gainColor(bo.gain);
       g.font = "700 20px " + EN; g.fillText("LP", gx, ry + 86);
       g.font = "700 " + gf + "px " + EN; g.fillText(gs, gx - lpw - 6, ry + 86);
-      g.fillStyle = muted; g.font = "700 12px " + JP; g.fillText("最高到達までにのびたLP", gx, ry + 110);
+      // 説明は数字の上に（下だと右の紋章の名前と重なるため）
+      g.fillStyle = muted; g.font = "700 12px " + JP; g.fillText(fitText(g, "最高到達までの伸び", rw - 330), gx, ry + 44);
     } else {
       g.textAlign = "left"; g.fillStyle = ink; g.font = "900 20px " + JP;
       g.fillText(T && !st ? "担当の生徒はまだ決まっていません" : "この期間のLPの記録はありません", X + 18, ry + 70);

@@ -1569,6 +1569,13 @@
     return {
       members, hist, htier,
       baseline: /^\d{4}-\d{2}-\d{2}$/.test(raw.baseline) ? raw.baseline : "",
+      // ★ グラフのしめきり（例 "2026-11-15T13:00"・日本時間）。このあとも記録は続けるが、グラフと増減には出さない
+      endAt: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw.endAt) ? raw.endAt : "",
+      endline: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw.endAt) ? raw.endAt.slice(0, 10) : "",
+      // しめきりの時刻に Worker が取った記録 { key: endAt, day, at, abs:{id:LP}, htier:{id:ティア} }
+      endSnap: (raw.endSnap && typeof raw.endSnap === "object") ? {
+        key: String(raw.endSnap.key || ""), day: String(raw.endSnap.day || ""), at: raw.endSnap.at || 0,
+        abs: raw.endSnap.abs || {}, htier: raw.endSnap.htier || {} } : null,
       // ★ LPランキングの並び順（管理コンソールで並び替えたもの）
       groupOrder: Array.isArray(raw.groupOrder)
         ? raw.groupOrder.filter(g => g && g.roleId).map(g => ({
@@ -1943,6 +1950,43 @@
     return { total: ids.length, ok, gone, ng, noAvatar };
   }
 
+  /* グラフのしめきり（"YYYY-MM-DDTHH:MM"・日本時間）。空にすると今日まで。
+     しめきりの時刻に Worker が全員のLPを取り（endSnap）、その値がグラフの最後の点になる。
+     ふだんの記録（23:45の集計）はそのあとも続く。 */
+  async function setLpEndAt(v) {
+    if (!isAdmin()) throw new Error("しめきりの設定は管理者のみです");
+    const d = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v : "";
+    const db = openDb();
+    try {
+      if (db) await db.collection("lboard_index").doc(LP_DOC).set({ endAt: d, updatedAt: Date.now() }, { merge: true });
+      else {
+        const cur = JSON.parse(localStorage.getItem(LP_LS_KEY) || "{}");
+        cur.endAt = d;
+        localStorage.setItem(LP_LS_KEY, JSON.stringify(cur));
+      }
+    } catch (e) { throw new Error("しめきりを保存できませんでした（" + (e.code || e.message) + "）"); }
+    return d;
+  }
+  // しめきりの時刻（ミリ秒）。"2026-11-15T13:00" は日本時間
+  const lpEndMs = lp => (lp && lp.endAt) ? Date.parse(lp.endAt + ":00+09:00") : 0;
+  const lpEnded = lp => { const t = lpEndMs(lp); return !!t && Date.now() >= t; };
+  // グラフの右端の日：しめきりを過ぎていればその日。それ以外は今日
+  const lpEndDay = lp => lpEnded(lp) ? lp.endline : dayKey();
+  /* グラフに使う1人ぶんの記録。しめきり後は「しめきりの日より前」＋「しめきりの記録（endSnap）」だけ。
+     （しめきりの日の23:45の集計は、しめきりより後なので使わない） */
+  function lpHistOf(lp, id) {
+    const h = (lp && lp.hist && lp.hist[id]) || {};
+    if (!lpEnded(lp)) return h;
+    const o = {};
+    Object.keys(h).forEach(k => { if (k < lp.endline) o[k] = h[k]; });
+    const sn = lp.endSnap;
+    if (sn && sn.key === lp.endAt && sn.abs && sn.abs[id] != null) o[lp.endline] = sn.abs[id];
+    return o;
+  }
+  function lpHtierOf(lp, id, day) {
+    if (lpEnded(lp) && day === lp.endline) { const sn = lp.endSnap; return (sn && sn.key === lp.endAt && sn.htier && sn.htier[id]) || ""; }
+    return (lp && lp.htier && lp.htier[id] && lp.htier[id][day]) || "";
+  }
   async function setLpBaseline(date) {
     if (!isAdmin()) throw new Error("基準日の設定は管理者のみです");
     const d = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
@@ -1968,7 +2012,7 @@
         基準日が未設定、または未来の日付なら直近30日にフォールバック。
      ★ mode が数値 … 「直近N日」（従来どおり）。 */
   function lpRange(lp, mode) {
-    const to = dayKey();
+    const to = lpEndDay(lp);   // 最終日を過ぎたら、その日で止める
     if (typeof mode === "number" && mode > 0) {
       return { from: shiftDay(to, -(mode - 1)), to, anchored: false };
     }
@@ -1987,7 +2031,7 @@
        {from, to}      → その区間
        省略            → 全期間 */
   function lpSeries(lp, id, opts) {
-    const h = (lp.hist && lp.hist[id]) || {};
+    const h = lpHistOf(lp, id);
     let keys = Object.keys(h).sort();
     if (typeof opts === "number" && opts > 0) {
       const from = shiftDay(dayKey(), -(opts - 1));
@@ -1999,10 +2043,12 @@
     return keys.map(k => ({ d: k, v: h[k] }));
   }
   function lpStats(lp, id) {
-    const h = (lp.hist && lp.hist[id]) || {};
-    const today = dayKey();
+    const h = lpHistOf(lp, id);
+    const end = lpEndDay(lp), ended = lpEnded(lp);
+    // 最終日を過ぎたら、最終日の23:45の集計までで数える（その日はもう確定しているので「きょう」扱いにしない）
+    const today = ended ? shiftDay(end, 1) : dayKey();
     // 未来の日付の点は無視する（端末の時計ズレで混ざることがある）
-    const keys = Object.keys(h).filter(k => k <= today).sort();
+    const keys = Object.keys(h).filter(k => k <= end).sort();
     if (!keys.length) return { latest: null, prev: null, base: null, dayDelta: null, baseDelta: null, prevDate: "", baseDate: "" };
     const latestKey = keys[keys.length - 1];
     /* 「前日の伸び」は、きょうを入れずに、終わった2日ぶんを比べる。
@@ -5194,7 +5240,7 @@
     normChild, noLink,
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
-    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, lpSeries, lpStats,
+    loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, setLpEndAt, lpEndDay, lpEnded, lpHistOf, lpHtierOf, lpSeries, lpStats,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,

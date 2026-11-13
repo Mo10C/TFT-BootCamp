@@ -745,6 +745,15 @@ body.ad-on{overflow:hidden}
         <button class="mini" id="lpToday">今日にする</button>
       </div>
       <div class="hint" id="lpBaseHint"></div>
+      <div class="row" style="margin-top:10px">
+        <label>しめきり</label>
+        <input type="datetime-local" id="lpEndAt" step="60">
+        <button class="mini grad" id="lpSaveEnd">保存</button>
+        <button class="mini" id="lpClearEnd">クリア</button>
+      </div>
+      <div class="hint" id="lpEndHint"></div>
+    </div>
+      <div class="hint" id="lpEndHint">合宿の最終日などを入れると、グラフと増減は<b>その日の23:45の集計</b>までで止まります。記録（毎日の集計）はそのあとも続きます。空欄なら今日まで。</div>
     </div>
 
     <div class="card">
@@ -765,6 +774,10 @@ body.ad-on{overflow:hidden}
         <button class="mini" id="lpRunCron">🌙 サーバー側の一斉集計を今すぐ試す</button>
         <input type="text" id="lpCronKey" placeholder="CRON_KEY" style="min-width:170px">
         <span class="hint">Worker に設定した CRON_KEY を入れて実行（毎晩23:45の処理と同じもの）</span>
+      </div>
+      <div class="row">
+        <button class="mini" id="lpEndSnapNow">🏁 しめきりの記録をいま取る</button>
+        <span class="hint">上の CRON_KEY を使います。しめきりの時刻に自動で取れなかったときに（グラフの最後の点になります）</span>
       </div>
       <textarea id="lpCronOut" style="margin-top:10px;display:none;min-height:110px" readonly></textarea>
       <div class="row">
@@ -2581,6 +2594,7 @@ body.ad-on{overflow:hidden}
     try { lpData = await C.loadLpData(); }
     catch(e){ toast("LPデータの読み込みに失敗: " + e.message); return; }
     $("lpBaseline").value = lpData.baseline || "";
+    $("lpEndAt").value = lpData.endAt || "";
     if (!$("lpResetDate").value) $("lpResetDate").value = lpData.collectFrom && lpData.collectFrom >= C.dayKey() ? lpData.collectFrom : C.dayKey();
     renderLpStat();
   }
@@ -2600,6 +2614,15 @@ body.ad-on{overflow:hidden}
          (sorted.length && sorted[0] > lpData.baseline
            ? " ⚠️ 実際の記録は " + sorted[0] + " からです。それ以前は空白になります。" : ""))
       : "基準日は未設定です（グラフは直近30日・「基準」列は出ません）。";
+    {
+      const sn = lpData.endSnap, got = sn && sn.key === lpData.endAt;
+      const at = got && sn.at ? new Date(sn.at + 9 * 3600 * 1000).toISOString().slice(5, 16).replace("-", "/").replace("T", " ") : "";
+      $("lpEndHint").innerHTML = lpData.endAt
+        ? "しめきり: <b>" + lpData.endAt.replace("T", " ") + "</b>（日本時間）。この時刻に Worker が全員のLPを取り、それがグラフの最後の点になります。記録（毎日23:45）はそのあとも続きます。<br>" +
+          (got ? "✅ しめきりの記録：" + at + " に取得済み（" + Object.keys(sn.abs || {}).length + "人）"
+               : "⏳ しめきりの記録：まだ（Cloudflare の Cron に <code>0 4 * * *</code>＝13:00 を足しておくと自動で取ります。下の「しめきりの記録をいま取る」でも取れます）")
+        : "合宿の終わりなどを入れると、グラフと増減は<b>その時刻の記録</b>で止まります（例 11/15 13:00）。記録（毎日の集計）はそのあとも続きます。空欄なら今日まで。";
+    }
     renderCollectStat();
     $("lpResetHint").innerHTML = lpData.collectFrom
       ? (lpData.collectFrom > C.dayKey()
@@ -2654,6 +2677,13 @@ body.ad-on{overflow:hidden}
     catch(e){ toast(e.message); }
   };
   $("lpToday").onclick = () => { $("lpBaseline").value = C.dayKey(); };
+  $("lpSaveEnd").onclick = async () => {
+    if (!C.setLpEndAt){ toast("core.js が古いようです（最新に置きかえてください）"); return; }
+    try { await C.setLpEndAt(String($("lpEndAt").value || "").slice(0, 16)); await loadLp(); toast("しめきりを保存しました"); } catch(e){ toast(e.message); }
+  };
+  $("lpClearEnd").onclick = async () => {
+    try { await C.setLpEndAt(""); $("lpEndAt").value = ""; await loadLp(); toast("しめきりをクリアしました（今日まで表示）"); } catch(e){ toast(e.message); }
+  };
 
   $("lpFixDel").onclick = async () => {
     const d = $("lpFixDay").value;
@@ -2711,6 +2741,22 @@ body.ad-on{overflow:hidden}
       out.value = "実行できませんでした: " + e.message +
         "\n\n/collect は worker.js v3.0 以降で使えます。Worker のコードが古い可能性があります。";
     }
+  };
+
+  $("lpEndSnapNow").onclick = async () => {
+    const url = C.RiotConfig.effective().workerUrl;
+    if (!url){ toast("Worker URL が未設定です"); return; }
+    if (!lpData || !lpData.endAt){ toast("先に「しめきり」を保存してください"); return; }
+    const key = $("lpCronKey").value.trim();
+    if (!key){ toast("CRON_KEY を入力してください"); return; }
+    if (!confirm("いまの全員のLPを「しめきり（" + lpData.endAt.replace("T", " ") + "）の記録」として保存します。よろしいですか？")) return;
+    const out = $("lpCronOut"); out.style.display = ""; out.value = "実行中…";
+    try {
+      const r = await fetch(url.replace(/\/$/,"") + "/end-snap?force=1&key=" + encodeURIComponent(key));
+      const j = await r.json();
+      out.value = JSON.stringify(j, null, 2);
+      if (j.ok){ await loadLp(); toast("しめきりの記録を取りました（" + (j.count || 0) + "人）"); } else toast("失敗: " + (j.error || j.note || "不明"));
+    } catch(e){ out.value = "実行できませんでした: " + e.message + "\n\n/end-snap は新しい worker.js で使えます。"; }
   };
 
   $("lpRecordAll").onclick = async () => {
@@ -5575,7 +5621,7 @@ body.ad-on{overflow:hidden}
     "p-boards":  ["大会（ボード）の一覧・切り替え・削除", "boards.html", "大会一覧"],
     "p-members": ["メンバーの登録・ロール・表示名", "members.html", "メンバー紹介"],
     "p-mentor":  ["講師1人に生徒1人の担当（任命書・感謝状・卒業証書に反映）", "album.html", "卒業証書"],
-    "p-lp":      ["LPランキングの基準日・記録・並び順", "lp.html", "LPランキング"],
+    "p-lp":      ["LPランキングの基準日・しめきり・記録・並び順", "lp.html", "LPランキング"],
     "p-snap":    ["先生スナップショットの実施日・ポイント・結果", "lp.html", "LPランキング"],
     "p-msg":     ["Discordへ自動投稿する文面（投稿先はすべて連絡事項）", null],
     "p-vc":      ["VCごとの稼働時間と、ユーザーごとの滞在時間", null],
