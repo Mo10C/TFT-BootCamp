@@ -358,7 +358,7 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       e.roleLabel = C.lpSectionLabel(gi, order);
       const card = cards && cards[id];
       e.color = card && THEMES[card.theme.color] ? THEMES[card.theme.color] : "var(--leaf)";
-      e.pending = !(e.start || e.vc || e.exam || e.snap);   // 期間中の記録がまだ無い
+      e.pending = !(e.start || e.vc || e.snap);   // 期間中の記録がまだ無い
       return e;
     });
     // 生徒には「期間中に何かしら記録がある人」だけ。管理者には記録待ちの人も全員出す
@@ -566,7 +566,6 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     if (e.peak) b.push(["最高ランク", tierDiv(e.peak.rank), e.peak.rank.lp + "LP ・ " + md(e.peak.day)]);
     if (e.bestDay) b.push(["いちばん伸びた日", "+" + e.bestDay.delta + "LP", md(e.bestDay.day)]);
     if (e.snap) b.push([e.snap.label, e.snap.total + "pt", e.snap.n + "回参加・最高" + e.snap.best + "位"]);
-    if (e.exam) b.push(["中間試験", e.exam.score + "点", e.exam.of + "人中 " + e.exam.rank + "位"]);
     return b;
   }
   /* 証書の画像を作って #cert に出す（作った画像は「画像で保存」でもそのまま使う） */
@@ -708,7 +707,6 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     lp:     { label: "LPの伸び",       val: e => { const b = bestOf(e); return b ? b.gain : null; }, fmt: v => signed(v) + "LP" },
     games:  { label: "試合数",         val: e => e.games != null ? e.games : null, fmt: v => v + "試合" },
     vc:     { label: "VC時間",         val: e => e.vc && e.vc.seconds ? e.vc.seconds : null, fmt: v => hours(v) + "時間" },
-    thanks: { label: "ありがとう",     val: e => e.thanks || null, fmt: v => v + "回" },
     coach:  { label: "コーチング時間", val: e => e.coach ? e.coach.sec : null, fmt: v => hours(v) + "時間" }
   };
   const TIER_IDX = t => ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"].indexOf(t);
@@ -759,14 +757,13 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       const head = b.title || "";
       if (b.type === "stats"){
         const sum = f => all.reduce((n, e) => n + (f(e) || 0), 0);
-        const games = stu.reduce((n, e) => n + (e.games || 0), 0), vc = sum(e => e.vc && e.vc.seconds), th = sum(e => e.thanks);
+        const games = stu.reduce((n, e) => n + (e.games || 0), 0), vc = sum(e => e.vc && e.vc.seconds);
         const bs = stu.map(bestOf).filter(Boolean);
         const gain = bs.reduce((n, x) => n + Math.max(0, x.gain), 0);
         const up = bs.filter(x => TIER_IDX(x.top.rank.tier) > TIER_IDX(x.start.rank.tier)).length;
         const tiles = [["👥", "参加者", stu.length + "人", "先生 " + tch.length + "人"]];
         if (games) tiles.push(["🎮", "みんなの試合数", games + "試合", "合宿期間中のTFT"]);
         if (vc) tiles.push(["🎧", "みんなのVC時間", hours(vc) + "時間", "先生もふくむ"]);
-        if (th) tiles.push(["🙏", "ありがとうの合計", th + "回", "チャットで言った回数"]);
         if (bs.length) tiles.push(["📈", "LPの伸びの合計", "+" + gain + "LP", "期間中の最高まで"]);
         if (bs.length) tiles.push(["⬆️", "ティアが上がった人", up + "人", "記録のある " + bs.length + "人のうち"]);
         const stc = stu.filter(e => e.stamp && e.stamp.complete).length;
@@ -1724,14 +1721,12 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     if (e.games != null) tiles.push(["🎮", "こなした試合数", e.games + "試合", "合宿期間中のTFT"]);
     if (e.vc && e.vc.seconds) tiles.push(["🎧", "VCにいた時間", hours(e.vc.seconds) + "時間", "合宿期間中の合計"]);
     if (co) tiles.push(["🎓", "コーチング時間", hours(co.sec) + "時間", co.ch[0] + (co.ch.length > 1 ? " ほか" : "") + "で"]);
-    if (e.thanks) tiles.push(["🙏", "ありがとうの回数", e.thanks + "回", "チャットで言った回数"]);
     if (e.stamp) tiles.push(["🎫", e.stamp.bingo ? "スタンプビンゴ" : "スタンプカード", e.stamp.bingo ? e.stamp.lines + "ライン" : e.stamp.n + " / " + e.stamp.need + "マス",
       e.stamp.bingo ? e.stamp.n + "マス" + (e.stamp.complete ? "・ビンゴ！" : "") : (e.stamp.complete ? "コンプリート！" : e.stamp.title)]);
     // 結果（最高）はランクの変化に出すので、ここは最後の記録のランク
     if (e.end) tiles.push(["🏁", "最終ランク", jpRank(e.end.rank), e.end.rank.lp + "LP ・ " + md(e.end.day)]);
     if (e.bestDay) tiles.push(["🚀", "いちばん伸びた日", "+" + e.bestDay.delta + "LP", md(e.bestDay.day)]);
     if (e.snap) tiles.push(["📸", e.snap.label, e.snap.total + "pt", e.snap.n + "回参加・最高" + e.snap.best + "位"]);
-    if (e.exam) tiles.push(["📝", "中間試験", e.exam.score + "点", e.exam.of + "人中 " + e.exam.rank + "位"]);
     head("数字で見る合宿", y); y += 14;
     const tl = tiles.slice(0, 8), tw = (CW - 36) / 4, th = 92;
     if (!tl.length){ card(L, y, CW, 60); g.textAlign = "left"; g.fillStyle = muted; g.font = "500 15px " + JP; g.fillText("記録はまだありません", L + 24, y + 37); y += 60 + 40; }

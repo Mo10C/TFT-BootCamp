@@ -1411,7 +1411,7 @@ body.ad-on{overflow:hidden}
     <div class="card">
       <h2>基本設定</h2>
       <div class="lead">
-        卒業証書の中身（ランクの歩み・ハイライト・いっしょに過ごした仲間）は、LP・VC・先生スナップショット・中間試験の記録から<b>自動で作られます</b>。
+        卒業証書の中身（ランクの歩み・ハイライト・いっしょに過ごした仲間）は、LP・VC・先生スナップショットの記録から<b>自動で作られます</b>。
         ここで決めるのは、期間と文言と公開のタイミングだけです。
       </div>
       <div class="row"><label style="min-width:72px">タイトル</label>
@@ -4826,7 +4826,7 @@ body.ad-on{overflow:hidden}
     /* ---- 全体の合宿の記録：ブロックの編集 ---- */
     const BLK_NAME = { stats: "🔢 数字のまとめ", rank: "📊 ランキング", awards: "🎖 特別賞", mvp: "🏆 自由な表彰", text: "📝 自由な文章" };
     const BLK_TITLE = { stats: "数字で見る合宿", rank: "LPの伸び ランキング", awards: "特別賞", mvp: "レクリエーションMVP", text: "" };
-    const METRIC_NAME = { lp: "LPの伸び（期間中の最高まで）", games: "試合数", vc: "VC時間", thanks: "ありがとうの回数", coach: "コーチング時間" };
+    const METRIC_NAME = { lp: "LPの伸び（期間中の最高まで）", games: "試合数", vc: "VC時間", coach: "コーチング時間" };
     // 表彰で選べる人（生徒・先生の名簿）
     function alPeople(){
       const ids = Array.from(new Set(Object.keys((alLp && alLp.members) || {}).concat(Object.keys(alMem || {}))));
@@ -4861,7 +4861,7 @@ body.ad-on{overflow:hidden}
           h += '<div class="ent"><button class="mini addp" type="button">＋ 人を足す</button></div>';
         }
         if (b.type === "text") h += '<textarea class="bd" maxlength="400" placeholder="自由な文章（改行もそのまま）">' + esc(b.body || "") + "</textarea>";
-        if (b.type === "stats") h += '<div class="hint" style="margin:4px 0 0 104px">参加人数・みんなの試合数・VC時間・ありがとう・LPの伸びの合計などを自動で出します</div>';
+        if (b.type === "stats") h += '<div class="hint" style="margin:4px 0 0 104px">参加人数・みんなの試合数・VC時間・LPの伸びの合計などを自動で出します</div>';
         if (b.type === "awards") h += '<div class="hint" style="margin:4px 0 0 104px">上の「特別賞」の受賞者を自動で出します（発表前は「後夜祭で発表！」）</div>';
         d.innerHTML = h;
         const q = s => d.querySelector(s);

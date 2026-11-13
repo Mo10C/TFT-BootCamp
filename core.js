@@ -3446,7 +3446,7 @@
 
      ・published が false のあいだは、管理者にしか中身が見えない
        （後夜祭で「公開」にしてお披露目する想定）
-     ・卒業証書の中身（ランクの歩み・VC・スナップショット・中間試験）は
+     ・卒業証書の中身（ランクの歩み・VC・スナップショット）は
        既存のデータから自動で作る。ここに保存するのは文言と公開設定だけ。
      ============================================================= */
   const ALBUM_DOC = "album";
@@ -3485,7 +3485,7 @@
       ],
       /* 全体の合宿の記録（album.html の一覧の上・卒業式の投稿のしめ）。ブロックを並べて作る
            stats  … 数字のまとめ（参加人数・合計試合数・合計VC時間など。自動）
-           rank   … ランキング（metric: lp=LPの伸び / games=試合数 / vc=VC時間 / thanks=ありがとう / coach=コーチング時間）
+           rank   … ランキング（metric: lp=LPの伸び / games=試合数 / vc=VC時間 / coach=コーチング時間）
            awards … 特別賞（上の awards から自動）
            mvp    … 自由な表彰（レクリエーションMVPなど）。entries: [{ who: メンバーID（空なら name を使う）, name, note }]
            text   … 自由な文章 */
@@ -3518,7 +3518,7 @@
     };
   }
   const ALL_TYPES = ["stats", "rank", "awards", "mvp", "text"];
-  const ALL_METRICS = ["lp", "games", "vc", "thanks", "coach"];
+  const ALL_METRICS = ["lp", "games", "vc", "coach"];   // 「ありがとう」は卒業証書から外した（前に選んでいたブロックは LP の伸びになる）
   function normAllBlock(b, i) {
     b = b || {};
     const type = ALL_TYPES.indexOf(b.type) >= 0 ? b.type : "text";
