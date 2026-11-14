@@ -138,76 +138,29 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
   const RING = ["#C9A24A", "#9FAEBB", "#B07A45", "#9DBB72", "#9DBB72"];
   const hours = sec => { const h = sec / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
 
-  /* コーチング時間：担当の生徒が「先生の名前が入ったVC」にいた時間（卒業証書と同じ数え方） */
-  const normN = t => String(t || "").toLowerCase().replace(/先生|せんせい|[\s　・.,_\-|｜/()（）【】\[\]「」『』'"!！?？~〜#＃:：]/g, "");
-  const keepN = t => String(t || "").toLowerCase().replace(/[\s　・.,_\-|｜/()（）【】\[\]「」『』'"!！?？~〜#＃:：]/g, "");
-  function coachSec(vcUsers, stuId, tName){
-    const key = normN(tName); if (key.length < 2) return 0;
-    const u = vcUsers.find(v => "u_" + v.id === stuId || v.id === stuId), chs = (u && u.byChannel) || [];
-    const strict = chs.filter(c => keepN(c.name).indexOf(key + "先生") >= 0 || keepN(c.name).indexOf(key + "せんせい") >= 0);
-    const hit = strict.length ? strict : chs.filter(c => normN(c.name).indexOf(key) >= 0);
-    return hit.reduce((n, c) => n + (c.seconds || 0), 0);
-  }
-
   async function load(){
     say("読み込み中…");
     const safe = p => p.catch(e => { console.warn(e); return null; });
-    const cfg0 = await C.loadAwardShow();
-    const [cfg, lp, mem, album, games, imgs] = await Promise.all([Promise.resolve(cfg0), C.loadLpData(), safe(C.loadMembers()),
-      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null)), safe(C.loadCampGames ? C.loadCampGames() : Promise.resolve({})),
-      // 賞品の画像（賞品のスライドを出す賞だけ）
-      safe(C.loadAwardPrizeImgs ? C.loadAwardPrizeImgs(cfg0.items.filter(it => it.on && it.prize && it.prize.on && it.prize.img).map(it => it.id)) : Promise.resolve({}))]);
-    CFG = cfg; MEM = mem || {}; LPM = lp.members || {};
+    const cfg = await C.loadAwardShow();
     if (!IS_ADMIN && !cfg.open){ say("🏆 表彰式はまだ準備中です。<br>はじまるまでお待ちください。"); return false; }
-    // 期間：設定 → 卒業証書の期間 → 基準日〜しめきり
-    const from = cfg.from || (album && album.start) || lp.baseline || "", to = cfg.to || C.lpEndDay(lp);
-    const all = C.lpAwardStats(lp, { from, to, who: "all" });
-    const isStu = {}; all.people.forEach(p => { isStu[p.id] = p.isStu; });
-    const okWho = (who, id) => who === "all" || (who === "stu" ? isStu[id] !== false : isStu[id] === false);
-    const needCoach = cfg.items.some(it => it.on && it.src === "coach");
-    const vc = needCoach && album ? await safe(C.loadVcRange(album.start || from, album.end || to)) : null;
-    const per = md(from) + " 〜 " + md(to);
+    // 数え方は core.js（管理画面の「結果を確認」と同じ）
+    const [D, imgs] = await Promise.all([C.loadAwardData(cfg),
+      // 賞品の画像（賞品のスライドを出す賞だけ）
+      safe(C.loadAwardPrizeImgs(cfg.items.filter(it => it.on && it.prize && it.prize.on && it.prize.img).map(it => it.id)))]);
+    CFG = cfg; MEM = D.mem || {}; LPM = D.lp.members || {};
+    const P0 = C.awardPeriod({ src: "manual" }, D);
+    const per = md(P0.from) + " 〜 " + md(P0.to);
     SLIDES = [{ type: "title", per }];
     let no = 0, sec = null;
     cfg.items.filter(it => it.on).forEach(it => {
-      let list = [], icon = "🏆";
-      if (it.src === "manual"){
-        icon = "🎖";
-        list = it.winners.map((w, i) => ({ id: w.id, name: nameOf(w.id), place: i + 1, show: w.note || "", sub: "", cls: "" }));
-      } else if (it.src === "games"){
-        icon = "🎮";
-        const rows = Object.entries(games || {}).filter(([id, n]) => typeof n === "number" && n > 0 && okWho(it.who, id))
-          .map(([id, n]) => ({ id, name: nameOf(id), v: n })).sort((a, b) => b.v - a.v || a.name.localeCompare(b.name, "ja"));
-        list = rank(rows).map(r => Object.assign(r, { show: r.v + "試合", sub: "合宿期間中のTFT", cls: "" }));
-      } else if (it.src === "coach"){
-        icon = "🎓";
-        const vu = (vc && vc.users) || [], by = {};
-        Object.entries((album && album.mentors) || {}).forEach(([sid, tid]) => {
-          const sec = coachSec(vu, sid, nameOf(tid));
-          if (!by[tid]) by[tid] = { sec: 0, stu: [] };
-          by[tid].sec += sec; by[tid].stu.push(nameOf(sid));
-        });
-        const rows = Object.entries(by).filter(([id, x]) => x.sec > 0 && okWho(it.who, id))
-          .map(([id, x]) => ({ id, name: nameOf(id), v: x.sec, stu: x.stu })).sort((a, b) => b.v - a.v || a.name.localeCompare(b.name, "ja"));
-        list = rank(rows).map(r => Object.assign(r, { show: hours(r.v) + "時間", sub: "担当：" + r.stu.join("・"), cls: "" }));
-      } else {
-        const kind = C.LP_AWARD_KINDS.find(k => k.id === it.src); if (!kind) return;
-        icon = kind.icon;
-        const R = C.lpAwardStats(lp, { from, to, who: it.who });
-        list = C.lpAwardRank(kind, R.people).map(p => {
-          const v = kind.val(p);
-          return { id: p.id, name: p.name, place: p.place, show: kind.show(p), sub: kind.sub(p),
-            cls: kind.sign ? (kind.neg ? " dn" : v > 0 ? " up" : v < 0 ? " dn" : "") : "" };
-        });
-      }
-      if (it.src !== "manual") list = list.filter(x => x.place <= it.places).slice(0, it.places);
+      const R = C.awardList(it, D);
       no++;
       if (it.section && it.section !== sec){ sec = it.section; SLIDES.push({ type: "section", label: sec }); }
-      SLIDES.push({ type: "intro", it, icon, no });
+      SLIDES.push({ type: "intro", it, icon: R.icon, no });
       // 賞品（画像か文のどちらかがあれば）
       const pz = it.prize || {}, img = (imgs || {})[it.id] || "";
-      if (pz.on && (img || pz.text)) SLIDES.push({ type: "prize", it, icon, img, text: pz.text });
-      SLIDES.push({ type: "podium", it, icon, list: list.slice(0, 5), steps: Math.min(5, list.length) });
+      if (pz.on && (img || pz.text)) SLIDES.push({ type: "prize", it, icon: R.icon, img, text: pz.text });
+      SLIDES.push({ type: "podium", it, icon: R.icon, list: R.list, steps: R.list.length });
     });
     SLIDES.push({ type: "closing", per });
     say("");

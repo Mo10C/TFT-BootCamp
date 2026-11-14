@@ -398,17 +398,11 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
        名前は「先生」・空白・記号をのぞいて比べる。2文字未満の名前は、ほかのVCとまちがえやすいので数えない */
     const normN = t => String(t || "").toLowerCase().replace(/先生|せんせい|[\s\u3000・.,_\-|｜/()（）【】\[\]「」『』'"!！?？~〜#＃:：]/g, "");
     const vcUsers = vcr ? vcr.users || [] : [];
+    // 数え方は core.js の vcCoachSec（表彰スライドと同じ。「Mo10C/もと」のような名前は区切りで分けて探す）
     const coachOf = (stuId, tName) => {
-      const key = normN(tName);
-      if (key.length < 2) return null;
       const u = vcUsers.find(v => "u_" + v.id === stuId || v.id === stuId);
-      const chs = (u && u.byChannel) || [];
-      // 「もと先生」のように名前のすぐあとに「先生」があるVCを優先（「もとき雑談」などを数えないため）。無ければ名前が入っているVC
-      const keep = t => String(t || "").toLowerCase().replace(/[\s\u3000・.,_\-|｜/()（）【】\[\]「」『』'"!！?？~〜#＃:：]/g, "");
-      const strict = chs.filter(c => keep(c.name).indexOf(key + "先生") >= 0 || keep(c.name).indexOf(key + "せんせい") >= 0);
-      const hit = strict.length ? strict : chs.filter(c => normN(c.name).indexOf(key) >= 0);
-      const sec = hit.reduce((n, c) => n + (c.seconds || 0), 0);
-      return sec > 0 ? { sec, ch: hit.map(c => c.name) } : null;
+      const r = C.vcCoachSec ? C.vcCoachSec(u, tName) : { sec: 0, ch: [] };
+      return r.sec > 0 ? { sec: r.sec, ch: r.ch } : null;
     };
     allStu.forEach(x => { x.coach = x.mentor ? coachOf(x.id, x.mentor.name) : null; });
     // よくいたVC（合宿の記録に5つまで）

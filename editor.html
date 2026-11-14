@@ -805,10 +805,12 @@ body.ad-on{overflow:hidden}
       <div class="row"><label>タイトル</label><input type="text" id="awTitle" maxlength="30" style="width:220px">
         <input type="text" id="awSub" maxlength="40" style="flex:1;min-width:200px" placeholder="サブタイトル（例：クラウドハッシュテイル校 TFT合宿 SET18）"></div>
       <div class="row"><label>期間</label><input type="date" id="awFrom"> 〜 <input type="date" id="awTo">
-        <span class="hint">空なら 卒業証書の期間の初日（なければ基準日）〜 しめきり</span></div>
+        <span class="hint">空なら卒業証書の期間（LPの賞は しめきり まで）。賞ごとにも期間を変えられます</span></div>
       <div class="hint" style="margin:8px 0 4px">賞（チェックしたものを上から順に。部門が変わるところで「◯◯ の部」のスライドが入ります）</div>
       <div id="awItems"></div>
-      <div class="row"><button class="mini" id="awAdd" type="button">＋ 賞を足す</button></div>
+      <div class="row"><button class="mini" id="awAdd" type="button">＋ 賞を足す</button>
+        <button class="mini" id="awCheck" type="button">🔍 結果を確認（いまの設定で数える）</button>
+        <span class="hint">数字がおかしくないか、表彰式の前に見ておけます（保存しなくても使えます）</span></div>
       <datalist id="awSecList"><option value="特別"><option value="先生"><option value="生徒"></datalist>
       <div class="row" style="align-items:flex-start"><label style="padding-top:8px">しめの言葉</label>
         <textarea id="awClosing" maxlength="120" style="flex:1;min-height:56px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
@@ -2756,7 +2758,8 @@ body.ad-on{overflow:hidden}
     };
     inp.click();
   }
-  const AW_SRC_NAME = { manual: "🎖 手で選ぶ", games: "🎮 試合数（多い順）", coach: "🎓 コーチング時間（先生）" };
+  const AW_SRC_NAME = { manual: "🎖 手で選ぶ", games: "🎮 試合数（多い順）", coach: "🎓 コーチング時間（先生）", vc: "🎧 VCにいた時間" };
+  let awRes = null;   // 「結果を確認」で出した結果（賞のID → {list, period}）
   async function loadAwardCfg(){
     if (!C.loadAwardShow) return;
     const [cfg, mem] = await Promise.all([C.loadAwardShow(), C.loadMembers().catch(() => ({}))]);
@@ -2788,7 +2791,13 @@ body.ad-on{overflow:hidden}
         (it.src === "manual" ? "" :
           '<select class="who"><option value="all">全員から</option><option value="stu">生徒から</option><option value="oth">生徒以外から</option></select>' +
           '<select class="pl"><option value="1">1位だけ</option><option value="2">1〜2位</option><option value="3">1〜3位</option><option value="4">1〜4位</option><option value="5">1〜5位</option></select>') +
-        "</div>" + (it.src === "manual" ? '<div class="wins"></div>' : "") +
+        "</div>" +
+        // この賞だけの期間（試合数は合宿期間でまとめて数えているので変えられない）
+        (it.src === "manual" || it.src === "games" ? "" :
+          '<div class="row" style="margin-left:30px"><span class="hint" style="min-width:auto">期間</span><input type="date" class="pf"> 〜 <input type="date" class="pt">' +
+          (it.src === "vc" ? '<input type="text" class="chx" maxlength="30" style="width:200px" placeholder="VC名にふくむ言葉（空なら全部のVC）">' : "") +
+          '<span class="hint">空ならスライド全体の期間</span></div>') +
+        (awRes && awRes[it.id] ? '<div class="hint awRes" style="margin:2px 0 4px 30px"></div>' : "") + (it.src === "manual" ? '<div class="wins"></div>' : "") +
         '<div class="awPz"><label class="chk"><input type="checkbox" class="pzOn"> 🎁 賞品のスライドを出す（賞の紹介のあと・表彰台の前）</label>' +
         (it.prize.on ? '<div class="pzRow"><div class="pzImg">' + (awImgs[it.id] ? "" : "画像なし") + "</div>" +
           '<div style="display:flex;flex-direction:column;gap:4px"><button class="mini pzPick" type="button">🖼 画像を入れる</button>' +
@@ -2803,6 +2812,15 @@ body.ad-on{overflow:hidden}
       q(".src").onchange = e => { it.src = e.target.value; paintAwItems(); };
       if (q(".who")){ q(".who").value = it.who; q(".who").onchange = e => { it.who = e.target.value; }; }
       if (q(".pl")){ q(".pl").value = String(it.places); q(".pl").onchange = e => { it.places = +e.target.value; }; }
+      if (q(".pf")){ q(".pf").value = it.from || ""; q(".pf").onchange = e => { it.from = e.target.value; }; }
+      if (q(".pt")){ q(".pt").value = it.to || ""; q(".pt").onchange = e => { it.to = e.target.value; }; }
+      if (q(".chx")){ q(".chx").value = it.ch || ""; q(".chx").oninput = e => { it.ch = e.target.value; }; }
+      // 結果を確認したあとなら、いまの結果（1〜5位）と数えた期間を出す
+      if (q(".awRes")){
+        const R = awRes[it.id];
+        q(".awRes").innerHTML = "🔍 " + lsEsc(R.period.from + " 〜 " + R.period.to) + "：" +
+          (R.list.length ? R.list.map(x => "<b>" + x.place + "位</b> " + lsEsc(x.name) + (x.show ? "（" + lsEsc(x.show) + "）" : "") + (x.note ? '<span title="数えたVC">［' + lsEsc(x.note) + "］</span>" : "")).join("　") : "該当なし");
+      }
       // 賞品
       q(".pzOn").checked = it.prize.on;
       q(".pzOn").onchange = e => { it.prize.on = e.target.checked; paintAwItems(); };
@@ -2838,6 +2856,19 @@ body.ad-on{overflow:hidden}
       box.appendChild(d);
     });
   }
+  $("awCheck").onclick = async () => {
+    if (!awCfg || !C.loadAwardData){ toast("core.js が古いようです（最新に置きかえてください）"); return; }
+    const btn = $("awCheck"); btn.disabled = true; btn.textContent = "🔍 数えています…";
+    try {
+      const cfg = C.normAwardShow(Object.assign({}, awCfg, { from: $("awFrom").value, to: $("awTo").value }));
+      cfg.items.forEach((it, i) => { it.id = awCfg.items[i].id; });
+      const D = await C.loadAwardData(cfg);
+      awRes = {};
+      cfg.items.forEach(it => { awRes[it.id] = C.awardList(it, D); });
+      paintAwItems();
+    } catch(e){ toast("数えられませんでした：" + e.message); }
+    btn.disabled = false; btn.textContent = "🔍 結果を確認（いまの設定で数える）";
+  };
   $("awAdd").onclick = () => {
     if (!awCfg) return;
     awCfg.items.push({ id: "a" + Date.now().toString(36), on: true, section: (awCfg.items[awCfg.items.length - 1] || {}).section || "特別",

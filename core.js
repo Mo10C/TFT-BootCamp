@@ -2168,7 +2168,7 @@
   /* 1つの賞 = { id, on, section（部門：特別／先生／生徒 など）, name, desc,
                  src（決め方：manual＝手で選ぶ / games＝試合数 / coach＝コーチング時間 / LPの種類 peak・gainPeak…）,
                  who（all / stu＝生徒だけ / oth＝生徒以外）, places（自動のとき何位まで）, winners（手で選ぶとき [{id, note}] 上から1位） } */
-  const AWARD_SRCS = ["manual", "games", "coach"].concat(LP_AWARD_KINDS.map(k => k.id));
+  const AWARD_SRCS = ["manual", "games", "coach", "vc"].concat(LP_AWARD_KINDS.map(k => k.id));
   const awardItem = (section, name, desc, src, who, places) =>
     ({ id: "a" + Math.random().toString(36).slice(2, 8), on: true, section, name, desc, src, who, places, winners: [] });
   function defaultAwardShow() {
@@ -2196,6 +2196,8 @@
         src: AWARD_SRCS.indexOf(x.src) >= 0 ? x.src : "manual",
         who: ["all", "stu", "oth"].indexOf(x.who) >= 0 ? x.who : "all",
         places: Math.max(1, Math.min(5, x.places | 0 || 3)),
+        // この賞だけの期間（空なら表彰スライド全体の期間）・VC時間のときの「VC名にふくむ言葉」（空なら全部のVC）
+        from: ok(x.from) ? x.from : "", to: ok(x.to) ? x.to : "", ch: String(x.ch || "").slice(0, 30),
         winners: (Array.isArray(x.winners) ? x.winners : []).slice(0, 5)
           .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id),
         // 賞品のスライド（賞の紹介と表彰台のあいだに出す）。画像は大きいので別の文書 award_prize_<賞のID> に置く
@@ -2212,6 +2214,105 @@
       return normAwardShow(JSON.parse(localStorage.getItem("mcc-lb2-" + AWARD_DOC) || "null"));
     } catch (e) { console.warn("表彰スライドの設定を読めませんでした", e); return normAwardShow(null); }
   }
+  /* ---- コーチング時間：担当の生徒が「先生の名前が入ったVC」にいた時間 ----
+     先生の名前は「Mo10C/もと」のように区切りが入っていることがあるので、区切りで分けたそれぞれの言葉（2文字以上）で探す。
+     「もと先生」のように名前のすぐあとに「先生」があるVCを優先（「もとき雑談」などを数えないため）。無ければ名前が入っているVC */
+  const VC_SEP = /[\s　・.,_\-|｜/／()（）【】\[\]「」『』'"!！?？~〜#＃:：]+/;
+  function coachTokens(name) {
+    const whole = String(name || "").toLowerCase().replace(/先生|せんせい/g, "");
+    const toks = whole.split(VC_SEP).filter(t => t.length >= 2);
+    const joined = whole.replace(new RegExp(VC_SEP.source, "g"), "");
+    return Array.from(new Set(toks.concat(joined.length >= 2 ? [joined] : [])));
+  }
+  function vcCoachSec(vcUser, teacherName) {
+    const toks = coachTokens(teacherName);
+    if (!toks.length || !vcUser) return { sec: 0, ch: [] };
+    const chs = vcUser.byChannel || [];
+    const flat = t => String(t || "").toLowerCase().replace(new RegExp(VC_SEP.source, "g"), "");
+    const me = flat(teacherName).replace(/先生|せんせい/g, "");
+    // 「◯◯先生」の ◯◯ のおしり（2文字以上）が先生の名前に入っていれば、その先生のVC（「エビフィレオ村上」と「村上先生の部屋」など）
+    const tailHit = nm => { const m = flat(nm).match(/(.+?)(先生|せんせい)/); if (!m) return false;
+      const tail = Array.from(m[1]); for (let k = Math.min(8, tail.length); k >= 2; k--) if (me.indexOf(tail.slice(-k).join("")) >= 0) return true; return false; };
+    const strict = chs.filter(c => toks.some(t => flat(c.name).indexOf(t + "先生") >= 0 || flat(c.name).indexOf(t + "せんせい") >= 0) || tailHit(c.name));
+    const hit = strict.length ? strict : chs.filter(c => toks.some(t => flat(c.name).replace(/先生|せんせい/g, "").indexOf(t) >= 0));
+    return { sec: hit.reduce((n, c) => n + (c.seconds || 0), 0), ch: hit.map(c => c.name) };
+  }
+
+  /* ---- 表彰スライドの結果（award.html と 管理画面の「結果を確認」で共通） ---- */
+  // 賞ごとの期間：その賞の期間 → スライド全体の期間 → 卒業証書の期間（LPは しめきり まで）
+  function awardPeriod(it, D) {
+    const c = D.cfg, al = D.album || {}, lpKind = LP_AWARD_KINDS.some(k => k.id === it.src);
+    const from = it.from || c.from || al.start || D.lp.baseline || "";
+    let to = it.to || c.to || (lpKind ? lpEndDay(D.lp) : (al.end || dayKey()));
+    if (lpKind && !it.to && !c.to && al.end && al.end < to) to = al.end;
+    return { from, to };
+  }
+  async function loadAwardData(cfg) {
+    const safe = p => p.catch(e => { console.warn(e); return null; });
+    const [lp, mem, album, games] = await Promise.all([loadLpData(), safe(loadMembers()), safe(loadAlbum()), safe(loadCampGames())]);
+    const D = { cfg, lp, mem: mem || {}, album, games: games || {}, vc: {} };
+    // VCの記録は、賞ごとの期間ぶんだけ読む（同じ期間は1回だけ）
+    const ranges = {};
+    cfg.items.filter(it => it.on && (it.src === "coach" || it.src === "vc")).forEach(it => { const p = awardPeriod(it, D); ranges[p.from + "|" + p.to] = p; });
+    await Promise.all(Object.entries(ranges).map(async ([k, p]) => { D.vc[k] = await safe(loadVcRange(p.from, p.to)); }));
+    return D;
+  }
+  function awardList(it, D) {
+    const LPM = D.lp.members || {}, MEM = D.mem;
+    const nameOf = id => (MEM[id] && MEM[id].name) || (LPM[id] && LPM[id].name) || "—";
+    const hrs = sec => { const h = sec / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
+    const P = awardPeriod(it, D);
+    const all = lpAwardStats(D.lp, { from: P.from, to: P.to, who: "all" });
+    const isStu = {}; all.people.forEach(p => { isStu[p.id] = p.isStu; });
+    const okWho = (who, id) => who === "all" || (who === "stu" ? isStu[id] !== false : isStu[id] === false);
+    const rank = rows => { rows.sort((a, b) => b.v - a.v || a.name.localeCompare(b.name, "ja"));
+      rows.forEach((r, i) => { r.place = i && rows[i - 1].v === r.v ? rows[i - 1].place : i + 1; }); return rows; };
+    const vcOf = () => D.vc[P.from + "|" + P.to] || { users: [] };
+    const uKey = u => (/^u_/.test(String(u.id)) ? String(u.id) : "u_" + u.id);
+    let list = [], icon = "🏆";
+    if (it.src === "manual") {
+      icon = "🎖";
+      list = it.winners.map((w, i) => ({ id: w.id, name: nameOf(w.id), place: i + 1, show: w.note || "", sub: "", cls: "" }));
+    } else if (it.src === "games") {
+      icon = "🎮";
+      list = rank(Object.entries(D.games).filter(([id, n]) => typeof n === "number" && n > 0 && okWho(it.who, id))
+        .map(([id, n]) => ({ id, name: nameOf(id), v: n }))).map(r => Object.assign(r, { show: r.v + "試合", sub: "合宿期間中のTFT", cls: "" }));
+    } else if (it.src === "coach") {
+      icon = "🎓";
+      const users = vcOf().users || [], by = {};
+      Object.entries((D.album && D.album.mentors) || {}).forEach(([sid, tid]) => {
+        const u = users.find(v => uKey(v) === sid);
+        const r = vcCoachSec(u, nameOf(tid));
+        if (!by[tid]) by[tid] = { sec: 0, stu: [], ch: [] };
+        by[tid].sec += r.sec; by[tid].stu.push(nameOf(sid)); by[tid].ch = Array.from(new Set(by[tid].ch.concat(r.ch)));
+      });
+      list = rank(Object.entries(by).filter(([id, x]) => x.sec > 0 && okWho(it.who, id))
+        .map(([id, x]) => ({ id, name: nameOf(id), v: x.sec, stu: x.stu, ch: x.ch })))
+        .map(r => Object.assign(r, { show: hrs(r.v) + "時間", sub: "担当：" + r.stu.join("・"), cls: "", note: r.ch.join("・") }));
+    } else if (it.src === "vc") {
+      icon = "🎧";
+      const key = String(it.ch || "").trim().toLowerCase();
+      list = rank((vcOf().users || []).map(u => {
+        const id = uKey(u);
+        const sec = key ? (u.byChannel || []).filter(c => String(c.name || "").toLowerCase().indexOf(key) >= 0).reduce((n, c) => n + (c.seconds || 0), 0) : u.seconds;
+        return { id, name: (MEM[id] && MEM[id].name) || (LPM[id] && LPM[id].name) || u.name || "—", v: sec };
+      }).filter(r => r.v > 0 && okWho(it.who, r.id)))
+        .map(r => Object.assign(r, { show: hrs(r.v) + "時間", sub: key ? "「" + it.ch + "」にいた時間" : "VCにいた時間", cls: "" }));
+    } else {
+      const kind = LP_AWARD_KINDS.find(k => k.id === it.src);
+      if (!kind) return { icon, list: [], period: P };
+      icon = kind.icon;
+      const R = lpAwardStats(D.lp, { from: P.from, to: P.to, who: it.who });
+      list = lpAwardRank(kind, R.people).map(p => {
+        const v = kind.val(p);
+        return { id: p.id, name: p.name, place: p.place, show: kind.show(p), sub: kind.sub(p),
+          cls: kind.sign ? (kind.neg ? " dn" : v > 0 ? " up" : v < 0 ? " dn" : "") : "" };
+      });
+    }
+    if (it.src !== "manual") list = list.filter(x => x.place <= it.places).slice(0, it.places);
+    return { icon, list: list.slice(0, 5), period: P };
+  }
+
   /* 賞品の画像（data URL）。1枚ずつ別の文書に置く（表彰スライドの設定の文書が1MBをこえないように） */
   const awardPrizeDoc = id => "award_prize_" + String(id).replace(/[^\w-]/g, "");
   async function loadAwardPrizeImgs(ids) {
@@ -5412,7 +5513,7 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, setLpEndAt, lpEndDay, lpEnded, lpHistOf, lpHtierOf, lpSeries, lpStats,
-    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, normAwardShow, defaultAwardShow, lpaLabel,
+    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, awardPeriod, loadAwardData, awardList, vcCoachSec, coachTokens, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, normAwardShow, defaultAwardShow, lpaLabel,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,
