@@ -2201,7 +2201,9 @@
         winners: (Array.isArray(x.winners) ? x.winners : []).slice(0, 5)
           .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id),
         // 賞品のスライド（賞の紹介と表彰台のあいだに出す）。画像は大きいので別の文書 award_prize_<賞のID> に置く
-        prize: (p => ({ on: !!p.on, text: String(p.text || "").slice(0, 300), img: !!p.img, imgAt: p.imgAt || 0 }))(x.prize || {}) };
+        // mode：same＝みんな同じ賞品 / place＝順位ごとに変える（places[0] が1位）
+        prize: (p => ({ on: !!p.on, mode: p.mode === "place" ? "place" : "same", text: String(p.text || "").slice(0, 300), img: !!p.img, imgAt: p.imgAt || 0,
+          places: (Array.isArray(p.places) ? p.places : []).slice(0, 5).map(q => ({ text: String((q && q.text) || "").slice(0, 300), img: !!(q && q.img) })) }))(x.prize || {}) };
     });
     return { v: 2, title: String(raw.title || "").trim().slice(0, 30) || d.title, sub: String(raw.sub == null ? d.sub : raw.sub).slice(0, 40),
       from: ok(raw.from) ? raw.from : "", to: ok(raw.to) ? raw.to : "", items,
@@ -2315,6 +2317,13 @@
 
   /* 賞品の画像（data URL）。1枚ずつ別の文書に置く（表彰スライドの設定の文書が1MBをこえないように） */
   const awardPrizeDoc = id => "award_prize_" + String(id).replace(/[^\w-]/g, "");
+  // 画像のキー：みんな同じ＝賞のID ／ 順位ごと＝賞のID_p<順位>
+  const awardPrizeKey = (it, place) => place ? it.id + "_p" + place : it.id;
+  function awardPrizeKeys(it) {
+    const p = it.prize || {};
+    if (p.mode === "place") return (p.places || []).map((q, i) => q.img ? awardPrizeKey(it, i + 1) : "").filter(Boolean);
+    return p.img ? [awardPrizeKey(it)] : [];
+  }
   async function loadAwardPrizeImgs(ids) {
     const out = {}, db = openDb();
     await Promise.all((ids || []).map(async id => {
@@ -5513,7 +5522,7 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, setLpEndAt, lpEndDay, lpEnded, lpHistOf, lpHtierOf, lpSeries, lpStats,
-    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, awardPeriod, loadAwardData, awardList, vcCoachSec, coachTokens, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, normAwardShow, defaultAwardShow, lpaLabel,
+    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, awardPeriod, loadAwardData, awardList, vcCoachSec, coachTokens, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, awardPrizeKey, awardPrizeKeys, normAwardShow, defaultAwardShow, lpaLabel,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,
