@@ -513,6 +513,11 @@ body.ad-on{overflow:hidden}
 .awIt.off{opacity:.55}
 .awIt .row{margin:3px 0}
 .awWin{display:flex;gap:6px;align-items:center;margin:3px 0 3px 30px}
+.awPz{margin:6px 0 2px 30px;padding:8px 10px;border:1px dashed color-mix(in srgb,#C9A24A 55%,var(--border));border-radius:10px;background:color-mix(in srgb,#FFF4CC 35%,var(--surface))}
+.awPz .pzRow{display:flex;gap:8px;align-items:flex-start;margin-top:6px}
+.awPz .pzImg{width:120px;height:80px;flex:none;border-radius:8px;border:1px solid var(--border);background:var(--surface-2) center/contain no-repeat;
+  display:grid;place-items:center;font-size:11px;color:var(--muted)}
+.awPz textarea{flex:1;min-height:80px;font-family:inherit;font-size:13px;line-height:1.6}
 /* ---- スタンプ：カードの見た目のまま編集 ---- */
 .stGrid{display:grid;grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));gap:8px;max-width:640px;margin:6px 0 10px;user-select:none}
 .stEdWrap{position:relative;max-width:640px}
@@ -2725,12 +2730,38 @@ body.ad-on{overflow:hidden}
   }
 
   /* ---- 🏆 表彰スライドの設定 ---- */
-  let awCfg = null, awPeople = [];
+  let awCfg = null, awPeople = [], awImgs = {}, awImgDirty = new Set();
+  /* 賞品の画像をえらんで、長い辺 1280px までに小さくする（写真は JPEG・透明のある PNG はそのまま PNG） */
+  function awPickImg(done){
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      const url = URL.createObjectURL(f), im = new Image();
+      im.onload = () => {
+        URL.revokeObjectURL(url);
+        let max = 1280, out = "";
+        for (let tries = 0; tries < 6; tries++){
+          const k = Math.min(1, max / Math.max(im.width, im.height)), cv = document.createElement("canvas");
+          cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+          cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+          out = /png/.test(f.type) ? cv.toDataURL("image/png") : cv.toDataURL("image/jpeg", 0.85);
+          if (out.length > 850000 && /png/.test(f.type)) out = cv.toDataURL("image/jpeg", 0.85);
+          if (out.length <= 850000) break;
+          max = Math.round(max * 0.75);
+        }
+        done(out);
+      };
+      im.onerror = () => toast("画像を読み込めませんでした");
+      im.src = url;
+    };
+    inp.click();
+  }
   const AW_SRC_NAME = { manual: "🎖 手で選ぶ", games: "🎮 試合数（多い順）", coach: "🎓 コーチング時間（先生）" };
   async function loadAwardCfg(){
     if (!C.loadAwardShow) return;
     const [cfg, mem] = await Promise.all([C.loadAwardShow(), C.loadMembers().catch(() => ({}))]);
-    awCfg = cfg;
+    awCfg = cfg; awImgDirty = new Set();
+    awImgs = await C.loadAwardPrizeImgs(cfg.items.filter(it => it.prize && it.prize.img).map(it => it.id)).catch(() => ({}));
     // 受賞者に選べる人：LPの名簿＋メンバー
     const map = {};
     Object.entries((lpData && lpData.members) || {}).forEach(([id, m]) => { if (m && m.name) map[id] = m.name; });
@@ -2757,7 +2788,12 @@ body.ad-on{overflow:hidden}
         (it.src === "manual" ? "" :
           '<select class="who"><option value="all">全員から</option><option value="stu">生徒から</option><option value="oth">生徒以外から</option></select>' +
           '<select class="pl"><option value="1">1位だけ</option><option value="2">1〜2位</option><option value="3">1〜3位</option><option value="4">1〜4位</option><option value="5">1〜5位</option></select>') +
-        "</div>" + (it.src === "manual" ? '<div class="wins"></div>' : "");
+        "</div>" + (it.src === "manual" ? '<div class="wins"></div>' : "") +
+        '<div class="awPz"><label class="chk"><input type="checkbox" class="pzOn"> 🎁 賞品のスライドを出す（賞の紹介のあと・表彰台の前）</label>' +
+        (it.prize.on ? '<div class="pzRow"><div class="pzImg">' + (awImgs[it.id] ? "" : "画像なし") + "</div>" +
+          '<div style="display:flex;flex-direction:column;gap:4px"><button class="mini pzPick" type="button">🖼 画像を入れる</button>' +
+          (awImgs[it.id] ? '<button class="mini pzClr" type="button">✕ 画像を外す</button>' : "") + "</div>" +
+          '<textarea class="pzTx" maxlength="300" placeholder="賞品の説明（改行できます）&#10;例：Amazonギフト券 3,000円分&#10;　　＋ 特製ステッカー"></textarea></div>' : "") + "</div>";
       const q = c => d.querySelector(c);
       q(".on").checked = it.on; q(".sec").value = it.section; q(".nm").value = it.name; q(".ds").value = it.desc; q(".src").value = it.src;
       q(".on").onchange = e => { it.on = e.target.checked; d.classList.toggle("off", !it.on); };
@@ -2767,6 +2803,13 @@ body.ad-on{overflow:hidden}
       q(".src").onchange = e => { it.src = e.target.value; paintAwItems(); };
       if (q(".who")){ q(".who").value = it.who; q(".who").onchange = e => { it.who = e.target.value; }; }
       if (q(".pl")){ q(".pl").value = String(it.places); q(".pl").onchange = e => { it.places = +e.target.value; }; }
+      // 賞品
+      q(".pzOn").checked = it.prize.on;
+      q(".pzOn").onchange = e => { it.prize.on = e.target.checked; paintAwItems(); };
+      if (q(".pzImg") && awImgs[it.id]) q(".pzImg").style.backgroundImage = "url(" + awImgs[it.id] + ")";
+      if (q(".pzTx")){ q(".pzTx").value = it.prize.text; q(".pzTx").oninput = e => { it.prize.text = e.target.value; }; }
+      if (q(".pzPick")) q(".pzPick").onclick = () => awPickImg(u => { awImgs[it.id] = u; awImgDirty.add(it.id); paintAwItems(); toast("画像を入れました（「保存」で確定）"); });
+      if (q(".pzClr")) q(".pzClr").onclick = () => { delete awImgs[it.id]; awImgDirty.add(it.id); paintAwItems(); };
       q(".up").onclick = () => { awCfg.items.splice(i - 1, 0, awCfg.items.splice(i, 1)[0]); paintAwItems(); };
       q(".dn").onclick = () => { awCfg.items.splice(i + 1, 0, awCfg.items.splice(i, 1)[0]); paintAwItems(); };
       q(".del").onclick = () => { if (!confirm("「" + it.name + "」を消しますか？")) return; awCfg.items.splice(i, 1); paintAwItems(); };
@@ -2798,7 +2841,7 @@ body.ad-on{overflow:hidden}
   $("awAdd").onclick = () => {
     if (!awCfg) return;
     awCfg.items.push({ id: "a" + Date.now().toString(36), on: true, section: (awCfg.items[awCfg.items.length - 1] || {}).section || "特別",
-      name: "", desc: "", src: "manual", who: "all", places: 1, winners: [] });
+      name: "", desc: "", src: "manual", who: "all", places: 1, winners: [], prize: { on: false, text: "", img: false } });
     paintAwItems();
   };
   $("awSave").onclick = async () => {
@@ -2806,7 +2849,15 @@ body.ad-on{overflow:hidden}
     Object.assign(awCfg, { title: $("awTitle").value, sub: $("awSub").value, from: $("awFrom").value, to: $("awTo").value,
       closing: $("awClosing").value, open: $("awOpen").checked });
     awCfg.items.forEach(it => { it.winners = it.winners.filter(w => w.id); });
-    try { awCfg = await C.saveAwardShow(awCfg); toast("表彰スライドの設定を保存しました"); $("awStat").textContent = "保存済み"; paintAwItems(); }
+    try {
+      // 変えた賞品の画像だけ先に保存（1枚ずつ別の文書）
+      for (const id of awImgDirty){
+        await C.saveAwardPrizeImg(id, awImgs[id] || "");
+        const it = awCfg.items.find(x => x.id === id);
+        if (it) Object.assign(it.prize, { img: !!awImgs[id], imgAt: Date.now() });
+      }
+      awImgDirty = new Set();
+      awCfg = await C.saveAwardShow(awCfg); toast("表彰スライドの設定を保存しました"); $("awStat").textContent = "保存済み"; paintAwItems(); }
     catch(e){ toast(e.message); }
   };
 

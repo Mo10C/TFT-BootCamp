@@ -79,6 +79,18 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
 .col.p1.rv .av{animation:glow 2.2s ease-in-out infinite .8s}
 @keyframes glow{50%{box-shadow:0 0 0 5px var(--ring),0 0 50px 14px rgba(255,214,90,.85)}}
 .empty{font-size:30px;color:#6D8699;font-weight:700}
+/* 賞品 */
+.z-head{position:absolute;top:64px;left:0;right:0;text-align:center;z-index:3}
+.z-head .k{font-family:"Space Grotesk",sans-serif;font-weight:700;letter-spacing:.3em;color:#C9A24A;font-size:24px}
+.z-head .nm{font-size:50px;font-weight:900;margin-top:4px}
+.z-body{position:absolute;left:110px;right:110px;top:220px;bottom:90px;display:flex;align-items:center;justify-content:center;gap:60px;z-index:3}
+.z-img{flex:none;max-width:52%;height:100%;display:flex;align-items:center;justify-content:center;animation:pop .7s cubic-bezier(.2,1.5,.4,1) both}
+.z-img img{max-width:100%;max-height:100%;border-radius:24px;background:#fff;padding:14px;object-fit:contain;
+  box-shadow:0 0 0 6px #E8CD82,0 24px 50px -10px rgba(40,60,20,.35);transform:rotate(-2deg)}
+.z-tx{flex:1;min-width:0;font-size:46px;font-weight:900;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:#23384D;text-align:left;
+  animation:rise .8s .25s cubic-bezier(.2,1.3,.4,1) both}
+.z-body.only-tx .z-tx{text-align:center;font-size:60px}
+.z-gift{position:absolute;right:80px;top:150px;font-size:90px;transform:rotate(14deg);z-index:3;animation:pop .6s .4s cubic-bezier(.2,1.6,.4,1) both}
 /* しめ */
 .c-msg{font-size:64px;font-weight:900;line-height:1.4;padding:0 120px;margin-top:10px}
 /* 操作バー・お知らせ */
@@ -140,8 +152,11 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
   async function load(){
     say("読み込み中…");
     const safe = p => p.catch(e => { console.warn(e); return null; });
-    const [cfg, lp, mem, album, games] = await Promise.all([C.loadAwardShow(), C.loadLpData(), safe(C.loadMembers()),
-      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null)), safe(C.loadCampGames ? C.loadCampGames() : Promise.resolve({}))]);
+    const cfg0 = await C.loadAwardShow();
+    const [cfg, lp, mem, album, games, imgs] = await Promise.all([Promise.resolve(cfg0), C.loadLpData(), safe(C.loadMembers()),
+      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null)), safe(C.loadCampGames ? C.loadCampGames() : Promise.resolve({})),
+      // 賞品の画像（賞品のスライドを出す賞だけ）
+      safe(C.loadAwardPrizeImgs ? C.loadAwardPrizeImgs(cfg0.items.filter(it => it.on && it.prize && it.prize.on && it.prize.img).map(it => it.id)) : Promise.resolve({}))]);
     CFG = cfg; MEM = mem || {}; LPM = lp.members || {};
     if (!IS_ADMIN && !cfg.open){ say("🏆 表彰式はまだ準備中です。<br>はじまるまでお待ちください。"); return false; }
     // 期間：設定 → 卒業証書の期間 → 基準日〜しめきり
@@ -189,6 +204,9 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
       no++;
       if (it.section && it.section !== sec){ sec = it.section; SLIDES.push({ type: "section", label: sec }); }
       SLIDES.push({ type: "intro", it, icon, no });
+      // 賞品（画像か文のどちらかがあれば）
+      const pz = it.prize || {}, img = (imgs || {})[it.id] || "";
+      if (pz.on && (img || pz.text)) SLIDES.push({ type: "prize", it, icon, img, text: pz.text });
       SLIDES.push({ type: "podium", it, icon, list: list.slice(0, 5), steps: Math.min(5, list.length) });
     });
     SLIDES.push({ type: "closing", per });
@@ -228,6 +246,13 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
     } else if (S.type === "intro"){
       h = '<div class="sl"><div class="i-no">' + (S.it.section ? esc(S.it.section) + " ・ " : "") + "AWARD " + String(S.no).padStart(2, "0") + '</div><div class="i-ic">' + S.icon + "</div>" +
         '<div class="i-name">' + esc(S.it.name) + "</div>" + (S.it.desc ? '<div class="i-desc">' + esc(S.it.desc) + "</div>" : "") + "</div>";
+    } else if (S.type === "prize"){
+      h = '<div class="z-head"><div class="k">PRIZE</div><div class="nm">' + S.icon + " " + esc(S.it.name) + " の賞品</div></div>" +
+        '<div class="z-gift">🎁</div>' +
+        '<div class="z-body' + (S.img ? "" : " only-tx") + '">' +
+        (S.img ? '<div class="z-img"' + (S.text ? "" : ' style="max-width:100%"') + '><img src="' + esc(S.img) + '" alt=""></div>' : "") +
+        (S.text ? '<div class="z-tx" style="font-size:' + Math.max(32, Math.min(S.img ? 52 : 64, Math.floor((S.img ? 700 : 1150) / Math.max(4, Math.max.apply(null, S.text.split("\n").map(l => Array.from(l).length)))))) + 'px">' + esc(S.text) + "</div>" : "") +
+        "</div>";
     } else if (S.type === "podium"){
       const n = S.list.length;
       h = '<div class="p-head"><span class="ic">' + S.icon + '</span><span class="nm">' + esc(S.it.name) + "</span>" +

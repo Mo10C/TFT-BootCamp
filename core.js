@@ -2197,7 +2197,9 @@
         who: ["all", "stu", "oth"].indexOf(x.who) >= 0 ? x.who : "all",
         places: Math.max(1, Math.min(5, x.places | 0 || 3)),
         winners: (Array.isArray(x.winners) ? x.winners : []).slice(0, 5)
-          .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id) };
+          .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id),
+        // 賞品のスライド（賞の紹介と表彰台のあいだに出す）。画像は大きいので別の文書 award_prize_<賞のID> に置く
+        prize: (p => ({ on: !!p.on, text: String(p.text || "").slice(0, 300), img: !!p.img, imgAt: p.imgAt || 0 }))(x.prize || {}) };
     });
     return { v: 2, title: String(raw.title || "").trim().slice(0, 30) || d.title, sub: String(raw.sub == null ? d.sub : raw.sub).slice(0, 40),
       from: ok(raw.from) ? raw.from : "", to: ok(raw.to) ? raw.to : "", items,
@@ -2209,6 +2211,29 @@
       if (db) { const s = await db.collection("lboard_index").doc(AWARD_DOC).get(); return normAwardShow(s.exists ? s.data() : null); }
       return normAwardShow(JSON.parse(localStorage.getItem("mcc-lb2-" + AWARD_DOC) || "null"));
     } catch (e) { console.warn("表彰スライドの設定を読めませんでした", e); return normAwardShow(null); }
+  }
+  /* 賞品の画像（data URL）。1枚ずつ別の文書に置く（表彰スライドの設定の文書が1MBをこえないように） */
+  const awardPrizeDoc = id => "award_prize_" + String(id).replace(/[^\w-]/g, "");
+  async function loadAwardPrizeImgs(ids) {
+    const out = {}, db = openDb();
+    await Promise.all((ids || []).map(async id => {
+      try {
+        if (db) { const s = await db.collection("lboard_index").doc(awardPrizeDoc(id)).get(); if (s.exists && s.data().img) out[id] = s.data().img; }
+        else { const v = localStorage.getItem("mcc-lb2-" + awardPrizeDoc(id)); if (v) out[id] = v; }
+      } catch (e) { console.warn("賞品の画像を読めませんでした", id, e); }
+    }));
+    return out;
+  }
+  async function saveAwardPrizeImg(id, dataUrl) {
+    if (!isAdmin()) throw new Error("賞品の画像は管理者のみ変えられます");
+    const v = /^data:image\/(png|jpeg|webp);base64,/.test(String(dataUrl || "")) ? String(dataUrl) : "";
+    if (v.length > 900000) throw new Error("画像が大きすぎます（もう少し小さい画像にしてください）");
+    const db = openDb();
+    if (db) {
+      if (v) await db.collection("lboard_index").doc(awardPrizeDoc(id)).set({ img: v, updatedAt: Date.now() });
+      else await db.collection("lboard_index").doc(awardPrizeDoc(id)).delete().catch(() => {});
+    } else if (v) localStorage.setItem("mcc-lb2-" + awardPrizeDoc(id), v);
+    else localStorage.removeItem("mcc-lb2-" + awardPrizeDoc(id));
   }
   async function saveAwardShow(cfg) {
     if (!isAdmin()) throw new Error("表彰スライドの設定は管理者のみです");
@@ -3306,6 +3331,8 @@
       Object.entries(d.days || {}).forEach(([day, chs]) => {
         if (day < fromKey || day > toKey) return;
         let dayUp = 0, daySec = 0;
+        // その日のVC稼働（全VCで誰か1人でもいた実時間）。新しいBot（v3）は ups に入れる。古い日はVCごとの合計で代わりにする
+        const upAll = d.ups && d.ups[day] != null ? Number(d.ups[day]) || 0 : null;
         Object.entries(chs || {}).forEach(([cid, c]) => {
           const up = Number(c.up) || 0, sec = Number(c.sec) || 0;
           dayUp += up; daySec += sec;
@@ -3323,7 +3350,7 @@
             us.byChannel[cid] = (us.byChannel[cid] || 0) + v;
           });
         });
-        daily.push({ day: day, uptime: dayUp, seconds: daySec });
+        daily.push({ day: day, uptime: upAll != null ? upAll : dayUp, seconds: daySec });
       });
     });
 
@@ -3351,7 +3378,8 @@
     return {
       from: fromKey, to: toKey, channels, users, daily,
       totals: {
-        uptime: channels.reduce((n, c) => n + c.uptime, 0),
+        // VC稼働＝日ごとの実時間の合計（VCをまたいで同時に使われた時間は1回分）
+        uptime: daily.reduce((n, x) => n + x.uptime, 0),
         seconds: users.reduce((n, u) => n + u.seconds, 0),
         users: users.length,
         channels: channels.length,
@@ -5384,7 +5412,7 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, setLpEndAt, lpEndDay, lpEnded, lpHistOf, lpHtierOf, lpSeries, lpStats,
-    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, loadAwardShow, saveAwardShow, normAwardShow, defaultAwardShow, lpaLabel,
+    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, normAwardShow, defaultAwardShow, lpaLabel,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,
