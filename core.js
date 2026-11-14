@@ -2176,7 +2176,7 @@
       items: [
         awardItem("特別", "大講堂盛り上げたで賞", "", "manual", "all", 1),
         awardItem("特別", "ゴルフ賞", "", "manual", "all", 1),
-        awardItem("先生", "最長コーチング賞", "担当の生徒と、先生の名前のVCでいっしょにいた時間", "coach", "oth", 3),
+        awardItem("先生", "最長コーチング賞", "先生の名前のVCが使われていた時間（VC稼働）", "coach", "oth", 3),
         awardItem("生徒", "LP爆盛り賞", "基準（開校時）から期間中の最高まで盛ったLP", "gainPeak", "stu", 3),
         awardItem("生徒", "最多試合賞", "合宿期間中にこなしたTFTの試合数", "games", "stu", 3),
         awardItem("生徒", "チーム戦最多point賞", "", "manual", "stu", 1)
@@ -2240,6 +2240,24 @@
     return { sec: hit.reduce((n, c) => n + (c.seconds || 0), 0), ch: hit.map(c => c.name) };
   }
 
+  /* 先生の名前から、その先生のVCを探す（VC稼働のページの VC ごとの一覧から）
+       1) VC名が名前の言葉とぴったり同じ（「pkbr」「はげ太郎」）  2) 「◯◯先生」  3) 名前の言葉が入っている
+     いちばん上の段で見つかったものだけ使う（「もと」と「もとき雑談」をまちがえないため） */
+  function vcTeacherChannels(channels, teacherName) {
+    const toks = coachTokens(teacherName);
+    if (!toks.length) return [];
+    const flat = t => String(t || "").toLowerCase().replace(new RegExp(VC_SEP.source, "g"), "").replace(/[^\p{L}\p{N}]/gu, "");
+    const me = flat(teacherName).replace(/先生|せんせい/g, "");
+    const ft = toks.map(flat).filter(t => t.length >= 2);
+    const exact = channels.filter(c => { const f = flat(c.name).replace(/先生|せんせい|の部屋|部屋|room/g, ""); return f.length >= 2 && (ft.indexOf(f) >= 0 || f === me); });
+    if (exact.length) return exact;
+    const sensei = channels.filter(c => { const m = flat(c.name).match(/(.+?)(先生|せんせい)/); if (!m) return false;
+      const tail = Array.from(m[1]); for (let k = Math.min(8, tail.length); k >= 2; k--) if (me.indexOf(tail.slice(-k).join("")) >= 0) return true; return false; });
+    if (sensei.length) return sensei;
+    // 3) 名前の言葉が入っている（2文字の名前は「もと」→「もとき雑談」のようにまちがえやすいので、3文字以上のときだけ）
+    return channels.filter(c => ft.some(t => t.length >= 3 && flat(c.name).indexOf(t) >= 0));
+  }
+
   /* ---- 表彰スライドの結果（award.html と 管理画面の「結果を確認」で共通） ---- */
   // 賞ごとの期間：その賞の期間 → スライド全体の期間 → 卒業証書の期間（LPは しめきり まで）
   function awardPeriod(it, D) {
@@ -2280,17 +2298,18 @@
       list = rank(Object.entries(D.games).filter(([id, n]) => typeof n === "number" && n > 0 && okWho(it.who, id))
         .map(([id, n]) => ({ id, name: nameOf(id), v: n }))).map(r => Object.assign(r, { show: r.v + "試合", sub: "合宿期間中のTFT", cls: "" }));
     } else if (it.src === "coach") {
+      /* コーチング時間＝その先生の名前のVCの「稼働時間」（誰か1人でもいた実時間・VC稼働のページの右の数字と同じ）
+         先生＝担当の生徒がいる先生 ＋ LPの名簿で生徒以外の人。名前でVCが見つかった先生だけ並べる */
       icon = "🎓";
-      const users = vcOf().users || [], by = {};
-      Object.entries((D.album && D.album.mentors) || {}).forEach(([sid, tid]) => {
-        const u = users.find(v => uKey(v) === sid);
-        const r = vcCoachSec(u, nameOf(tid));
-        if (!by[tid]) by[tid] = { sec: 0, stu: [], ch: [] };
-        by[tid].sec += r.sec; by[tid].stu.push(nameOf(sid)); by[tid].ch = Array.from(new Set(by[tid].ch.concat(r.ch)));
-      });
-      list = rank(Object.entries(by).filter(([id, x]) => x.sec > 0 && okWho(it.who, id))
-        .map(([id, x]) => ({ id, name: nameOf(id), v: x.sec, stu: x.stu, ch: x.ch })))
-        .map(r => Object.assign(r, { show: hrs(r.v) + "時間", sub: "担当：" + r.stu.join("・"), cls: "", note: r.ch.join("・") }));
+      const chans = vcOf().channels || [], tids = new Set(Object.values((D.album && D.album.mentors) || {}));
+      Object.keys(LPM).forEach(id => { if (isStu[id] === false) tids.add(id); });
+      const stuOf = tid => Object.entries((D.album && D.album.mentors) || {}).filter(([, t]) => t === tid).map(([sid]) => nameOf(sid));
+      list = rank([...tids].filter(id => okWho(it.who, id)).map(id => {
+        const hit = vcTeacherChannels(chans, nameOf(id));
+        return { id, name: nameOf(id), v: hit.reduce((n, c) => n + (c.uptime || 0), 0), ch: hit.map(c => c.name) };
+      }).filter(r => r.v > 0))
+        .map(r => { const st = stuOf(r.id);
+          return Object.assign(r, { show: vcHm(r.v), sub: "「" + r.ch.join("・") + "」の稼働" + (st.length ? "・担当：" + st.join("・") : ""), cls: "", note: r.ch.join("・") }); });
     } else if (it.src === "vc") {
       icon = "🎧";
       const key = String(it.ch || "").trim().toLowerCase();
@@ -2299,7 +2318,7 @@
         const sec = key ? (u.byChannel || []).filter(c => String(c.name || "").toLowerCase().indexOf(key) >= 0).reduce((n, c) => n + (c.seconds || 0), 0) : u.seconds;
         return { id, name: (MEM[id] && MEM[id].name) || (LPM[id] && LPM[id].name) || u.name || "—", v: sec };
       }).filter(r => r.v > 0 && okWho(it.who, r.id)))
-        .map(r => Object.assign(r, { show: hrs(r.v) + "時間", sub: key ? "「" + it.ch + "」にいた時間" : "VCにいた時間", cls: "" }));
+        .map(r => Object.assign(r, { show: vcHm(r.v), sub: key ? "「" + it.ch + "」にいた時間" : "VCにいた時間", cls: "" }));
     } else {
       const kind = LP_AWARD_KINDS.find(k => k.id === it.src);
       if (!kind) return { icon, list: [], period: P };
@@ -5522,7 +5541,7 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, setLpEndAt, lpEndDay, lpEnded, lpHistOf, lpHtierOf, lpSeries, lpStats,
-    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, awardPeriod, loadAwardData, awardList, vcCoachSec, coachTokens, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, awardPrizeKey, awardPrizeKeys, normAwardShow, defaultAwardShow, lpaLabel,
+    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, awardPeriod, loadAwardData, awardList, vcCoachSec, coachTokens, vcTeacherChannels, loadAwardShow, saveAwardShow, loadAwardPrizeImgs, saveAwardPrizeImg, awardPrizeKey, awardPrizeKeys, normAwardShow, defaultAwardShow, lpaLabel,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,
