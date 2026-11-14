@@ -2076,6 +2076,149 @@
       baseDate: baseKey || ""
     };
   }
+  /* =============================================================
+     LPの集計・表彰（管理コンソールの「📊 LPの集計」と award.html の表彰スライドで共通）
+       lpAwardStats(lp, { from, to, who })  … 1人ずつの数字（基準・最高・最後・1日の伸び など）
+       LP_AWARD_KINDS                         … ランキングの種類（並べる値・表示・補足）
+       lpAwardRank(kind, people)              … 並べたもの（同じ値は同じ順位）
+     ============================================================= */
+  const LPA_TIERS = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"];
+  const LPA_JP = { IRON:"アイアン", BRONZE:"ブロンズ", SILVER:"シルバー", GOLD:"ゴールド", PLATINUM:"プラチナ", EMERALD:"エメラルド", DIAMOND:"ダイヤモンド",
+    MASTER:"マスター", GRANDMASTER:"グランドマスター", CHALLENGER:"チャレンジャー" };
+  const lpaMd = k => k ? Number(k.slice(5, 7)) + "/" + Number(k.slice(8, 10)) : "";
+  const lpaLabel = r => r ? (LPA_JP[r.tier] || r.tier) + (r.division ? " " + r.division : "") + " " + (r.lp | 0) + "LP" : "—";
+  const lpaSigned = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v | 0);
+  function lpaRank(lp, id, day, v) {
+    const r = rankOfAbs(v); if (!r) return null;
+    const ht = lpHtierOf(lp, id, day);
+    if (ht) { r.tier = ht; r.division = ""; }
+    return r;
+  }
+  function lpAwardStats(lp, opts) {
+    opts = opts || {};
+    const from = opts.from || lp.baseline || "", to = opts.to || lpEndDay(lp), who = opts.who || "all";
+    const order = lpGroupOrder(lp);
+    let stu = order.map((g, i) => /生徒/.test(g.label) ? i : -1).filter(i => i >= 0);
+    if (!stu.length && order.length) stu = [0];
+    const people = [];
+    Object.entries(lp.members || {}).forEach(([id, m]) => {
+      if (!m) return;
+      const isStu = !order.length || stu.indexOf(lpGroupIndex(m, order)) >= 0;
+      if (who === "stu" && !isStu) return;
+      if (who === "oth" && isStu) return;
+      const h = lpHistOf(lp, id), keys = Object.keys(h).sort();
+      const inR = keys.filter(k => (!from || k >= from) && (!to || k <= to));
+      const base0 = { id, name: m.name || "—", avatar: m.avatar || "", isStu };
+      if (!inR.length) { people.push(Object.assign(base0, { none: true })); return; }
+      // 基準：期間の初日以前でいちばん新しい記録（無ければ期間の最初の記録）
+      const before = keys.filter(k => from && k <= from);
+      const bk = before.length ? before[before.length - 1] : inR[0];
+      const pts = inR.map(k => ({ d: k, v: h[k] }));
+      let pk = pts[0], lo = pts[0];
+      pts.forEach(q => { if (q.v > pk.v) pk = q; if (q.v < lo.v) lo = q; });
+      const last = pts[pts.length - 1];
+      let up = null, dn = null, streak = 0, best = 0, bestEnd = null;
+      const seq = (bk < inR[0] ? [{ d: bk, v: h[bk] }] : []).concat(pts);
+      for (let i = 1; i < seq.length; i++) {
+        const d = seq[i].v - seq[i - 1].v;
+        if (!up || d > up.v) up = { v: d, d: seq[i].d };
+        if (!dn || d < dn.v) dn = { v: d, d: seq[i].d };
+        streak = d > 0 ? streak + 1 : 0;
+        if (streak > best) { best = streak; bestEnd = seq[i].d; }
+      }
+      const base = { d: bk, v: h[bk] };
+      const rb = lpaRank(lp, id, base.d, base.v), rp = lpaRank(lp, id, pk.d, pk.v), rl = lpaRank(lp, id, last.d, last.v), rlo = lpaRank(lp, id, lo.d, lo.v);
+      people.push(Object.assign(base0, { base, peak: pk, low: lo, last, rb, rp, rl, rlo, up, dn, streak: best, streakEnd: bestEnd,
+        gainPeak: pk.v - base.v, gainLast: last.v - base.v, swing: pk.v - lo.v,
+        tierUp: rb && rp ? LPA_TIERS.indexOf(rp.tier) - LPA_TIERS.indexOf(rb.tier) : 0, days: pts.length }));
+    });
+    return { from, to, who, people };
+  }
+  // rank：表彰スライドで名前の下に出すランク（無しなら出さない）
+  const LP_AWARD_KINDS = [
+    { id: "peak", icon: "🏔", name: "最高LP", desc: "期間中にいちばん高かったLP",
+      val: p => p.peak.v, show: p => lpaLabel(p.rp), sub: p => lpaMd(p.peak.d) + " に到達", rank: p => p.rp },
+    { id: "gainPeak", icon: "🚀", name: "基準から最高まで盛った", desc: "基準（期間の初日）→ 期間中の最高",
+      val: p => p.gainPeak, show: p => lpaSigned(p.gainPeak) + "LP", sub: p => lpaLabel(p.rb) + " → " + lpaLabel(p.rp), sign: true, rank: p => p.rp },
+    { id: "gainLast", icon: "📈", name: "基準から最後まで伸びた", desc: "基準 → 期間の最後の記録",
+      val: p => p.gainLast, show: p => lpaSigned(p.gainLast) + "LP", sub: p => lpaLabel(p.rb) + " → " + lpaLabel(p.rl), sign: true, rank: p => p.rl },
+    { id: "last", icon: "🏁", name: "最終LP", desc: "期間の最後の記録",
+      val: p => p.last.v, show: p => lpaLabel(p.rl), sub: p => lpaMd(p.last.d), rank: p => p.rl },
+    { id: "up", icon: "⚡", name: "1日でいちばん伸びた", desc: "となりの記録どうしの差（その日の23:45まで）",
+      val: p => p.up ? p.up.v : null, show: p => lpaSigned(p.up.v) + "LP", sub: p => lpaMd(p.up.d), sign: true },
+    { id: "tierUp", icon: "⬆️", name: "ティアをいくつ上げた", desc: "基準のティア → 最高のティア",
+      val: p => p.tierUp > 0 ? p.tierUp : null, show: p => p.tierUp + "ティア", sub: p => (LPA_JP[p.rb.tier] || "") + " → " + (LPA_JP[p.rp.tier] || ""), rank: p => p.rp },
+    { id: "streak", icon: "🔥", name: "連続で伸びた日数", desc: "記録が続けて上がった回数の最長",
+      val: p => p.streak > 0 ? p.streak : null, show: p => p.streak + "日連続", sub: p => p.streakEnd ? lpaMd(p.streakEnd) + " まで" : "" },
+    { id: "swing", icon: "🎢", name: "振れ幅（最高−最低）", desc: "期間中の最高と最低の差",
+      val: p => p.swing > 0 ? p.swing : null, show: p => p.swing + "LP", sub: p => lpaLabel(p.rlo) + " 〜 " + lpaLabel(p.rp) },
+    { id: "dn", icon: "🫠", name: "1日でいちばん下がった", desc: "ドンマイ枠（となりの記録どうしの差）",
+      val: p => p.dn && p.dn.v < 0 ? -p.dn.v : null, show: p => lpaSigned(p.dn.v) + "LP", sub: p => lpaMd(p.dn.d), sign: true, neg: true }
+  ];
+  // 並べる（同じ値は同じ順位：1,1,3…）
+  function lpAwardRank(kind, people) {
+    const list = people.filter(p => !p.none && kind.val(p) != null)
+      .sort((a, b) => kind.val(b) - kind.val(a) || String(a.name).localeCompare(String(b.name), "ja"));
+    list.forEach((p, i) => { p._place = i && kind.val(list[i - 1]) === kind.val(p) ? list[i - 1]._place : i + 1; });
+    return list.map(p => Object.assign({}, p, { place: p._place }));
+  }
+
+  /* ---- 表彰スライド（award.html）の設定：lboard_index/awardshow ---- */
+  const AWARD_DOC = "awardshow";
+  /* 1つの賞 = { id, on, section（部門：特別／先生／生徒 など）, name, desc,
+                 src（決め方：manual＝手で選ぶ / games＝試合数 / coach＝コーチング時間 / LPの種類 peak・gainPeak…）,
+                 who（all / stu＝生徒だけ / oth＝生徒以外）, places（自動のとき何位まで）, winners（手で選ぶとき [{id, note}] 上から1位） } */
+  const AWARD_SRCS = ["manual", "games", "coach"].concat(LP_AWARD_KINDS.map(k => k.id));
+  const awardItem = (section, name, desc, src, who, places) =>
+    ({ id: "a" + Math.random().toString(36).slice(2, 8), on: true, section, name, desc, src, who, places, winners: [] });
+  function defaultAwardShow() {
+    return { v: 2, title: "表彰式", sub: "クラウドハッシュテイル校", from: "", to: "",
+      items: [
+        awardItem("特別", "大講堂盛り上げたで賞", "", "manual", "all", 1),
+        awardItem("特別", "ゴルフ賞", "", "manual", "all", 1),
+        awardItem("先生", "最長コーチング賞", "担当の生徒と、先生の名前のVCでいっしょにいた時間", "coach", "oth", 3),
+        awardItem("生徒", "LP爆盛り賞", "基準（開校時）から期間中の最高まで盛ったLP", "gainPeak", "stu", 3),
+        awardItem("生徒", "最多試合賞", "合宿期間中にこなしたTFTの試合数", "games", "stu", 3),
+        awardItem("生徒", "チーム戦最多point賞", "", "manual", "stu", 1)
+      ],
+      closing: "みなさん、合宿おつかれさまでした！", open: false, updatedAt: 0 };
+  }
+  function normAwardShow(raw) {
+    const d = defaultAwardShow(); raw = raw || {};
+    const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+    // 前の形（LPの種類だけ並べていた版）は使わず、新しい既定にする
+    const src = raw.v === 2 && Array.isArray(raw.items) ? raw.items : d.items;
+    const items = src.slice(0, 30).map((x, i) => {
+      x = x || {};
+      return { id: /^[\w-]{1,24}$/.test(String(x.id || "")) ? String(x.id) : "a" + i + Date.now().toString(36),
+        on: x.on !== false, section: String(x.section || "").trim().slice(0, 12),
+        name: String(x.name || "").trim().slice(0, 30) || "賞", desc: String(x.desc || "").slice(0, 80),
+        src: AWARD_SRCS.indexOf(x.src) >= 0 ? x.src : "manual",
+        who: ["all", "stu", "oth"].indexOf(x.who) >= 0 ? x.who : "all",
+        places: Math.max(1, Math.min(5, x.places | 0 || 3)),
+        winners: (Array.isArray(x.winners) ? x.winners : []).slice(0, 5)
+          .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id) };
+    });
+    return { v: 2, title: String(raw.title || "").trim().slice(0, 30) || d.title, sub: String(raw.sub == null ? d.sub : raw.sub).slice(0, 40),
+      from: ok(raw.from) ? raw.from : "", to: ok(raw.to) ? raw.to : "", items,
+      closing: String(raw.closing == null ? d.closing : raw.closing).slice(0, 120), open: !!raw.open, updatedAt: raw.updatedAt || 0 };
+  }
+  async function loadAwardShow() {
+    const db = openDb();
+    try {
+      if (db) { const s = await db.collection("lboard_index").doc(AWARD_DOC).get(); return normAwardShow(s.exists ? s.data() : null); }
+      return normAwardShow(JSON.parse(localStorage.getItem("mcc-lb2-" + AWARD_DOC) || "null"));
+    } catch (e) { console.warn("表彰スライドの設定を読めませんでした", e); return normAwardShow(null); }
+  }
+  async function saveAwardShow(cfg) {
+    if (!isAdmin()) throw new Error("表彰スライドの設定は管理者のみです");
+    const c = normAwardShow(cfg); c.updatedAt = Date.now();
+    const db = openDb();
+    if (db) await db.collection("lboard_index").doc(AWARD_DOC).set(c);
+    else localStorage.setItem("mcc-lb2-" + AWARD_DOC, JSON.stringify(c));
+    return c;
+  }
+
 
   /* =============================================================
      予定表（スケジュール）
@@ -5241,6 +5384,7 @@
     cachedHomeConfig, homeConfigKey,
     absLP, absToLabel, absToShort, rankShort, tierLines, dayKey, shiftDay, jstNow,
     loadLpData, recordLp, recordLpForSelf, registerLpMember, markLpCollected, deleteLpDay, resetLpHistory, refreshLpRolesFromDiscord, refreshMyRoles, setLpBaseline, setLpEndAt, lpEndDay, lpEnded, lpHistOf, lpHtierOf, lpSeries, lpStats,
+    lpAwardStats, lpAwardRank, LP_AWARD_KINDS, AWARD_SRCS, loadAwardShow, saveAwardShow, normAwardShow, defaultAwardShow, lpaLabel,
     lpRange, daysBetween, syncLpRoles,
     lpGroupOrder, lpGroupIndex, lpSectionLabel, saveLpGroups,
     loadMembers, registerMember, syncMyRank, loadLatestRanks, applyLatestRanks, latestRankOf, updateGlobalMember, removeGlobalMember,

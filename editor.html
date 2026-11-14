@@ -509,6 +509,10 @@ body.ad-on{overflow:hidden}
 .lsBox li .v{font-weight:900;white-space:nowrap}
 .lsBox li .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:500}
 .lsBox li .v.up{color:#2E9A5A}.lsBox li .v.dn{color:#C8372D}
+.awIt{border:1px solid var(--border);border-radius:12px;padding:8px 10px;margin:6px 0;background:var(--surface)}
+.awIt.off{opacity:.55}
+.awIt .row{margin:3px 0}
+.awWin{display:flex;gap:6px;align-items:center;margin:3px 0 3px 30px}
 /* ---- スタンプ：カードの見た目のまま編集 ---- */
 .stGrid{display:grid;grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));gap:8px;max-width:640px;margin:6px 0 10px;user-select:none}
 .stEdWrap{position:relative;max-width:640px}
@@ -787,6 +791,26 @@ body.ad-on{overflow:hidden}
         <button class="mini" id="lsCsv">⬇ CSV</button>
       </div>
       <div id="lsOut"><div class="hint">「集計する」を押すと出ます</div></div>
+    </div>
+
+    <div class="card">
+      <h2>🏆 表彰スライド（最終日の表彰式）</h2>
+      <div class="lead"><a href="award.html" target="_blank" rel="noopener">award.html</a> を全画面で映して、「部門 → 賞の紹介 → 3位 → 2位 → 1位」とめくります（→ / Space / クリックで次、← で前、F で全画面、R で読み直し）。<br>
+        賞ごとに<b>決め方</b>を選べます：<b>手で選ぶ</b>（受賞者とひとことを入れる）／<b>試合数</b>／<b>コーチング時間</b>（先生）／<b>LPの各種</b>（開いたときの記録から自動）。</div>
+      <div class="row"><label>タイトル</label><input type="text" id="awTitle" maxlength="30" style="width:220px">
+        <input type="text" id="awSub" maxlength="40" style="flex:1;min-width:200px" placeholder="サブタイトル（例：クラウドハッシュテイル校 TFT合宿 SET18）"></div>
+      <div class="row"><label>期間</label><input type="date" id="awFrom"> 〜 <input type="date" id="awTo">
+        <span class="hint">空なら 卒業証書の期間の初日（なければ基準日）〜 しめきり</span></div>
+      <div class="hint" style="margin:8px 0 4px">賞（チェックしたものを上から順に。部門が変わるところで「◯◯ の部」のスライドが入ります）</div>
+      <div id="awItems"></div>
+      <div class="row"><button class="mini" id="awAdd" type="button">＋ 賞を足す</button></div>
+      <datalist id="awSecList"><option value="特別"><option value="先生"><option value="生徒"></datalist>
+      <div class="row" style="align-items:flex-start"><label style="padding-top:8px">しめの言葉</label>
+        <textarea id="awClosing" maxlength="120" style="flex:1;min-height:56px;font-family:inherit;font-size:13px;line-height:1.7"></textarea></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="awOpen"> 管理者以外も見られるようにする（オフなら管理者だけ）</label></div>
+      <div class="row"><button class="mini grad" id="awSave">保存</button>
+        <a class="mini" href="award.html" target="_blank" rel="noopener">▶ スライドを開く ↗</a>
+        <span class="hint" id="awStat"></span></div>
     </div>
 
     <div class="card">
@@ -2636,84 +2660,13 @@ body.ad-on{overflow:hidden}
      ============================================================= */
   const lsEsc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   const lsMd = k => k ? Number(k.slice(5, 7)) + "/" + Number(k.slice(8, 10)) : "";
-  const LS_TIERS = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"];
-  const LS_JP = { IRON:"アイアン", BRONZE:"ブロンズ", SILVER:"シルバー", GOLD:"ゴールド", PLATINUM:"プラチナ", EMERALD:"エメラルド", DIAMOND:"ダイヤモンド",
-    MASTER:"マスター", GRANDMASTER:"グランドマスター", CHALLENGER:"チャレンジャー" };
   let lsLast = null;   // いちばん最近の集計（CSV・コピー用）
-  function lsRank(id, day, v){
-    const r = C.rankOfAbs(v); if (!r) return null;
-    const ht = C.lpHtierOf ? C.lpHtierOf(lpData, id, day) : (((lpData.htier || {})[id] || {})[day] || "");
-    if (ht) { r.tier = ht; r.division = ""; }
-    return r;
-  }
-  const lsLabel = r => r ? (LS_JP[r.tier] || r.tier) + (r.division ? " " + r.division : "") + " " + (r.lp | 0) + "LP" : "—";
+  // 数え方とランキングの種類は core.js（表彰スライド award.html と共通）
+  const lsLabel = r => C.lpaLabel(r);
   const lsSigned = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v | 0);
-  // 生徒かどうか（LPランキングの「生徒／それ以外」と同じ決め方）
-  function lsIsStudent(m, order, stu){ if (!order.length) return true; return stu.indexOf(C.lpGroupIndex(m, order)) >= 0; }
-  function computeLpStats(){
-    const from = $("lsFrom").value, to = $("lsTo").value, who = $("lsWho").value;
-    const order = C.lpGroupOrder ? C.lpGroupOrder(lpData) : [];
-    let stu = order.map((g, i) => /生徒/.test(g.label) ? i : -1).filter(i => i >= 0);
-    if (!stu.length && order.length) stu = [0];
-    const people = [];
-    Object.entries(lpData.members || {}).forEach(([id, m]) => {
-      if (!m) return;
-      const isStu = lsIsStudent(m, order, stu);
-      if (who === "stu" && !isStu) return;
-      if (who === "oth" && isStu) return;
-      const h = C.lpHistOf ? C.lpHistOf(lpData, id) : ((lpData.hist || {})[id] || {});
-      const keys = Object.keys(h).sort();
-      const inR = keys.filter(k => (!from || k >= from) && (!to || k <= to));
-      if (!inR.length) { people.push({ id, name: m.name || "—", isStu, none: true }); return; }
-      // 基準：期間の初日以前でいちばん新しい記録（無ければ期間の最初の記録）
-      const before = keys.filter(k => from && k <= from);
-      const bk = before.length ? before[before.length - 1] : inR[0];
-      const pts = inR.map(k => ({ d: k, v: h[k] }));
-      let pk = pts[0], lo = pts[0];
-      pts.forEach(p => { if (p.v > pk.v) pk = p; if (p.v < lo.v) lo = p; });
-      const last = pts[pts.length - 1];
-      // 1日ごとの増減（となりの記録どうし）
-      let up = null, dn = null, streak = 0, best = 0, bestEnd = null;
-      const seq = (bk < inR[0] ? [{ d: bk, v: h[bk] }] : []).concat(pts);
-      for (let i = 1; i < seq.length; i++){
-        const d = seq[i].v - seq[i - 1].v;
-        if (!up || d > up.v) up = { v: d, d: seq[i].d };
-        if (!dn || d < dn.v) dn = { v: d, d: seq[i].d };
-        streak = d > 0 ? streak + 1 : 0;
-        if (streak > best) { best = streak; bestEnd = seq[i].d; }
-      }
-      const base = { d: bk, v: h[bk] };
-      const rb = lsRank(id, base.d, base.v), rp = lsRank(id, pk.d, pk.v), rl = lsRank(id, last.d, last.v);
-      people.push({ id, name: m.name || "—", isStu, base, peak: pk, low: lo, last, rb, rp, rl, up, dn, streak: best, streakEnd: bestEnd,
-        gainPeak: pk.v - base.v, gainLast: last.v - base.v, swing: pk.v - lo.v,
-        tierUp: rb && rp ? LS_TIERS.indexOf(rp.tier) - LS_TIERS.indexOf(rb.tier) : 0, days: pts.length });
-    });
-    return { from, to, who, people };
-  }
-  // ランキングの種類：key（並べる値）・表示・補足
-  const LS_KINDS = [
-    { id: "peak",  icon: "🏔", name: "最高LP（期間中のピーク）", desc: "期間中にいちばん高かったLP",
-      val: p => p.peak.v, show: p => lsLabel(p.rp), sub: p => lsMd(p.peak.d) },
-    { id: "gainPeak", icon: "🚀", name: "基準から最高まで盛った", desc: "基準（期間の初日）→ 期間中の最高",
-      val: p => p.gainPeak, show: p => lsSigned(p.gainPeak) + "LP", sub: p => lsLabel(p.rb) + " → " + lsLabel(p.rp), sign: true },
-    { id: "gainLast", icon: "📈", name: "基準から最後まで伸びた", desc: "基準 → 期間の最後の記録",
-      val: p => p.gainLast, show: p => lsSigned(p.gainLast) + "LP", sub: p => lsLabel(p.rb) + " → " + lsLabel(p.rl), sign: true },
-    { id: "last",  icon: "🏁", name: "最終LP", desc: "期間の最後の記録",
-      val: p => p.last.v, show: p => lsLabel(p.rl), sub: p => lsMd(p.last.d) },
-    { id: "up",    icon: "⚡", name: "1日でいちばん伸びた", desc: "となりの記録どうしの差（その日の23:45まで）",
-      val: p => p.up ? p.up.v : null, show: p => lsSigned(p.up.v) + "LP", sub: p => lsMd(p.up.d), sign: true },
-    { id: "tierUp", icon: "⬆️", name: "ティアをいくつ上げた", desc: "基準のティア → 最高のティア",
-      val: p => p.tierUp > 0 ? p.tierUp : null, show: p => p.tierUp + "ティア", sub: p => (LS_JP[p.rb.tier] || "") + " → " + (LS_JP[p.rp.tier] || "") },
-    { id: "streak", icon: "🔥", name: "連続で伸びた日数", desc: "記録が続けて上がった回数の最長",
-      val: p => p.streak > 0 ? p.streak : null, show: p => p.streak + "日連続", sub: p => p.streakEnd ? lsMd(p.streakEnd) + " まで" : "" },
-    { id: "swing", icon: "🎢", name: "振れ幅（最高−最低）", desc: "期間中の最高と最低の差",
-      val: p => p.swing > 0 ? p.swing : null, show: p => p.swing + "LP", sub: p => lsLabel(lsRank(p.id, p.low.d, p.low.v)) + " 〜 " + lsLabel(p.rp) },
-    { id: "dn",    icon: "🫠", name: "1日でいちばん下がった", desc: "ドンマイ枠（となりの記録どうしの差）",
-      val: p => p.dn && p.dn.v < 0 ? -p.dn.v : null, show: p => lsSigned(p.dn.v) + "LP", sub: p => lsMd(p.dn.d), sign: true }
-  ];
-  function lsSorted(kind, people){
-    return people.filter(p => !p.none && kind.val(p) != null).sort((a, b) => kind.val(b) - kind.val(a) || a.name.localeCompare(b.name, "ja"));
-  }
+  const computeLpStats = () => C.lpAwardStats(lpData, { from: $("lsFrom").value, to: $("lsTo").value, who: $("lsWho").value });
+  const LS_KINDS = C.LP_AWARD_KINDS || [];
+  const lsSorted = (kind, people) => C.lpAwardRank(kind, people);
   function runLpStats(){
     if (!lpData){ toast("LPデータを読み込み中です"); return; }
     const R = lsLast = computeLpStats(), N = +$("lsN").value || 10;
@@ -2737,16 +2690,16 @@ body.ad-on{overflow:hidden}
       h += '<div class="lsBox"><h4>' + k.icon + " " + k.name + '<span class="sp"></span><button class="mini lsCopy" data-k="' + k.id + '" type="button" title="Discord用の文をコピー">📋</button></h4>' +
         '<div class="ds">' + k.desc + "</div>" +
         (list.length ? "<ol>" + list.map((p, i) => {
-          const v = k.val(p), cls = k.sign ? (k.id === "dn" ? " dn" : v > 0 ? " up" : v < 0 ? " dn" : "") : "";
-          return '<li><span class="no' + (i < 3 ? " m" + (i + 1) : "") + '">' + (i + 1) + '</span><span class="nm">' + lsEsc(p.name) +
+          const v = k.val(p), cls = k.sign ? (k.neg ? " dn" : v > 0 ? " up" : v < 0 ? " dn" : "") : "";
+          return '<li><span class="no' + (p.place <= 3 ? " m" + p.place : "") + '">' + p.place + '</span><span class="nm">' + lsEsc(p.name) +
             '<span class="sub">' + lsEsc(k.sub(p)) + '</span></span><span class="v' + cls + '">' + lsEsc(k.show(p)) + "</span></li>";
         }).join("") + "</ol>" : '<div class="hint">該当なし</div>') + "</div>";
     });
     $("lsOut").innerHTML = h + "</div>";
     $("lsOut").querySelectorAll(".lsCopy").forEach(b => b.onclick = async () => {
       const k = LS_KINDS.find(x => x.id === b.dataset.k), list = lsSorted(k, R.people).slice(0, N);
-      const medal = i => ["🥇", "🥈", "🥉"][i] || (i + 1) + ".";
-      const txt = k.icon + " **" + k.name + "**（" + per + "）\n" + list.map((p, i) => medal(i) + " " + p.name + "　" + k.show(p) + (k.sub(p) ? "（" + k.sub(p) + "）" : "")).join("\n");
+      const medal = n => ["🥇", "🥈", "🥉"][n - 1] || n + ".";
+      const txt = k.icon + " **" + k.name + "**（" + per + "）\n" + list.map(p => medal(p.place) + " " + p.name + "　" + k.show(p) + (k.sub(p) ? "（" + k.sub(p) + "）" : "")).join("\n");
       try { await navigator.clipboard.writeText(txt); toast("コピーしました"); } catch(e){ prompt("コピーしてください", txt); }
     });
   }
@@ -2771,9 +2724,96 @@ body.ad-on{overflow:hidden}
     if (!$("lsTo").value) $("lsTo").value = C.lpEndDay ? C.lpEndDay(lpData) : C.dayKey();
   }
 
+  /* ---- 🏆 表彰スライドの設定 ---- */
+  let awCfg = null, awPeople = [];
+  const AW_SRC_NAME = { manual: "🎖 手で選ぶ", games: "🎮 試合数（多い順）", coach: "🎓 コーチング時間（先生）" };
+  async function loadAwardCfg(){
+    if (!C.loadAwardShow) return;
+    const [cfg, mem] = await Promise.all([C.loadAwardShow(), C.loadMembers().catch(() => ({}))]);
+    awCfg = cfg;
+    // 受賞者に選べる人：LPの名簿＋メンバー
+    const map = {};
+    Object.entries((lpData && lpData.members) || {}).forEach(([id, m]) => { if (m && m.name) map[id] = m.name; });
+    Object.entries(mem || {}).forEach(([id, m]) => { if (m && m.name && !map[id]) map[id] = m.name; });
+    awPeople = Object.entries(map).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    $("awTitle").value = awCfg.title; $("awSub").value = awCfg.sub; $("awFrom").value = awCfg.from; $("awTo").value = awCfg.to;
+    $("awClosing").value = awCfg.closing; $("awOpen").checked = awCfg.open;
+    $("awStat").textContent = awCfg.updatedAt ? "保存済み" : "まだ保存していません（既定の賞）";
+    paintAwItems();
+  }
+  function paintAwItems(){
+    const box = $("awItems"); box.innerHTML = "";
+    const srcOpts = Object.keys(AW_SRC_NAME).map(k => [k, AW_SRC_NAME[k]])
+      .concat((C.LP_AWARD_KINDS || []).map(k => [k.id, k.icon + " LP：" + k.name]));
+    awCfg.items.forEach((it, i) => {
+      const d = document.createElement("div"); d.className = "awIt" + (it.on ? "" : " off");
+      d.innerHTML = '<div class="row"><label class="chk" style="min-width:auto"><input type="checkbox" class="on"></label>' +
+        '<input type="text" class="sec" list="awSecList" maxlength="12" style="width:70px" placeholder="部門">' +
+        '<input type="text" class="nm" maxlength="30" style="width:200px" placeholder="賞の名前">' +
+        '<select class="src">' + srcOpts.map(o => '<option value="' + o[0] + '">' + lsEsc(o[1]) + "</option>").join("") + "</select>" +
+        '<span style="flex:1"></span><button class="mini up" type="button"' + (i ? "" : " disabled") + '>↑</button><button class="mini dn" type="button"' + (i < awCfg.items.length - 1 ? "" : " disabled") + '>↓</button>' +
+        '<button class="mini del" type="button" title="この賞を消す">✕</button></div>' +
+        '<div class="row"><input type="text" class="ds" maxlength="80" style="flex:1;min-width:200px;margin-left:30px" placeholder="説明（スライドに出る・任意）">' +
+        (it.src === "manual" ? "" :
+          '<select class="who"><option value="all">全員から</option><option value="stu">生徒から</option><option value="oth">生徒以外から</option></select>' +
+          '<select class="pl"><option value="1">1位だけ</option><option value="2">1〜2位</option><option value="3">1〜3位</option><option value="4">1〜4位</option><option value="5">1〜5位</option></select>') +
+        "</div>" + (it.src === "manual" ? '<div class="wins"></div>' : "");
+      const q = c => d.querySelector(c);
+      q(".on").checked = it.on; q(".sec").value = it.section; q(".nm").value = it.name; q(".ds").value = it.desc; q(".src").value = it.src;
+      q(".on").onchange = e => { it.on = e.target.checked; d.classList.toggle("off", !it.on); };
+      q(".sec").oninput = e => { it.section = e.target.value; };
+      q(".nm").oninput = e => { it.name = e.target.value; };
+      q(".ds").oninput = e => { it.desc = e.target.value; };
+      q(".src").onchange = e => { it.src = e.target.value; paintAwItems(); };
+      if (q(".who")){ q(".who").value = it.who; q(".who").onchange = e => { it.who = e.target.value; }; }
+      if (q(".pl")){ q(".pl").value = String(it.places); q(".pl").onchange = e => { it.places = +e.target.value; }; }
+      q(".up").onclick = () => { awCfg.items.splice(i - 1, 0, awCfg.items.splice(i, 1)[0]); paintAwItems(); };
+      q(".dn").onclick = () => { awCfg.items.splice(i + 1, 0, awCfg.items.splice(i, 1)[0]); paintAwItems(); };
+      q(".del").onclick = () => { if (!confirm("「" + it.name + "」を消しますか？")) return; awCfg.items.splice(i, 1); paintAwItems(); };
+      // 手で選ぶ：受賞者（上から1位・2位…）とひとこと
+      if (q(".wins")){
+        const wb = q(".wins");
+        const opt = '<option value="">— 受賞者を選ぶ —</option>' + awPeople.map(p => '<option value="' + lsEsc(p.id) + '">' + lsEsc(p.name) + "</option>").join("");
+        it.winners.forEach((w, j) => {
+          const r = document.createElement("div"); r.className = "awWin";
+          r.innerHTML = '<b style="width:34px">' + (j + 1) + "位</b><select>" + opt + '</select><input type="text" maxlength="40" style="flex:1" placeholder="ひとこと・記録（例：12pt／ナイスショット！）">' +
+            '<button class="mini" type="button" title="外す">✕</button>';
+          const [sel, inp, x] = [r.querySelector("select"), r.querySelector("input"), r.querySelector("button")];
+          sel.value = w.id; inp.value = w.note;
+          sel.onchange = () => { w.id = sel.value; };
+          inp.oninput = () => { w.note = inp.value; };
+          x.onclick = () => { it.winners.splice(j, 1); paintAwItems(); };
+          wb.appendChild(r);
+        });
+        if (it.winners.length < 5){
+          const add = document.createElement("div"); add.className = "awWin";
+          add.innerHTML = '<button class="mini" type="button">＋ 受賞者を足す</button><span class="hint">' + (it.winners.length ? "2人以上なら表彰台で 下の順位からめくります" : "まだ受賞者がいません") + "</span>";
+          add.querySelector("button").onclick = () => { it.winners.push({ id: "", note: "" }); paintAwItems(); };
+          wb.appendChild(add);
+        }
+      }
+      box.appendChild(d);
+    });
+  }
+  $("awAdd").onclick = () => {
+    if (!awCfg) return;
+    awCfg.items.push({ id: "a" + Date.now().toString(36), on: true, section: (awCfg.items[awCfg.items.length - 1] || {}).section || "特別",
+      name: "", desc: "", src: "manual", who: "all", places: 1, winners: [] });
+    paintAwItems();
+  };
+  $("awSave").onclick = async () => {
+    if (!awCfg){ toast("core.js が古いようです（最新に置きかえてください）"); return; }
+    Object.assign(awCfg, { title: $("awTitle").value, sub: $("awSub").value, from: $("awFrom").value, to: $("awTo").value,
+      closing: $("awClosing").value, open: $("awOpen").checked });
+    awCfg.items.forEach(it => { it.winners = it.winners.filter(w => w.id); });
+    try { awCfg = await C.saveAwardShow(awCfg); toast("表彰スライドの設定を保存しました"); $("awStat").textContent = "保存済み"; paintAwItems(); }
+    catch(e){ toast(e.message); }
+  };
+
   function renderLpStat(){
     if (!lpData) return;
     fillLpStatsRange();
+    if (!awCfg) loadAwardCfg().catch(e => console.warn("表彰スライドの設定", e));
     const ids = Object.keys(lpData.members);
     const days = new Set();
     Object.values(lpData.hist).forEach(h => Object.keys(h).forEach(d => days.add(d)));

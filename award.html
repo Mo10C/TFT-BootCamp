@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>表彰式 ｜ クラウドハッシュテイル校 TOOLS</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<meta name="theme-color" content="#7CA455">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Yuji+Boku&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ui.css?v=5.3">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+/* =============================================================
+   award.html — 表彰スライド（最終日の表彰式で全画面に映す）
+   ・部門（特別／先生／生徒 など）→ 賞の紹介 →「3位 → 2位 → 1位」の順にめくる
+   ・賞の決め方：手で選ぶ／試合数／コーチング時間／LPの各種（LP は しめきり後はしめきりの記録まで）
+   ・賞・部門・受賞者・期間は 管理コンソール →「LP」→「🏆 表彰スライド」
+   操作：→ / Space / クリック＝次　← ＝前　F＝全画面　R＝データを読み直す
+   ============================================================= */
+html,body{margin:0;height:100%;overflow:hidden;background:#1d2a14}
+body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-select:none;user-select:none;cursor:default}
+#wrap{position:fixed;inset:0;display:grid;place-items:center}
+#stage{position:relative;width:1600px;height:900px;transform-origin:center center;overflow:hidden;border-radius:6px;
+  background:radial-gradient(circle at 20% 15%,#FFFDF0 0,transparent 45%),radial-gradient(circle at 85% 90%,#D6EDB0 0,transparent 50%),linear-gradient(160deg,#FAFFEE,#E6F5CB 60%,#D4ECA9);
+  box-shadow:0 30px 80px rgba(0,0,0,.45)}
+#stage::before{content:"";position:absolute;inset:22px;border:4px solid #C9A24A;border-radius:22px;pointer-events:none;z-index:5}
+#stage::after{content:"";position:absolute;inset:36px;border:1.5px solid rgba(201,162,74,.55);border-radius:14px;pointer-events:none;z-index:5}
+.rays{position:absolute;left:50%;top:52%;width:2600px;height:2600px;margin:-1300px 0 0 -1300px;border-radius:50%;
+  background:repeating-conic-gradient(rgba(255,255,255,.55) 0 6deg,transparent 6deg 16deg);opacity:.55;animation:spin 120s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sl{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;z-index:2}
+.kick{font-family:"Space Grotesk",sans-serif;font-weight:700;letter-spacing:.32em;color:#7CA455;font-size:22px}
+.brush{font-family:"Yuji Boku","Zen Kaku Gothic New",serif}
+/* タイトル */
+.t-title{font-size:150px;line-height:1.1;margin:18px 0 8px;letter-spacing:.08em;color:#23384D}
+.t-sub{font-size:34px;font-weight:900;color:#5E7A3A}
+.t-per{font-family:"Space Grotesk",sans-serif;font-size:26px;color:#6D8699;margin-top:14px;letter-spacing:.06em}
+.mas{position:absolute;right:70px;bottom:46px;width:260px;filter:drop-shadow(0 10px 14px rgba(40,60,20,.3))}
+.line{display:flex;align-items:center;gap:18px;margin:6px 0}
+.line i{display:block;width:260px;height:3px;background:#C9A24A}.line b{width:14px;height:14px;background:#C9A24A;transform:rotate(45deg)}
+/* 項目の紹介 */
+.i-no{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:26px;color:#8C6A24;letter-spacing:.2em}
+.i-ic{font-size:150px;line-height:1;margin:10px 0 6px;filter:drop-shadow(0 8px 10px rgba(0,0,0,.15));animation:pop .6s cubic-bezier(.2,1.6,.4,1) both}
+.i-name{font-size:104px;font-weight:900;line-height:1.15;color:#23384D;padding:0 80px}
+.i-desc{font-size:32px;color:#5E7A3A;font-weight:700;margin-top:18px}
+@keyframes pop{0%{transform:scale(.3);opacity:0}100%{transform:scale(1);opacity:1}}
+/* 表彰台 */
+.p-head{position:absolute;top:62px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;z-index:3}
+.p-head .ic{font-size:58px}.p-head .nm{font-size:54px;font-weight:900}
+.p-head .ds{position:absolute;top:74px;left:0;right:0;text-align:center;font-size:22px;color:#6D8699;font-weight:700}
+.podium{position:absolute;left:80px;right:80px;bottom:60px;top:180px;display:flex;align-items:flex-end;justify-content:center;gap:30px;z-index:3}
+.col{width:340px;flex:none;display:flex;flex-direction:column;align-items:center}
+.who{width:100%}
+.who{display:flex;flex-direction:column;align-items:center;min-height:300px;justify-content:flex-end;padding-bottom:14px}
+.av{width:150px;height:150px;border-radius:50%;object-fit:cover;border:7px solid #fff;box-shadow:0 0 0 5px var(--ring),0 12px 24px rgba(0,0,0,.18);background:#fff}
+.avf{display:grid;place-items:center;font-size:66px;font-weight:900;color:#fff;background:var(--ring)}
+.col.p1 .av{width:190px;height:190px}
+.q{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;font-family:"Space Grotesk",sans-serif;font-size:84px;font-weight:700;color:#fff;
+  background:repeating-linear-gradient(135deg,#B7C9A0 0 14px,#A9BD90 14px 28px);box-shadow:0 0 0 5px #fff,0 12px 24px rgba(0,0,0,.12)}
+.col.p1 .q{width:190px;height:190px}
+.nm2{font-weight:900;margin-top:16px;max-width:340px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.val{font-family:"Space Grotesk","Zen Kaku Gothic New",sans-serif;font-weight:700;margin-top:6px;color:#23384D;white-space:nowrap;line-height:1.15}
+.val.up{color:#2E9A5A}.val.dn{color:#C8372D}
+.sub{font-size:19px;color:#6D8699;font-weight:700;margin-top:4px;max-width:340px}
+.rk{margin-top:6px;font-size:19px;font-weight:900}
+.rk img,.rk svg{width:30px!important;height:30px!important;vertical-align:-8px}
+.ped{width:100%;border-radius:18px 18px 0 0;display:flex;justify-content:center;padding-top:16px;color:#fff;font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:64px;
+  box-shadow:inset 0 -10px 0 rgba(0,0,0,.08),0 12px 26px rgba(40,60,20,.18)}
+.ped.g{background:linear-gradient(180deg,#F2CF6B,#C9A24A)}.ped.s{background:linear-gradient(180deg,#D9E1E8,#9FAEBB)}.ped.b{background:linear-gradient(180deg,#E3A877,#B07A45)}
+.ped.o{background:linear-gradient(180deg,#C8DDA8,#9DBB72)}
+.ped small{font-size:26px;margin-left:4px;margin-top:18px}
+.rv .who > *{animation:rise .7s cubic-bezier(.2,1.4,.4,1) both}
+.rv .who > *:nth-child(2){animation-delay:.08s}.rv .who > *:nth-child(3){animation-delay:.16s}.rv .who > *:nth-child(4){animation-delay:.24s}.rv .who > *:nth-child(5){animation-delay:.3s}
+@keyframes rise{0%{transform:translateY(40px) scale(.7);opacity:0}100%{transform:none;opacity:1}}
+.col.p1.rv .av{animation:glow 2.2s ease-in-out infinite .8s}
+@keyframes glow{50%{box-shadow:0 0 0 5px var(--ring),0 0 50px 14px rgba(255,214,90,.85)}}
+.empty{font-size:30px;color:#6D8699;font-weight:700}
+/* しめ */
+.c-msg{font-size:64px;font-weight:900;line-height:1.4;padding:0 120px;margin-top:10px}
+/* 操作バー・お知らせ */
+#nav{position:fixed;right:16px;bottom:14px;display:flex;align-items:center;gap:6px;background:rgba(20,30,15,.78);color:#fff;padding:6px 8px;border-radius:999px;
+  font:700 13px "Space Grotesk",sans-serif;z-index:20;transition:opacity .4s}
+#nav button{border:none;background:rgba(255,255,255,.14);color:#fff;border-radius:999px;min-width:34px;height:30px;font:inherit;cursor:pointer;padding:0 10px}
+#nav button:hover{background:rgba(255,255,255,.28)}
+#nav.hide{opacity:0;pointer-events:none}
+#bar{position:fixed;left:0;bottom:0;height:4px;background:#C9A24A;z-index:21;transition:width .3s}
+#msg{position:fixed;inset:0;display:none;place-items:center;color:#fff;font-size:20px;font-weight:700;text-align:center;z-index:30;padding:20px;line-height:1.8}
+#cf{position:fixed;inset:0;pointer-events:none;z-index:15}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage"><div class="rays"></div><div id="slide"></div></div></div>
+<canvas id="cf"></canvas>
+<div id="nav">
+  <button id="bPrev" title="前（←）">‹</button><span id="cnt">0 / 0</span><button id="bNext" title="次（→・Space・クリック）">›</button>
+  <button id="bReload" title="データを読み直す（R）">↻</button><button id="bFull" title="全画面（F）">⛶</button>
+</div>
+<div id="bar"></div>
+<div id="msg"></div>
+
+<script src="config.js"></script>
+<script src="core.js?v=5.3"></script>
+<script>
+(function(){
+  "use strict";
+  const C = window.LBCore;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const md = k => k ? Number(k.slice(5, 7)) + "/" + Number(k.slice(8, 10)) : "";
+  const session = C.Session.require();
+  if (!session) return;
+  const IS_ADMIN = C.isAdmin(session);
+  const say = t => { $("msg").innerHTML = t; $("msg").style.display = t ? "grid" : "none"; };
+
+  /* ---- 16:9 の舞台を画面いっぱいに ---- */
+  function fit(){ const s = Math.min(innerWidth / 1600, innerHeight / 900); $("stage").style.transform = "scale(" + s + ")"; }
+  addEventListener("resize", fit); fit();
+
+  let CFG = null, SLIDES = [], cur = 0, step = 0, MEM = {}, LPM = {};
+  const nameOf = id => (MEM[id] && MEM[id].name) || (LPM[id] && LPM[id].name) || "—";
+  const avatarOf = id => { const m = MEM[id]; return (m && m.discord && m.discord.avatar) || (LPM[id] && LPM[id].avatar) || ""; };
+  const RING = ["#C9A24A", "#9FAEBB", "#B07A45", "#9DBB72", "#9DBB72"];
+  const hours = sec => { const h = sec / 3600; return h >= 10 ? Math.round(h) : Math.round(h * 10) / 10; };
+
+  /* コーチング時間：担当の生徒が「先生の名前が入ったVC」にいた時間（卒業証書と同じ数え方） */
+  const normN = t => String(t || "").toLowerCase().replace(/先生|せんせい|[\s　・.,_\-|｜/()（）【】\[\]「」『』'"!！?？~〜#＃:：]/g, "");
+  const keepN = t => String(t || "").toLowerCase().replace(/[\s　・.,_\-|｜/()（）【】\[\]「」『』'"!！?？~〜#＃:：]/g, "");
+  function coachSec(vcUsers, stuId, tName){
+    const key = normN(tName); if (key.length < 2) return 0;
+    const u = vcUsers.find(v => "u_" + v.id === stuId || v.id === stuId), chs = (u && u.byChannel) || [];
+    const strict = chs.filter(c => keepN(c.name).indexOf(key + "先生") >= 0 || keepN(c.name).indexOf(key + "せんせい") >= 0);
+    const hit = strict.length ? strict : chs.filter(c => normN(c.name).indexOf(key) >= 0);
+    return hit.reduce((n, c) => n + (c.seconds || 0), 0);
+  }
+
+  async function load(){
+    say("読み込み中…");
+    const safe = p => p.catch(e => { console.warn(e); return null; });
+    const [cfg, lp, mem, album, games] = await Promise.all([C.loadAwardShow(), C.loadLpData(), safe(C.loadMembers()),
+      safe(C.loadAlbum ? C.loadAlbum() : Promise.resolve(null)), safe(C.loadCampGames ? C.loadCampGames() : Promise.resolve({}))]);
+    CFG = cfg; MEM = mem || {}; LPM = lp.members || {};
+    if (!IS_ADMIN && !cfg.open){ say("🏆 表彰式はまだ準備中です。<br>はじまるまでお待ちください。"); return false; }
+    // 期間：設定 → 卒業証書の期間 → 基準日〜しめきり
+    const from = cfg.from || (album && album.start) || lp.baseline || "", to = cfg.to || C.lpEndDay(lp);
+    const all = C.lpAwardStats(lp, { from, to, who: "all" });
+    const isStu = {}; all.people.forEach(p => { isStu[p.id] = p.isStu; });
+    const okWho = (who, id) => who === "all" || (who === "stu" ? isStu[id] !== false : isStu[id] === false);
+    const needCoach = cfg.items.some(it => it.on && it.src === "coach");
+    const vc = needCoach && album ? await safe(C.loadVcRange(album.start || from, album.end || to)) : null;
+    const per = md(from) + " 〜 " + md(to);
+    SLIDES = [{ type: "title", per }];
+    let no = 0, sec = null;
+    cfg.items.filter(it => it.on).forEach(it => {
+      let list = [], icon = "🏆";
+      if (it.src === "manual"){
+        icon = "🎖";
+        list = it.winners.map((w, i) => ({ id: w.id, name: nameOf(w.id), place: i + 1, show: w.note || "", sub: "", cls: "" }));
+      } else if (it.src === "games"){
+        icon = "🎮";
+        const rows = Object.entries(games || {}).filter(([id, n]) => typeof n === "number" && n > 0 && okWho(it.who, id))
+          .map(([id, n]) => ({ id, name: nameOf(id), v: n })).sort((a, b) => b.v - a.v || a.name.localeCompare(b.name, "ja"));
+        list = rank(rows).map(r => Object.assign(r, { show: r.v + "試合", sub: "合宿期間中のTFT", cls: "" }));
+      } else if (it.src === "coach"){
+        icon = "🎓";
+        const vu = (vc && vc.users) || [], by = {};
+        Object.entries((album && album.mentors) || {}).forEach(([sid, tid]) => {
+          const sec = coachSec(vu, sid, nameOf(tid));
+          if (!by[tid]) by[tid] = { sec: 0, stu: [] };
+          by[tid].sec += sec; by[tid].stu.push(nameOf(sid));
+        });
+        const rows = Object.entries(by).filter(([id, x]) => x.sec > 0 && okWho(it.who, id))
+          .map(([id, x]) => ({ id, name: nameOf(id), v: x.sec, stu: x.stu })).sort((a, b) => b.v - a.v || a.name.localeCompare(b.name, "ja"));
+        list = rank(rows).map(r => Object.assign(r, { show: hours(r.v) + "時間", sub: "担当：" + r.stu.join("・"), cls: "" }));
+      } else {
+        const kind = C.LP_AWARD_KINDS.find(k => k.id === it.src); if (!kind) return;
+        icon = kind.icon;
+        const R = C.lpAwardStats(lp, { from, to, who: it.who });
+        list = C.lpAwardRank(kind, R.people).map(p => {
+          const v = kind.val(p);
+          return { id: p.id, name: p.name, place: p.place, show: kind.show(p), sub: kind.sub(p),
+            cls: kind.sign ? (kind.neg ? " dn" : v > 0 ? " up" : v < 0 ? " dn" : "") : "" };
+        });
+      }
+      if (it.src !== "manual") list = list.filter(x => x.place <= it.places).slice(0, it.places);
+      no++;
+      if (it.section && it.section !== sec){ sec = it.section; SLIDES.push({ type: "section", label: sec }); }
+      SLIDES.push({ type: "intro", it, icon, no });
+      SLIDES.push({ type: "podium", it, icon, list: list.slice(0, 5), steps: Math.min(5, list.length) });
+    });
+    SLIDES.push({ type: "closing", per });
+    say("");
+    return true;
+  }
+  // 同じ値は同じ順位
+  function rank(rows){ rows.forEach((r, i) => { r.place = i && rows[i - 1].v === r.v ? rows[i - 1].place : i + 1; }); return rows; }
+
+  /* ---- 1枚ずつの中身 ---- */
+  const mascot = '<img class="mas" src="assets/mascot.png" alt="" onerror="this.remove()">';
+  function avatarHtml(p, place){
+    const ring = RING[place - 1] || "#9DBB72", src = avatarOf(p.id);
+    const fb = '<div class="av avf" style="--ring:' + ring + '">' + esc(String(p.name).slice(0, 1)) + "</div>";
+    return src ? '<img class="av" style="--ring:' + ring + '" src="' + esc(src) + '" alt="" onerror="this.outerHTML=this.dataset.fb" data-fb="' + esc(fb) + '">' : fb;
+  }
+  // 列の幅（340px）に収まる文字の大きさ。全角は1文字、半角は0.58文字ぶんで数える
+  function fitFs(t, base, maxW){
+    const n = Array.from(String(t)).reduce((a, c) => a + (/[ -~]/.test(c) ? 0.58 : 1), 0) || 1;
+    return Math.max(18, Math.min(base, Math.floor(maxW / n)));
+  }
+  // 表彰台の並び：まん中に1位、左に2位、右に3位、その外に4位・5位
+  const ARR = { 1: [1], 2: [2, 1], 3: [2, 1, 3], 4: [4, 2, 1, 3], 5: [4, 2, 1, 3, 5] };
+  const PED_H = { 1: 270, 2: 200, 3: 150, 4: 110, 5: 90 };
+  const PED_C = { 1: "g", 2: "s", 3: "b", 4: "o", 5: "o" };
+  function render(){
+    const S = SLIDES[cur]; if (!S) return;
+    let h = "";
+    if (S.type === "title"){
+      h = '<div class="sl"><div class="kick">CLOUD HASHTAIL SCHOOL ・ AWARDS</div>' +
+        '<div class="t-title brush">' + esc(CFG.title) + "</div>" +
+        '<div class="line"><i></i><b></b><i></i></div>' +
+        (CFG.sub ? '<div class="t-sub">' + esc(CFG.sub) + "</div>" : "") + '<div class="t-per">' + esc(S.per) + "</div></div>" + mascot;
+    } else if (S.type === "section"){
+      h = '<div class="sl"><div class="kick">SECTION</div><div class="t-title brush" style="font-size:170px">' + esc(S.label) + "</div>" +
+        '<div class="line"><i></i><b></b><i></i></div><div class="t-sub">の 部</div></div>';
+    } else if (S.type === "intro"){
+      h = '<div class="sl"><div class="i-no">' + (S.it.section ? esc(S.it.section) + " ・ " : "") + "AWARD " + String(S.no).padStart(2, "0") + '</div><div class="i-ic">' + S.icon + "</div>" +
+        '<div class="i-name">' + esc(S.it.name) + "</div>" + (S.it.desc ? '<div class="i-desc">' + esc(S.it.desc) + "</div>" : "") + "</div>";
+    } else if (S.type === "podium"){
+      const n = S.list.length;
+      h = '<div class="p-head"><span class="ic">' + S.icon + '</span><span class="nm">' + esc(S.it.name) + "</span>" +
+        (S.it.desc ? '<div class="ds">' + esc(S.it.desc) + "</div>" : "") + "</div>";
+      if (!n) h += '<div class="sl"><div class="empty">' + (S.it.src === "manual" ? "受賞者がまだ入っていません（管理コンソール →「LP」→「🏆 表彰スライド」）" : "この賞に当てはまる人はいませんでした") + "</div></div>";
+      else {
+        // step 枚めくった＝下の順位から step 人ぶん見えている
+        h += '<div class="podium">' + (ARR[n] || ARR[3]).map(pos => {
+          const i = pos - 1, p = S.list[i], open = i >= n - step, place = p.place;
+          return '<div class="col p' + pos + (open ? " rv" : "") + '">' +
+            '<div class="who">' + (open
+              ? avatarHtml(p, place) + '<div class="nm2" style="font-size:' + fitFs(p.name, pos === 1 ? 42 : 34, 330) + 'px">' + esc(p.name) + "</div>" +
+                (p.show ? '<div class="val' + (p.cls || "") + '" style="font-size:' + fitFs(p.show, pos === 1 ? 58 : 44, 330) + 'px">' + esc(p.show) + "</div>" : "") +
+                (p.sub ? '<div class="sub">' + esc(p.sub) + "</div>" : "")
+              : '<div class="q">?</div>') + "</div>" +
+            '<div class="ped ' + PED_C[pos] + '" style="height:' + PED_H[pos] + 'px">' + place + "<small>" + (place === 1 ? "st" : place === 2 ? "nd" : place === 3 ? "rd" : "th") + "</small></div></div>";
+        }).join("") + "</div>";
+      }
+    } else if (S.type === "closing"){
+      h = '<div class="sl"><div class="kick">CONGRATULATIONS</div><div class="t-title brush" style="font-size:120px">おめでとう</div>' +
+        '<div class="line"><i></i><b></b><i></i></div>' + (CFG.closing ? '<div class="c-msg">' + esc(CFG.closing) + "</div>" : "") + "</div>" + mascot;
+    }
+    $("slide").innerHTML = h;
+    const total = SLIDES.length;
+    $("cnt").textContent = (cur + 1) + " / " + total;
+    $("bar").style.width = ((cur + 1) / total * 100) + "%";
+  }
+
+  /* ---- めくる ---- */
+  function next(){
+    const S = SLIDES[cur]; if (!S) return;
+    if (S.type === "podium" && step < S.steps){
+      step++; render();
+      const opened = S.list[S.steps - step];
+      burst(opened && opened.place === 1 ? 220 : 70);
+      return;
+    }
+    if (cur < SLIDES.length - 1){ cur++; step = 0; render(); if (SLIDES[cur].type === "closing") burst(260); }
+  }
+  function prev(){
+    const S = SLIDES[cur]; if (!S) return;
+    if (S.type === "podium" && step > 0){ step--; render(); return; }
+    if (cur > 0){ cur--; const P = SLIDES[cur]; step = P.type === "podium" ? P.steps : 0; render(); }
+  }
+  addEventListener("keydown", e => {
+    if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].indexOf(e.key) >= 0){ e.preventDefault(); next(); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].indexOf(e.key) >= 0){ e.preventDefault(); prev(); }
+    else if (e.key === "f" || e.key === "F") full();
+    else if (e.key === "r" || e.key === "R") reload();
+    else if (e.key === "Home"){ cur = 0; step = 0; render(); }
+    wake();
+  });
+  $("wrap").addEventListener("click", e => { if (e.clientX < innerWidth * 0.22) prev(); else next(); });
+  $("bNext").onclick = e => { e.stopPropagation(); next(); };
+  $("bPrev").onclick = e => { e.stopPropagation(); prev(); };
+  $("bFull").onclick = e => { e.stopPropagation(); full(); };
+  $("bReload").onclick = e => { e.stopPropagation(); reload(); };
+  function full(){ if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); else document.exitFullscreen(); }
+  async function reload(){ const keep = cur; if (await load()){ cur = Math.min(keep, SLIDES.length - 1); step = 0; render(); } }
+  // マウスを動かさないと操作バーは消える
+  let idle = 0;
+  function wake(){ $("nav").classList.remove("hide"); clearTimeout(idle); idle = setTimeout(() => $("nav").classList.add("hide"), 2500); }
+  addEventListener("mousemove", wake); wake();
+
+  /* ---- 紙ふぶき ---- */
+  function burst(n){
+    const cv = $("cf"), g = cv.getContext("2d"); cv.width = innerWidth; cv.height = innerHeight;
+    const COL = ["#F2CF6B", "#7CA455", "#FF8FB8", "#7FD4FF", "#FFFFFF", "#C9A24A", "#B98BFF"];
+    const P = Array.from({ length: n }, () => ({ x: innerWidth * (0.2 + Math.random() * 0.6), y: innerHeight * 0.35, vx: (Math.random() - .5) * 18, vy: -Math.random() * 16 - 6,
+      w: 8 + Math.random() * 8, h: 4 + Math.random() * 5, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: COL[(Math.random() * COL.length) | 0] }));
+    const t0 = performance.now();
+    const tick = now => {
+      g.clearRect(0, 0, cv.width, cv.height);
+      P.forEach(p => { p.vy += .38; p.x += p.vx; p.y += p.vy; p.r += p.vr; g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); g.restore(); });
+      if (now - t0 < 3200) requestAnimationFrame(tick); else g.clearRect(0, 0, cv.width, cv.height);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  load().then(ok => { if (ok) render(); }).catch(e => say("読み込めませんでした：" + esc(e.message)));
+})();
+</script>
+</body>
+</html>
