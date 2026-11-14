@@ -490,6 +490,25 @@ body.ad-on{overflow:hidden}
   .ad-side .tab{width:auto;padding:8px 11px}
   .ad-main{overflow:visible;padding:14px 14px 60px}
 }
+/* ---- LPの集計 ---- */
+.lsTiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:8px 0 12px}
+.lsTile{border:1px solid var(--border);border-radius:12px;padding:9px 12px;background:var(--surface-2)}
+.lsTile small{display:block;font-size:11px;color:var(--muted);font-weight:700}
+.lsTile b{display:block;font-size:20px;font-weight:900;margin-top:2px}
+.lsGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+.lsBox{border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:var(--surface)}
+.lsBox h4{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:900;margin:0 0 2px}
+.lsBox h4 .sp{flex:1}
+.lsBox .ds{font-size:11px;color:var(--muted);margin-bottom:6px}
+.lsBox ol{list-style:none;margin:0;padding:0}
+.lsBox li{display:flex;align-items:baseline;gap:8px;padding:4px 2px;border-top:1px dashed var(--border);font-size:12.5px}
+.lsBox li:first-child{border-top:none}
+.lsBox li .no{width:22px;text-align:right;font-weight:900;color:var(--muted);flex:none}
+.lsBox li .no.m1{color:#C9A24A}.lsBox li .no.m2{color:#8C9AA8}.lsBox li .no.m3{color:#B07A45}
+.lsBox li .nm{flex:1;min-width:0;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lsBox li .v{font-weight:900;white-space:nowrap}
+.lsBox li .sub{display:block;font-size:10.5px;color:var(--muted);font-weight:500}
+.lsBox li .v.up{color:#2E9A5A}.lsBox li .v.dn{color:#C8372D}
 /* ---- スタンプ：カードの見た目のまま編集 ---- */
 .stGrid{display:grid;grid-template-columns:repeat(var(--cols,5),minmax(0,1fr));gap:8px;max-width:640px;margin:6px 0 10px;user-select:none}
 .stEdWrap{position:relative;max-width:640px}
@@ -752,6 +771,22 @@ body.ad-on{overflow:hidden}
         <button class="mini" id="lpClearEnd">クリア</button>
       </div>
       <div class="hint" id="lpEndHint"></div>
+    </div>
+
+    <div class="card">
+      <h2>📊 LPの集計</h2>
+      <div class="lead">毎日23:45の記録（しめきり後はしめきりの記録まで）から、いろいろなランキングを出します。
+        期間は最初は「基準日 〜 しめきり（なければ今日）」。各ランキングの「📋」で Discord に貼れる文にしてコピーできます。</div>
+      <div class="row">
+        <label>期間</label><input type="date" id="lsFrom"> 〜 <input type="date" id="lsTo">
+        <label style="min-width:auto;margin-left:8px">対象</label>
+        <select id="lsWho"><option value="all">全員</option><option value="stu">生徒だけ</option><option value="oth">生徒以外（先生など）</option></select>
+        <label style="min-width:auto;margin-left:8px">件数</label>
+        <select id="lsN"><option value="5">5人</option><option value="10" selected>10人</option><option value="20">20人</option><option value="999">全員</option></select>
+        <button class="mini grad" id="lsRun">集計する</button>
+        <button class="mini" id="lsCsv">⬇ CSV</button>
+      </div>
+      <div id="lsOut"><div class="hint">「集計する」を押すと出ます</div></div>
     </div>
 
     <div class="card">
@@ -2596,8 +2631,149 @@ body.ad-on{overflow:hidden}
     if (!$("lpResetDate").value) $("lpResetDate").value = lpData.collectFrom && lpData.collectFrom >= C.dayKey() ? lpData.collectFrom : C.dayKey();
     renderLpStat();
   }
+  /* =============================================================
+     📊 LPの集計（最高LP・基準からの伸び・1日の伸び など）
+     ============================================================= */
+  const lsEsc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+  const lsMd = k => k ? Number(k.slice(5, 7)) + "/" + Number(k.slice(8, 10)) : "";
+  const LS_TIERS = ["IRON","BRONZE","SILVER","GOLD","PLATINUM","EMERALD","DIAMOND","MASTER","GRANDMASTER","CHALLENGER"];
+  const LS_JP = { IRON:"アイアン", BRONZE:"ブロンズ", SILVER:"シルバー", GOLD:"ゴールド", PLATINUM:"プラチナ", EMERALD:"エメラルド", DIAMOND:"ダイヤモンド",
+    MASTER:"マスター", GRANDMASTER:"グランドマスター", CHALLENGER:"チャレンジャー" };
+  let lsLast = null;   // いちばん最近の集計（CSV・コピー用）
+  function lsRank(id, day, v){
+    const r = C.rankOfAbs(v); if (!r) return null;
+    const ht = C.lpHtierOf ? C.lpHtierOf(lpData, id, day) : (((lpData.htier || {})[id] || {})[day] || "");
+    if (ht) { r.tier = ht; r.division = ""; }
+    return r;
+  }
+  const lsLabel = r => r ? (LS_JP[r.tier] || r.tier) + (r.division ? " " + r.division : "") + " " + (r.lp | 0) + "LP" : "—";
+  const lsSigned = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v | 0);
+  // 生徒かどうか（LPランキングの「生徒／それ以外」と同じ決め方）
+  function lsIsStudent(m, order, stu){ if (!order.length) return true; return stu.indexOf(C.lpGroupIndex(m, order)) >= 0; }
+  function computeLpStats(){
+    const from = $("lsFrom").value, to = $("lsTo").value, who = $("lsWho").value;
+    const order = C.lpGroupOrder ? C.lpGroupOrder(lpData) : [];
+    let stu = order.map((g, i) => /生徒/.test(g.label) ? i : -1).filter(i => i >= 0);
+    if (!stu.length && order.length) stu = [0];
+    const people = [];
+    Object.entries(lpData.members || {}).forEach(([id, m]) => {
+      if (!m) return;
+      const isStu = lsIsStudent(m, order, stu);
+      if (who === "stu" && !isStu) return;
+      if (who === "oth" && isStu) return;
+      const h = C.lpHistOf ? C.lpHistOf(lpData, id) : ((lpData.hist || {})[id] || {});
+      const keys = Object.keys(h).sort();
+      const inR = keys.filter(k => (!from || k >= from) && (!to || k <= to));
+      if (!inR.length) { people.push({ id, name: m.name || "—", isStu, none: true }); return; }
+      // 基準：期間の初日以前でいちばん新しい記録（無ければ期間の最初の記録）
+      const before = keys.filter(k => from && k <= from);
+      const bk = before.length ? before[before.length - 1] : inR[0];
+      const pts = inR.map(k => ({ d: k, v: h[k] }));
+      let pk = pts[0], lo = pts[0];
+      pts.forEach(p => { if (p.v > pk.v) pk = p; if (p.v < lo.v) lo = p; });
+      const last = pts[pts.length - 1];
+      // 1日ごとの増減（となりの記録どうし）
+      let up = null, dn = null, streak = 0, best = 0, bestEnd = null;
+      const seq = (bk < inR[0] ? [{ d: bk, v: h[bk] }] : []).concat(pts);
+      for (let i = 1; i < seq.length; i++){
+        const d = seq[i].v - seq[i - 1].v;
+        if (!up || d > up.v) up = { v: d, d: seq[i].d };
+        if (!dn || d < dn.v) dn = { v: d, d: seq[i].d };
+        streak = d > 0 ? streak + 1 : 0;
+        if (streak > best) { best = streak; bestEnd = seq[i].d; }
+      }
+      const base = { d: bk, v: h[bk] };
+      const rb = lsRank(id, base.d, base.v), rp = lsRank(id, pk.d, pk.v), rl = lsRank(id, last.d, last.v);
+      people.push({ id, name: m.name || "—", isStu, base, peak: pk, low: lo, last, rb, rp, rl, up, dn, streak: best, streakEnd: bestEnd,
+        gainPeak: pk.v - base.v, gainLast: last.v - base.v, swing: pk.v - lo.v,
+        tierUp: rb && rp ? LS_TIERS.indexOf(rp.tier) - LS_TIERS.indexOf(rb.tier) : 0, days: pts.length });
+    });
+    return { from, to, who, people };
+  }
+  // ランキングの種類：key（並べる値）・表示・補足
+  const LS_KINDS = [
+    { id: "peak",  icon: "🏔", name: "最高LP（期間中のピーク）", desc: "期間中にいちばん高かったLP",
+      val: p => p.peak.v, show: p => lsLabel(p.rp), sub: p => lsMd(p.peak.d) },
+    { id: "gainPeak", icon: "🚀", name: "基準から最高まで盛った", desc: "基準（期間の初日）→ 期間中の最高",
+      val: p => p.gainPeak, show: p => lsSigned(p.gainPeak) + "LP", sub: p => lsLabel(p.rb) + " → " + lsLabel(p.rp), sign: true },
+    { id: "gainLast", icon: "📈", name: "基準から最後まで伸びた", desc: "基準 → 期間の最後の記録",
+      val: p => p.gainLast, show: p => lsSigned(p.gainLast) + "LP", sub: p => lsLabel(p.rb) + " → " + lsLabel(p.rl), sign: true },
+    { id: "last",  icon: "🏁", name: "最終LP", desc: "期間の最後の記録",
+      val: p => p.last.v, show: p => lsLabel(p.rl), sub: p => lsMd(p.last.d) },
+    { id: "up",    icon: "⚡", name: "1日でいちばん伸びた", desc: "となりの記録どうしの差（その日の23:45まで）",
+      val: p => p.up ? p.up.v : null, show: p => lsSigned(p.up.v) + "LP", sub: p => lsMd(p.up.d), sign: true },
+    { id: "tierUp", icon: "⬆️", name: "ティアをいくつ上げた", desc: "基準のティア → 最高のティア",
+      val: p => p.tierUp > 0 ? p.tierUp : null, show: p => p.tierUp + "ティア", sub: p => (LS_JP[p.rb.tier] || "") + " → " + (LS_JP[p.rp.tier] || "") },
+    { id: "streak", icon: "🔥", name: "連続で伸びた日数", desc: "記録が続けて上がった回数の最長",
+      val: p => p.streak > 0 ? p.streak : null, show: p => p.streak + "日連続", sub: p => p.streakEnd ? lsMd(p.streakEnd) + " まで" : "" },
+    { id: "swing", icon: "🎢", name: "振れ幅（最高−最低）", desc: "期間中の最高と最低の差",
+      val: p => p.swing > 0 ? p.swing : null, show: p => p.swing + "LP", sub: p => lsLabel(lsRank(p.id, p.low.d, p.low.v)) + " 〜 " + lsLabel(p.rp) },
+    { id: "dn",    icon: "🫠", name: "1日でいちばん下がった", desc: "ドンマイ枠（となりの記録どうしの差）",
+      val: p => p.dn && p.dn.v < 0 ? -p.dn.v : null, show: p => lsSigned(p.dn.v) + "LP", sub: p => lsMd(p.dn.d), sign: true }
+  ];
+  function lsSorted(kind, people){
+    return people.filter(p => !p.none && kind.val(p) != null).sort((a, b) => kind.val(b) - kind.val(a) || a.name.localeCompare(b.name, "ja"));
+  }
+  function runLpStats(){
+    if (!lpData){ toast("LPデータを読み込み中です"); return; }
+    const R = lsLast = computeLpStats(), N = +$("lsN").value || 10;
+    const ok = R.people.filter(p => !p.none);
+    const per = (R.from ? lsMd(R.from) : "最初") + " 〜 " + (R.to ? lsMd(R.to) : "最後");
+    if (!ok.length){ $("lsOut").innerHTML = '<div class="hint">この期間・対象の記録がありません</div>'; return; }
+    const sumPeak = ok.reduce((n, p) => n + Math.max(0, p.gainPeak), 0);
+    const avgPeak = Math.round(ok.reduce((n, p) => n + p.gainPeak, 0) / ok.length);
+    const tierUp = ok.filter(p => p.tierUp > 0).length;
+    const apex = ok.filter(p => p.rp && /^(MASTER|GRANDMASTER|CHALLENGER)$/.test(p.rp.tier)).length;
+    const plus = ok.filter(p => p.gainLast > 0).length;
+    const tiles = [["対象（記録あり）", ok.length + "人", R.people.length > ok.length ? "記録なし " + (R.people.length - ok.length) + "人" : ""],
+      ["最高まで盛った合計", "+" + sumPeak + "LP", "平均 " + lsSigned(avgPeak) + "LP"],
+      ["最後にプラスの人", plus + "人", "マイナス " + ok.filter(p => p.gainLast < 0).length + "人"],
+      ["ティアが上がった人", tierUp + "人", ""], ["マスター以上に到達", apex + "人", "期間中の最高で"]];
+    let h = '<div class="hint">期間 ' + per + " ・ " + ({ all: "全員", stu: "生徒だけ", oth: "生徒以外" }[R.who]) + "</div>" +
+      '<div class="lsTiles">' + tiles.map(t => '<div class="lsTile"><small>' + t[0] + "</small><b>" + t[1] + "</b>" + (t[2] ? "<small>" + t[2] + "</small>" : "") + "</div>").join("") + "</div>" +
+      '<div class="lsGrid">';
+    LS_KINDS.forEach(k => {
+      const list = lsSorted(k, R.people).slice(0, N);
+      h += '<div class="lsBox"><h4>' + k.icon + " " + k.name + '<span class="sp"></span><button class="mini lsCopy" data-k="' + k.id + '" type="button" title="Discord用の文をコピー">📋</button></h4>' +
+        '<div class="ds">' + k.desc + "</div>" +
+        (list.length ? "<ol>" + list.map((p, i) => {
+          const v = k.val(p), cls = k.sign ? (k.id === "dn" ? " dn" : v > 0 ? " up" : v < 0 ? " dn" : "") : "";
+          return '<li><span class="no' + (i < 3 ? " m" + (i + 1) : "") + '">' + (i + 1) + '</span><span class="nm">' + lsEsc(p.name) +
+            '<span class="sub">' + lsEsc(k.sub(p)) + '</span></span><span class="v' + cls + '">' + lsEsc(k.show(p)) + "</span></li>";
+        }).join("") + "</ol>" : '<div class="hint">該当なし</div>') + "</div>";
+    });
+    $("lsOut").innerHTML = h + "</div>";
+    $("lsOut").querySelectorAll(".lsCopy").forEach(b => b.onclick = async () => {
+      const k = LS_KINDS.find(x => x.id === b.dataset.k), list = lsSorted(k, R.people).slice(0, N);
+      const medal = i => ["🥇", "🥈", "🥉"][i] || (i + 1) + ".";
+      const txt = k.icon + " **" + k.name + "**（" + per + "）\n" + list.map((p, i) => medal(i) + " " + p.name + "　" + k.show(p) + (k.sub(p) ? "（" + k.sub(p) + "）" : "")).join("\n");
+      try { await navigator.clipboard.writeText(txt); toast("コピーしました"); } catch(e){ prompt("コピーしてください", txt); }
+    });
+  }
+  function lpStatsCsv(){
+    const R = lsLast || computeLpStats();
+    const head = ["名前", "生徒", "基準日", "基準", "最高", "最高の日", "最後", "最後の日", "基準→最高", "基準→最後", "1日の最大の伸び", "1日の最大の下げ", "ティアアップ", "連続で伸びた日数", "振れ幅", "記録の数"];
+    const q = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+    const rows = R.people.filter(p => !p.none).map(p => [p.name, p.isStu ? "○" : "", p.base.d, lsLabel(p.rb), lsLabel(p.rp), p.peak.d, lsLabel(p.rl), p.last.d,
+      p.gainPeak, p.gainLast, p.up ? p.up.v : "", p.dn ? p.dn.v : "", p.tierUp, p.streak, p.swing, p.days]);
+    const csv = "\ufeff" + [head].concat(rows).map(r => r.map(q).join(",")).join("\r\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "LP集計_" + (R.from || "") + "_" + (R.to || "") + ".csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+  $("lsRun").onclick = runLpStats;
+  $("lsCsv").onclick = lpStatsCsv;
+  ["lsWho", "lsN"].forEach(id => $(id).onchange = () => { if (lsLast) runLpStats(); });
+  // 期間の初期値：基準日 〜 しめきり（なければ今日）
+  function fillLpStatsRange(){
+    if (!$("lsFrom").value) $("lsFrom").value = lpData.baseline || "";
+    if (!$("lsTo").value) $("lsTo").value = C.lpEndDay ? C.lpEndDay(lpData) : C.dayKey();
+  }
+
   function renderLpStat(){
     if (!lpData) return;
+    fillLpStatsRange();
     const ids = Object.keys(lpData.members);
     const days = new Set();
     Object.values(lpData.hist).forEach(h => Object.keys(h).forEach(d => days.add(d)));

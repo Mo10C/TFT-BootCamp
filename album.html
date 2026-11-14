@@ -1591,7 +1591,8 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const g = cv.getContext("2d");
     const ink = "#23384D", muted = "#6D8699", goldInk = "#8C6A24";
-    const acc = e.teacher ? "#C9A24A" : cssColor(e.color);
+    // グラフ・棒・仲間の輪の色＝本人のプロフィールカードのテーマ色（先生も同じ。選んでいなければ 生徒は黄緑・先生は金）
+    const acc = cssColor(e.color || (e.teacher ? "var(--gold)" : "var(--leaf)"));
     const IN = drawFormalFrame(g, W, H, { band: 22 });
     const L = IN + 26, R = W - IN - 26, CW = R - L;
     const head = (t, y, x) => {
