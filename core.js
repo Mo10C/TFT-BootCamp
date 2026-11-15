@@ -3794,6 +3794,7 @@
       mentors: {},
       /* 特別賞（後夜祭で発表）。awardsOpen を true にするまで生徒には見えない */
       awardsOpen: false,
+      withAwardShow: true,
       awards: [
         { id: "mvp",   icon: "🏆", name: "MVP賞",           desc: "", winners: [] },
         { id: "effort", icon: "🔥", name: "努力賞",          desc: "", winners: [] },
@@ -3900,6 +3901,8 @@
       comments,
       mentors,
       awardsOpen: !!raw.awardsOpen,
+      // 表彰スライド（award.html）の賞と受賞者を、特別賞として卒業証書に載せる
+      withAwardShow: raw.withAwardShow == null ? true : !!raw.withAwardShow,
       all: (a => ({
         title: String(a.title == null ? d.all.title : a.title).slice(0, 30),
         message: String(a.message || "").slice(0, 300),

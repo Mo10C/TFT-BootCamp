@@ -320,8 +320,9 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     if (l) l.href = "https://fonts.googleapis.com/css2?family=Yuji+Boku&text=" + encodeURIComponent(t) + "&display=swap";
   }
   let RAW = null;   // 読み込んだ記録（プレビューで文言だけ変えたときは読み直さない）
+  let AWR = null;   // 表彰スライドの賞（読み込みは1回だけ）
   async function loadAll(override){
-    const album = override || await C.loadAlbum();
+    let album = override || await C.loadAlbum();
     const S = album.start, E = album.end;
     const safe = p => p.catch(e => { console.warn(e); return null; });
     const rawKey = S + "|" + E;
@@ -336,6 +337,26 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
       safe(C.loadStampCfg ? Promise.all([C.loadStampCfg(), C.loadStamps()]) : Promise.resolve(null))
     ]);
     RAW = { key: rawKey, v: raw };
+    /* 表彰スライド（管理コンソール →「LP」→「🏆 表彰スライド」）の賞を、特別賞として足す。
+       賞×順位ごとに1つ（例「LP爆盛り賞 1位」）。発表（awardsOpen）までは、ほかの特別賞と同じく管理者にだけ見える */
+    if (album.withAwardShow !== false && C.loadAwardShow && C.awardList){
+      if (!AWR) AWR = (async () => {
+        try {
+          const cfg = await C.loadAwardShow(), AD = await C.loadAwardData(cfg), out = [];
+          cfg.items.filter(it => it.on).forEach(it => {
+            const R = C.awardList(it, AD), byPlace = {};
+            R.list.forEach(p => { (byPlace[p.place] = byPlace[p.place] || []).push(p); });
+            const many = Object.keys(byPlace).length > 1;
+            Object.entries(byPlace).forEach(([pl, ps]) => out.push({ id: "__aw_" + it.id + "_" + pl, icon: R.icon, img: "",
+              name: it.name + (many ? " " + pl + "位" : ""),
+              desc: ps.length === 1 && ps[0].show ? ps[0].show : (it.desc || ""), winners: ps.map(p => p.id) }));
+          });
+          return out;
+        } catch (e) { console.warn("表彰スライドの賞を読めませんでした", e); return []; }
+      })();
+      const extraAw = await AWR;
+      if (extraAw.length) album = Object.assign({}, album, { awards: (album.awards || []).concat(extraAw) });
+    }
     const [lp, snap, exam, vcr, vcc, cards, members, yose, thx, games, stp] = raw;
     const mem = members || {};
     // 講師＝「講師（先生）のロール」を持っている人（管理コンソール →「入学許可書」で選ぶ）
@@ -1780,17 +1801,24 @@ body.embed .cert{margin:0;border-radius:0;box-shadow:none}
     head("特別賞", y, LX); if (withCm) head("先生からのひとこと", y, RX);
     y += 14;
     const awOpen = D.album.awardsOpen || EMBED || !!e._dummy;
-    const aws = (e.awards || []).filter(a => awOpen || a.always).slice(0, 3);
+    // 特別賞は5つまで（表彰スライドの賞も入るので）。多いときは行を詰めて、説明は1行で小さく
+    const aws = (e.awards || []).filter(a => awOpen || a.always).slice(0, 5);
     if (aws.length){
       card(LX, y, aW, boxH);
-      const rh = Math.min(48, (boxH - 12) / aws.length);
+      const rh = Math.min(48, (boxH - 12) / aws.length), tight = rh < 40, ir = tight ? 13 : 16;
       for (let i = 0; i < aws.length; i++){
         const a = aws[i], cy = y + 6 + rh * i + rh / 2;
-        g.beginPath(); g.arc(LX + 30, cy, 16, 0, Math.PI * 2); g.fillStyle = "#F4C542"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = "#fff"; g.stroke();
-        await drawAwIcon(g, a, LX + 30, cy, 16, 17);
-        g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = "#5A3B06"; g.font = "900 18px " + JP;
-        const an = fitText(g, a.name, aW - 80); g.fillText(an, LX + 56, cy + (a.desc ? -1 : 6));
-        if (a.desc){ g.fillStyle = muted; g.font = "500 12px " + JP; g.fillText(fitText(g, a.desc, aW - 80), LX + 56, cy + 16); }
+        g.beginPath(); g.arc(LX + 30, cy, ir, 0, Math.PI * 2); g.fillStyle = "#F4C542"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = "#fff"; g.stroke();
+        await drawAwIcon(g, a, LX + 30, cy, ir, tight ? 14 : 17);
+        g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = "#5A3B06"; g.font = "900 " + (tight ? 15 : 18) + "px " + JP;
+        if (tight){
+          // 名前と説明を1行に：「ゴルフ賞　ホールインワン！」
+          const an = fitText(g, a.name, aW - 80); g.fillText(an, LX + 52, cy + 5);
+          if (a.desc){ const w0 = g.measureText(an).width; g.fillStyle = muted; g.font = "500 12px " + JP; g.fillText(fitText(g, a.desc, Math.max(0, aW - 90 - w0)), LX + 60 + w0, cy + 5); }
+        } else {
+          const an = fitText(g, a.name, aW - 80); g.fillText(an, LX + 56, cy + (a.desc ? -1 : 6));
+          if (a.desc){ g.fillStyle = muted; g.font = "500 12px " + JP; g.fillText(fitText(g, a.desc, aW - 80), LX + 56, cy + 16); }
+        }
       }
     } else {
       rr(g, LX, y, aW, boxH, 16); g.setLineDash([7, 6]); g.lineWidth = 2; g.strokeStyle = "rgba(201,162,74,.6)"; g.stroke(); g.setLineDash([]);

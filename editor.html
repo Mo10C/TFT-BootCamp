@@ -1612,6 +1612,10 @@ body.ad-on{overflow:hidden}
         <label class="chk" style="font-size:13px"><input type="checkbox" id="alAwOpen"> 🎉 特別賞を発表する</label>
         <span class="hint" id="alAwHint"></span>
       </div>
+      <div class="row">
+        <label class="chk" style="font-size:13px"><input type="checkbox" id="alAwShow"> 🏆 表彰スライドの賞も特別賞として載せる</label>
+        <span class="hint">「LP」タブ →「🏆 表彰スライド」の賞と受賞者（順位つき）をそのまま入れます。ここで追加する特別賞とは別です</span>
+      </div>
       <div id="alAwards"></div>
       <button class="mini" id="alAwAdd" type="button">＋ 特別賞を追加</button>
     </div>
@@ -5049,6 +5053,7 @@ body.ad-on{overflow:hidden}
     };
     function renderAwards(){
       $("alAwOpen").checked = !!alEdit.awardsOpen;
+      $("alAwShow").checked = alEdit.withAwardShow !== false;
       $("alAwHint").textContent = alEdit.awardsOpen
         ? "発表中：全員の卒業証書に載っています" : "未発表：管理者にだけ見えています";
       const box = $("alAwards");
@@ -5428,6 +5433,7 @@ body.ad-on{overflow:hidden}
         ? "発表にします：保存すると全員の卒業証書に載ります" : "未発表にします：保存すると管理者にだけ見えます";
       markAl();
     };
+    $("alAwShow").onchange = () => { alEdit.withAwardShow = $("alAwShow").checked; markAl(); };
     $("alAwAdd").onclick = () => {
       alEdit.awards.push({ id: "aw" + Date.now().toString(36), icon: "🏅", name: "", desc: "", winners: [] });
       markAl(); renderAwards();
