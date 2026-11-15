@@ -102,6 +102,11 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
 .zc-img{width:100%;height:300px;display:flex;align-items:center;justify-content:center}
 .zc.first .zc-img{height:360px}
 .zc-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:14px}
+.zc.hide,.zc.still{animation:none}
+.zc.hide{background:rgba(255,255,255,.55)}
+.zc-q{width:100%;height:220px;border-radius:16px;display:grid;place-items:center;font-family:"Space Grotesk",sans-serif;font-size:110px;font-weight:700;color:#fff;
+  background:repeating-linear-gradient(135deg,#B7C9A0 0 14px,#A9BD90 14px 28px)}
+.zc.first .zc-q{height:270px}
 .zc-multi{display:flex;align-items:flex-start;justify-content:center;gap:0;width:100%}
 .zc-one{display:flex;flex-direction:column;align-items:center}
 .zc-img.sm{height:200px}
@@ -183,7 +188,8 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
       if (pz.on && pz.mode === "place"){
         // 順位ごとの賞品：中身がある順位だけ（1位〜）。1つの順位に賞品がいくつあってもよい
         const cards = (pz.places || []).map((q, i) => ({ place: i + 1, goods: goods(q.items, i + 1) })).filter(c => c.goods.length);
-        if (cards.length) SLIDES.push({ type: "prizes", it, icon: R.icon, cards });
+        // 表彰と同じく 3位 → 2位 → 1位 の順に1枚ずつめくる
+        if (cards.length) SLIDES.push({ type: "prizes", it, icon: R.icon, cards, steps: cards.length });
       } else if (pz.on){
         const g = goods(pz.items, 0);
         if (g.length === 1) SLIDES.push({ type: "prize", it, icon: R.icon, img: g[0].img, text: g[0].text });
@@ -247,6 +253,11 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
       h = '<div class="z-head"><div class="k">PRIZE</div><div class="nm">' + S.icon + " " + esc(S.it.name) + " の賞品</div></div>" + '<div class="z-gift">🎁</div>' +
         '<div class="zc-row">' + order.map((c, i) => {
           const big = c.place === 1, g = c.goods, k = g.length, w = wOf(c);
+          // まだめくっていない順位は「?」のカード（幅はそのまま取っておくので、めくっても並びが動かない）
+          const idx = S.cards.indexOf(c), open = !S.steps || idx >= n - step;
+          if (!open) return '<div class="zc hide' + (big ? " first" : "") + '" style="width:' + w + 'px">' +
+            '<div class="zc-pl ' + PED_C[Math.min(5, c.place)] + '">' + c.place + "<small>" + (c.place === 1 ? "st" : c.place === 2 ? "nd" : c.place === 3 ? "rd" : "th") + "</small></div>" +
+            '<div class="zc-q">?</div></div>';
           // 賞品が複数：画像は横に並べ、文はそれぞれの画像の下（画像が無い物は文だけ）
           const cell = Math.floor((w - 36 - (k - 1) * 12) / k);
           const inner = k === 1
@@ -256,7 +267,9 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
                 // 画像が無い賞品も、高さをそろえるため🎁の箱を置く
                 (x.img ? '<div class="zc-img sm"><img src="' + esc(x.img) + '" alt=""></div>' : (g.some(y => y.img) ? '<div class="zc-img sm noimg">🎁</div>' : "")) +
                 (x.text ? '<div class="zc-tx" style="font-size:' + Math.min(fsOf(x.text, big, cell + 40), big ? 30 : 26) + 'px">' + esc(x.text) + "</div>" : "") + "</div>").join('<div class="zc-plus">＋</div>') + "</div>";
-          return '<div class="zc' + (big ? " first" : "") + '" style="width:' + w + 'px;animation-delay:' + (i * 0.12) + 's">' +
+          // いまめくったカードだけ動かす（前にめくったカードはそのまま）
+          const still = S.steps && idx !== n - step;
+          return '<div class="zc' + (big ? " first" : "") + (still ? " still" : "") + '" style="width:' + w + 'px;animation-delay:' + (S.steps ? 0 : i * 0.12) + 's">' +
             (c.place ? '<div class="zc-pl ' + PED_C[Math.min(5, c.place)] + '">' + c.place + "<small>" + (c.place === 1 ? "st" : c.place === 2 ? "nd" : c.place === 3 ? "rd" : "th") + "</small></div>" : "") +
             inner + "</div>";
         }).join("") + "</div>";
@@ -297,12 +310,18 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
       burst(opened && opened.place === 1 ? 220 : 70);
       return;
     }
+    if (S.type === "prizes" && S.steps && step < S.steps){
+      step++; render();
+      const opened = S.cards[S.steps - step];
+      burst(opened && opened.place === 1 ? 160 : 50);
+      return;
+    }
     if (cur < SLIDES.length - 1){ cur++; step = 0; render(); if (SLIDES[cur].type === "closing") burst(260); }
   }
   function prev(){
     const S = SLIDES[cur]; if (!S) return;
-    if (S.type === "podium" && step > 0){ step--; render(); return; }
-    if (cur > 0){ cur--; const P = SLIDES[cur]; step = P.type === "podium" ? P.steps : 0; render(); }
+    if ((S.type === "podium" || S.type === "prizes") && step > 0){ step--; render(); return; }
+    if (cur > 0){ cur--; const P = SLIDES[cur]; step = P.type === "podium" || P.type === "prizes" ? (P.steps || 0) : 0; render(); }
   }
   addEventListener("keydown", e => {
     if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].indexOf(e.key) >= 0){ e.preventDefault(); next(); }
