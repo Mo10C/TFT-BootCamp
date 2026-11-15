@@ -800,7 +800,7 @@ body.ad-on{overflow:hidden}
 
     <div class="card">
       <h2>🏆 表彰スライド（最終日の表彰式）</h2>
-      <div class="lead"><a href="award.html" target="_blank" rel="noopener">award.html</a> を全画面で映して、「部門 → 賞の紹介 → 3位 → 2位 → 1位」とめくります（→ / Space / クリックで次、← で前、F で全画面、R で読み直し）。<br>
+      <div class="lead"><a href="award.html" target="_blank" rel="noopener">award.html</a> を全画面で映して、「部門 → 賞の紹介 → 3位 → 2位 → 1位 → 賞品」とめくります（→ / Space / クリックで次、← で前、F で全画面、R で読み直し）。<br>
         賞ごとに<b>決め方</b>を選べます：<b>手で選ぶ</b>（受賞者とひとことを入れる）／<b>試合数</b>／<b>コーチング時間</b>（先生）／<b>LPの各種</b>（開いたときの記録から自動）。</div>
       <div class="row"><label>タイトル</label><input type="text" id="awTitle" maxlength="30" style="width:220px">
         <input type="text" id="awSub" maxlength="40" style="flex:1;min-width:200px" placeholder="サブタイトル（例：クラウドハッシュテイル校 TFT合宿 SET18）"></div>
@@ -2805,7 +2805,7 @@ body.ad-on{overflow:hidden}
           (it.src === "vc" ? '<input type="text" class="chx" maxlength="30" style="width:200px" placeholder="VC名にふくむ言葉（空なら全部のVC）">' : "") +
           '<span class="hint">空ならスライド全体の期間</span></div>') +
         (awRes && awRes[it.id] ? '<div class="hint awRes" style="margin:2px 0 4px 30px"></div>' : "") + (it.src === "manual" ? '<div class="wins"></div>' : "") +
-        '<div class="awPz"><label class="chk"><input type="checkbox" class="pzOn"> 🎁 賞品のスライドを出す（賞の紹介のあと・表彰台の前）</label>' +
+        '<div class="awPz"><label class="chk"><input type="checkbox" class="pzOn"> 🎁 賞品のスライドを出す（表彰のあと）</label>' +
         (it.prize.on ? '<select class="pzMode" style="margin-left:8px"><option value="same">みんな同じ賞品</option><option value="place">順位ごとに変える</option></select>' +
           (it.prize.mode === "place" ? awPlaceKeys(it).map(n => pzRowHtml(C.awardPrizeKey(it, n), n + "位")).join("") : pzRowHtml(C.awardPrizeKey(it), "")) : "") + "</div>";
       const q = c => d.querySelector(c);

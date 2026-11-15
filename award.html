@@ -16,7 +16,7 @@
 <style>
 /* =============================================================
    award.html — 表彰スライド（最終日の表彰式で全画面に映す）
-   ・部門（特別／先生／生徒 など）→ 賞の紹介 →「3位 → 2位 → 1位」の順にめくる
+   ・部門（特別／先生／生徒 など）→ 賞の紹介 →「3位 → 2位 → 1位」→ 賞品 の順にめくる
    ・賞の決め方：手で選ぶ／試合数／コーチング時間／LPの各種（LP は しめきり後はしめきりの記録まで）
    ・賞・部門・受賞者・期間は 管理コンソール →「LP」→「🏆 表彰スライド」
    操作：→ / Space / クリック＝次　← ＝前　F＝全画面　R＝データを読み直す
@@ -169,7 +169,8 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
       no++;
       if (it.section && it.section !== sec){ sec = it.section; SLIDES.push({ type: "section", label: sec }); }
       SLIDES.push({ type: "intro", it, icon: R.icon, no });
-      // 賞品（画像か文のどちらかがあれば）
+      SLIDES.push({ type: "podium", it, icon: R.icon, list: R.list, steps: R.list.length });
+      // 賞品（表彰のあと。画像か文のどちらかがあれば）
       const pz = it.prize || {};
       if (pz.on && pz.mode === "place"){
         // 順位ごとの賞品：中身がある順位だけ（1位〜）
@@ -180,7 +181,6 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
         const img = (imgs || {})[C.awardPrizeKey(it)] || "";
         if (img || pz.text) SLIDES.push({ type: "prize", it, icon: R.icon, img, text: pz.text });
       }
-      SLIDES.push({ type: "podium", it, icon: R.icon, list: R.list, steps: R.list.length });
     });
     SLIDES.push({ type: "closing", per });
     say("");
