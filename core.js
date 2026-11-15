@@ -2204,8 +2204,13 @@
           .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id),
         // 賞品のスライド（賞の紹介と表彰台のあいだに出す）。画像は大きいので別の文書 award_prize_<賞のID> に置く
         // mode：same＝みんな同じ賞品 / place＝順位ごとに変える（places[0] が1位）
-        prize: (p => ({ on: !!p.on, mode: p.mode === "place" ? "place" : "same", text: String(p.text || "").slice(0, 300), img: !!p.img, imgAt: p.imgAt || 0,
-          places: (Array.isArray(p.places) ? p.places : []).slice(0, 5).map(q => ({ text: String((q && q.text) || "").slice(0, 300), img: !!(q && q.img) })) }))(x.prize || {}) };
+        //   1つの枠（みんな同じ／各順位）に賞品を4つまで：items[{text, img}]（前の形 text/img は items[0] として読む）
+        prize: (p => {
+          const its = q => { q = q || {}; const a = Array.isArray(q.items) && q.items.length ? q.items : [{ text: q.text, img: q.img }];
+            return a.slice(0, 4).map(r => ({ text: String((r && r.text) || "").slice(0, 300), img: !!(r && r.img) })); };
+          return { on: !!p.on, mode: p.mode === "place" ? "place" : "same", items: its(p), imgAt: p.imgAt || 0,
+            places: (Array.isArray(p.places) ? p.places : []).slice(0, 5).map(q => ({ items: its(q) })) };
+        })(x.prize || {}) };
     });
     return { v: 2, title: String(raw.title || "").trim().slice(0, 30) || d.title, sub: String(raw.sub == null ? d.sub : raw.sub).slice(0, 40),
       from: ok(raw.from) ? raw.from : "", to: ok(raw.to) ? raw.to : "", items,
@@ -2346,12 +2351,13 @@
 
   /* 賞品の画像（data URL）。1枚ずつ別の文書に置く（表彰スライドの設定の文書が1MBをこえないように） */
   const awardPrizeDoc = id => "award_prize_" + String(id).replace(/[^\w-]/g, "");
-  // 画像のキー：みんな同じ＝賞のID ／ 順位ごと＝賞のID_p<順位>
-  const awardPrizeKey = (it, place) => place ? it.id + "_p" + place : it.id;
+  // 画像のキー：みんな同じ＝賞のID ／ 順位ごと＝賞のID_p<順位>。2つ目からの賞品は うしろに _k<番号>
+  const awardPrizeKey = (it, place, k) => (place ? it.id + "_p" + place : it.id) + (k > 1 ? "_k" + k : "");
   function awardPrizeKeys(it) {
-    const p = it.prize || {};
-    if (p.mode === "place") return (p.places || []).map((q, i) => q.img ? awardPrizeKey(it, i + 1) : "").filter(Boolean);
-    return p.img ? [awardPrizeKey(it)] : [];
+    const p = it.prize || {}, out = [];
+    const add = (items, place) => (items || []).forEach((r, j) => { if (r.img) out.push(awardPrizeKey(it, place, j + 1)); });
+    if (p.mode === "place") (p.places || []).forEach((q, i) => add(q.items, i + 1)); else add(p.items, 0);
+    return out;
   }
   async function loadAwardPrizeImgs(ids) {
     const out = {}, db = openDb();

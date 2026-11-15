@@ -2735,11 +2735,24 @@ body.ad-on{overflow:hidden}
   let awCfg = null, awPeople = [], awImgs = {}, awImgDirty = new Set();
   // 順位ごとの賞品の行（手で選ぶ賞は受賞者の数、自動の賞は「何位まで」）
   const awPlaceKeys = it => Array.from({ length: Math.max(1, Math.min(5, it.src === "manual" ? it.winners.length || 1 : it.places)) }, (_, i) => i + 1);
-  const pzRowHtml = (key, label) => '<div class="pzRow" data-key="' + lsEsc(key) + '">' + (label ? '<b style="width:34px;flex:none;padding-top:6px">' + label + "</b>" : "") +
-    '<div class="pzImg">' + (awImgs[key] ? "" : "画像なし") + "</div>" +
-    '<div style="display:flex;flex-direction:column;gap:4px"><button class="mini pzPick" type="button">🖼 画像を入れる</button>' +
-    (awImgs[key] ? '<button class="mini pzClr" type="button">✕ 画像を外す</button>' : "") + "</div>" +
-    '<textarea class="pzTx" maxlength="300" placeholder="' + (label ? label + "の賞品（改行できます）" : "賞品の説明（改行できます）&#10;例：Amazonギフト券 3,000円分&#10;　　＋ 特製ステッカー") + '"></textarea></div>';
+  // 1つの枠（place 0＝みんな同じ／1〜＝順位）の賞品の並び。無ければ作る
+  const awSlot = (it, place) => {
+    if (!place) return it.prize.items || (it.prize.items = [{ text: "", img: false }]);
+    while (it.prize.places.length < place) it.prize.places.push({ items: [{ text: "", img: false }] });
+    const q = it.prize.places[place - 1]; return q.items && q.items.length ? q.items : (q.items = [{ text: "", img: false }]);
+  };
+  // 賞品1つぶんの行（k＝その枠の何番目か）。2つ目からは「✕」で消せる
+  const pzRowHtml = (it, place, k, label) => { const key = C.awardPrizeKey(it, place, k);
+    return '<div class="pzRow" data-place="' + place + '" data-k="' + k + '">' +
+      '<b style="width:44px;flex:none;padding-top:6px;font-size:12px">' + (k === 1 ? label : "") + (k > 1 ? "＋" + k + "つ目" : "") + "</b>" +
+      '<div class="pzImg">' + (awImgs[key] ? "" : "画像なし") + "</div>" +
+      '<div style="display:flex;flex-direction:column;gap:4px"><button class="mini pzPick" type="button">🖼 画像を入れる</button>' +
+      (awImgs[key] ? '<button class="mini pzClr" type="button">✕ 画像を外す</button>' : "") +
+      (k > 1 ? '<button class="mini pzDel" type="button">🗑 この賞品を消す</button>' : "") + "</div>" +
+      '<textarea class="pzTx" maxlength="300" placeholder="' + (label ? label + "の賞品" : "賞品の説明") + (k > 1 ? "（" + k + "つ目）" : "") + '（改行できます）"></textarea></div>'; };
+  // 枠ぜんぶ（賞品の行＋「＋ 賞品を足す」）
+  const pzSlotHtml = (it, place, label) => awSlot(it, place).map((_, j) => pzRowHtml(it, place, j + 1, label)).join("") +
+    (awSlot(it, place).length < 4 ? '<div style="margin:4px 0 0 52px"><button class="mini pzAdd" type="button" data-place="' + place + '">＋ ' + (label || "") + "賞品を足す（いっしょにわたす物）</button></div>" : "");
   /* 賞品の画像をえらんで、長い辺 1280px までに小さくする（写真は JPEG・透明のある PNG はそのまま PNG） */
   function awPickImg(done){
     const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
@@ -2808,7 +2821,7 @@ body.ad-on{overflow:hidden}
         (awRes && awRes[it.id] && awRes[it.id].extra ? '<div class="awCoach" style="margin:2px 0 6px 30px"></div>' : "") + (it.src === "manual" ? '<div class="wins"></div>' : "") +
         '<div class="awPz"><label class="chk"><input type="checkbox" class="pzOn"> 🎁 賞品のスライドを出す（表彰のあと）</label>' +
         (it.prize.on ? '<select class="pzMode" style="margin-left:8px"><option value="same">みんな同じ賞品</option><option value="place">順位ごとに変える</option></select>' +
-          (it.prize.mode === "place" ? awPlaceKeys(it).map(n => pzRowHtml(C.awardPrizeKey(it, n), n + "位")).join("") : pzRowHtml(C.awardPrizeKey(it), "")) : "") + "</div>";
+          (it.prize.mode === "place" ? awPlaceKeys(it).map(n => pzSlotHtml(it, n, n + "位")).join("") : pzSlotHtml(it, 0, "")) : "") + "</div>";
       const q = c => d.querySelector(c);
       q(".on").checked = it.on; q(".sec").value = it.section; q(".nm").value = it.name; q(".ds").value = it.desc; q(".src").value = it.src;
       q(".on").onchange = e => { it.on = e.target.checked; d.classList.toggle("off", !it.on); };
@@ -2853,16 +2866,23 @@ body.ad-on{overflow:hidden}
       q(".pzOn").onchange = e => { it.prize.on = e.target.checked; paintAwItems(); };
       if (q(".pzMode")){ q(".pzMode").value = it.prize.mode || "same"; q(".pzMode").onchange = e => { it.prize.mode = e.target.value; paintAwItems(); }; }
       d.querySelectorAll(".pzRow").forEach(row => {
-        const key = row.dataset.key, n = key === it.id ? 0 : +key.split("_p").pop();
-        // 文の置き場所：みんな同じ＝prize.text ／ 順位ごと＝prize.places[順位-1].text
-        const slot = () => { if (!n) return it.prize; while (it.prize.places.length < n) it.prize.places.push({ text: "", img: false }); return it.prize.places[n - 1]; };
+        const place = +row.dataset.place, k = +row.dataset.k, key = C.awardPrizeKey(it, place, k), item = () => awSlot(it, place)[k - 1];
         const pi = row.querySelector(".pzImg"), tx = row.querySelector(".pzTx");
         if (awImgs[key]) pi.style.backgroundImage = "url(" + awImgs[key] + ")";
-        tx.value = slot().text || "";
-        tx.oninput = () => { slot().text = tx.value; };
+        tx.value = item().text || "";
+        tx.oninput = () => { item().text = tx.value; };
         row.querySelector(".pzPick").onclick = () => awPickImg(u => { awImgs[key] = u; awImgDirty.add(key); paintAwItems(); toast("画像を入れました（「保存」で確定）"); });
         const c = row.querySelector(".pzClr"); if (c) c.onclick = () => { delete awImgs[key]; awImgDirty.add(key); paintAwItems(); };
+        // 賞品を消す：うしろの賞品の画像を1つずつ前へずらす
+        const del = row.querySelector(".pzDel"); if (del) del.onclick = () => {
+          const list = awSlot(it, place);
+          for (let j = k; j < list.length; j++){ const from = C.awardPrizeKey(it, place, j + 1), to = C.awardPrizeKey(it, place, j);
+            if (awImgs[from]) awImgs[to] = awImgs[from]; else delete awImgs[to]; awImgDirty.add(to); }
+          const last = C.awardPrizeKey(it, place, list.length); delete awImgs[last]; awImgDirty.add(last);
+          list.splice(k - 1, 1); paintAwItems();
+        };
       });
+      d.querySelectorAll(".pzAdd").forEach(b => b.onclick = () => { awSlot(it, +b.dataset.place).push({ text: "", img: false }); paintAwItems(); });
       q(".up").onclick = () => { awCfg.items.splice(i - 1, 0, awCfg.items.splice(i, 1)[0]); paintAwItems(); };
       q(".dn").onclick = () => { awCfg.items.splice(i + 1, 0, awCfg.items.splice(i, 1)[0]); paintAwItems(); };
       q(".del").onclick = () => { if (!confirm("「" + it.name + "」を消しますか？")) return; awCfg.items.splice(i, 1); paintAwItems(); };
@@ -2907,7 +2927,7 @@ body.ad-on{overflow:hidden}
   $("awAdd").onclick = () => {
     if (!awCfg) return;
     awCfg.items.push({ id: "a" + Date.now().toString(36), on: true, section: (awCfg.items[awCfg.items.length - 1] || {}).section || "特別",
-      name: "", desc: "", src: "manual", who: "all", places: 1, winners: [], prize: { on: false, mode: "same", text: "", img: false, places: [] } });
+      name: "", desc: "", src: "manual", who: "all", places: 1, winners: [], prize: { on: false, mode: "same", items: [{ text: "", img: false }], places: [] } });
     paintAwItems();
   };
   $("awSave").onclick = async () => {
@@ -2920,10 +2940,14 @@ body.ad-on{overflow:hidden}
       for (const key of awImgDirty){
         await C.saveAwardPrizeImg(key, awImgs[key] || "");
         // どの賞・どの順位の画像か（キー＝賞のID または 賞のID_p順位）
-        const it = awCfg.items.find(x => key === x.id || key.indexOf(x.id + "_p") === 0);
+        // キー＝賞のID [_p順位] [_k何番目]
+        const it = awCfg.items.find(x => key === x.id || key.indexOf(x.id + "_") === 0);
         if (!it) continue;
-        if (key === it.id) Object.assign(it.prize, { img: !!awImgs[key], imgAt: Date.now() });
-        else { const n = +key.slice(it.id.length + 2); while (it.prize.places.length < n) it.prize.places.push({ text: "", img: false }); it.prize.places[n - 1].img = !!awImgs[key]; }
+        const m = key.slice(it.id.length).match(/^(?:_p(\d+))?(?:_k(\d+))?$/);
+        if (!m) continue;
+        const list = awSlot(it, m[1] ? +m[1] : 0), r = list[(m[2] ? +m[2] : 1) - 1];
+        if (r) r.img = !!awImgs[key];
+        it.prize.imgAt = Date.now();
       }
       awImgDirty = new Set();
       awCfg = await C.saveAwardShow(awCfg); toast("表彰スライドの設定を保存しました"); $("awStat").textContent = "保存済み"; paintAwItems(); }

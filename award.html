@@ -102,6 +102,12 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
 .zc-img{width:100%;height:300px;display:flex;align-items:center;justify-content:center}
 .zc.first .zc-img{height:360px}
 .zc-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:14px}
+.zc-multi{display:flex;align-items:flex-start;justify-content:center;gap:0;width:100%}
+.zc-one{display:flex;flex-direction:column;align-items:center}
+.zc-img.sm{height:200px}
+.zc-img.noimg{font-size:90px;opacity:.55}
+.zc.first .zc-img.sm{height:240px}
+.zc-plus{flex:none;width:12px;align-self:center;text-align:center;font-weight:900;font-size:26px;color:#C9A24A;margin-top:-30px}
 .zc-tx{margin-top:12px;font-weight:900;line-height:1.45;text-align:center;white-space:pre-wrap;word-break:break-word;color:#23384D}
 /* しめ */
 .c-msg{font-size:64px;font-weight:900;line-height:1.4;padding:0 120px;margin-top:10px}
@@ -172,14 +178,16 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
       SLIDES.push({ type: "podium", it, icon: R.icon, list: R.list, steps: R.list.length });
       // 賞品（表彰のあと。画像か文のどちらかがあれば）
       const pz = it.prize || {};
+      // 1つの枠の賞品（文か画像があるものだけ）
+      const goods = (items, place) => (items || []).map((r, j) => ({ text: r.text || "", img: (imgs || {})[C.awardPrizeKey(it, place, j + 1)] || "" })).filter(g => g.text || g.img);
       if (pz.on && pz.mode === "place"){
-        // 順位ごとの賞品：中身がある順位だけ（1位〜）
-        const cards = (pz.places || []).map((q, i) => ({ place: i + 1, text: q.text || "", img: (imgs || {})[C.awardPrizeKey(it, i + 1)] || "" }))
-          .filter(c => c.text || c.img);
+        // 順位ごとの賞品：中身がある順位だけ（1位〜）。1つの順位に賞品がいくつあってもよい
+        const cards = (pz.places || []).map((q, i) => ({ place: i + 1, goods: goods(q.items, i + 1) })).filter(c => c.goods.length);
         if (cards.length) SLIDES.push({ type: "prizes", it, icon: R.icon, cards });
       } else if (pz.on){
-        const img = (imgs || {})[C.awardPrizeKey(it)] || "";
-        if (img || pz.text) SLIDES.push({ type: "prize", it, icon: R.icon, img, text: pz.text });
+        const g = goods(pz.items, 0);
+        if (g.length === 1) SLIDES.push({ type: "prize", it, icon: R.icon, img: g[0].img, text: g[0].text });
+        else if (g.length) SLIDES.push({ type: "prizes", it, icon: R.icon, cards: g.map(x => ({ place: 0, goods: [x] })) });
       }
     });
     SLIDES.push({ type: "closing", per });
@@ -227,17 +235,30 @@ body{font-family:"Zen Kaku Gothic New",sans-serif;color:#23384D;-webkit-user-sel
         (S.text ? '<div class="z-tx" style="font-size:' + Math.max(32, Math.min(S.img ? 52 : 64, Math.floor((S.img ? 700 : 1150) / Math.max(4, Math.max.apply(null, S.text.split("\n").map(l => Array.from(l).length)))))) + 'px">' + esc(S.text) + "</div>" : "") +
         "</div>";
     } else if (S.type === "prizes"){
-      // 順位ごとの賞品：表彰台と同じ並び（まん中に1位）
-      const n = S.cards.length, byPlace = {}; S.cards.forEach(c => { byPlace[c.place] = c; });
-      const order = (ARR[n] || [1, 2, 3, 4, 5].slice(0, n)).map(pos => S.cards[pos - 1]).filter(Boolean);
-      const w = n >= 4 ? 300 : n === 3 ? 400 : 520;
+      /* 順位ごとの賞品：表彰台と同じ並び（まん中に1位）。1つの順位に賞品が複数あれば、カードの中に並べる。
+         place 0 のカード＝みんな同じ賞品が複数あるとき（順位の札は出さず、左から順に） */
+      const n = S.cards.length, ranked = S.cards[0].place > 0;
+      const order = ranked ? (ARR[n] || [1, 2, 3, 4, 5].slice(0, n)).map(pos => S.cards[pos - 1]).filter(Boolean) : S.cards;
+      // カードの幅：賞品の数に合わせて配る（1位は少し広め）。画面の横 1440px に収める
+      const wt = c => Math.max(1, c.goods.length) * (c.place === 1 ? 1.15 : 1), sumW = S.cards.reduce((a, c) => a + wt(c), 0);
+      const avail = 1440 - 28 * (n - 1), maxOne = n === 1 && S.cards[0].goods.length === 1 ? 620 : 520;
+      const wOf = c => Math.floor(Math.min(maxOne * Math.max(1, c.goods.length), avail * wt(c) / sumW));
+      const fsOf = (t, big, ww) => { const tl = Math.max(4, Math.max.apply(null, t.split("\n").map(l => Array.from(l).length))); return Math.max(18, Math.min(big ? 40 : 34, Math.floor((ww - 40) / tl))); };
       h = '<div class="z-head"><div class="k">PRIZE</div><div class="nm">' + S.icon + " " + esc(S.it.name) + " の賞品</div></div>" + '<div class="z-gift">🎁</div>' +
         '<div class="zc-row">' + order.map((c, i) => {
-          const big = c.place === 1, tl = Math.max(4, Math.max.apply(null, c.text.split("\n").map(l => Array.from(l).length)));
+          const big = c.place === 1, g = c.goods, k = g.length, w = wOf(c);
+          // 賞品が複数：画像は横に並べ、文はそれぞれの画像の下（画像が無い物は文だけ）
+          const cell = Math.floor((w - 36 - (k - 1) * 12) / k);
+          const inner = k === 1
+            ? (g[0].img ? '<div class="zc-img"><img src="' + esc(g[0].img) + '" alt=""></div>' : "") +
+              (g[0].text ? '<div class="zc-tx" style="font-size:' + fsOf(g[0].text, big, w) + 'px">' + esc(g[0].text) + "</div>" : "")
+            : '<div class="zc-multi">' + g.map(x => '<div class="zc-one" style="width:' + cell + 'px">' +
+                // 画像が無い賞品も、高さをそろえるため🎁の箱を置く
+                (x.img ? '<div class="zc-img sm"><img src="' + esc(x.img) + '" alt=""></div>' : (g.some(y => y.img) ? '<div class="zc-img sm noimg">🎁</div>' : "")) +
+                (x.text ? '<div class="zc-tx" style="font-size:' + Math.min(fsOf(x.text, big, cell + 40), big ? 30 : 26) + 'px">' + esc(x.text) + "</div>" : "") + "</div>").join('<div class="zc-plus">＋</div>') + "</div>";
           return '<div class="zc' + (big ? " first" : "") + '" style="width:' + w + 'px;animation-delay:' + (i * 0.12) + 's">' +
-            '<div class="zc-pl ' + PED_C[Math.min(5, c.place)] + '">' + c.place + "<small>" + (c.place === 1 ? "st" : c.place === 2 ? "nd" : c.place === 3 ? "rd" : "th") + "</small></div>" +
-            (c.img ? '<div class="zc-img"><img src="' + esc(c.img) + '" alt=""></div>' : "") +
-            (c.text ? '<div class="zc-tx" style="font-size:' + Math.max(22, Math.min(big ? 40 : 34, Math.floor((w - 40) / tl))) + 'px">' + esc(c.text) + "</div>" : "") + "</div>";
+            (c.place ? '<div class="zc-pl ' + PED_C[Math.min(5, c.place)] + '">' + c.place + "<small>" + (c.place === 1 ? "st" : c.place === 2 ? "nd" : c.place === 3 ? "rd" : "th") + "</small></div>" : "") +
+            inner + "</div>";
         }).join("") + "</div>";
     } else if (S.type === "podium"){
       const n = S.list.length;
