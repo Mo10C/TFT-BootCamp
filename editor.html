@@ -1778,7 +1778,7 @@ body.ad-on{overflow:hidden}
 <div id="toast"></div>
 
 <script src="config.js"></script>
-<script src="core.js?v=5.3"></script>
+<script src="core.js?v=20261115"></script>
 <script src="home-common.js?v=5.3"></script>
 <script>
 (function(){
@@ -2766,7 +2766,7 @@ body.ad-on{overflow:hidden}
     inp.click();
   }
   const AW_SRC_NAME = { manual: "🎖 手で選ぶ", games: "🎮 試合数（多い順）", coach: "🎓 コーチング時間（先生の名前のVCの稼働）", vc: "🎧 VCにいた時間" };
-  let awRes = null;   // 「結果を確認」で出した結果（賞のID → {list, period}）
+  let awRes = null, awD = null;   // 「結果を確認」で出した結果（賞のID → {list, period}）と、そのときのデータ
   async function loadAwardCfg(){
     if (!C.loadAwardShow) return;
     const [cfg, mem] = await Promise.all([C.loadAwardShow(), C.loadMembers().catch(() => ({}))]);
@@ -2804,7 +2804,8 @@ body.ad-on{overflow:hidden}
           '<div class="row" style="margin-left:30px"><span class="hint" style="min-width:auto">期間</span><input type="date" class="pf"> 〜 <input type="date" class="pt">' +
           (it.src === "vc" ? '<input type="text" class="chx" maxlength="30" style="width:200px" placeholder="VC名にふくむ言葉（空なら全部のVC）">' : "") +
           '<span class="hint">空ならスライド全体の期間</span></div>') +
-        (awRes && awRes[it.id] ? '<div class="hint awRes" style="margin:2px 0 4px 30px"></div>' : "") + (it.src === "manual" ? '<div class="wins"></div>' : "") +
+        (awRes && awRes[it.id] ? '<div class="hint awRes" style="margin:2px 0 4px 30px"></div>' : "") +
+        (awRes && awRes[it.id] && awRes[it.id].extra ? '<div class="awCoach" style="margin:2px 0 6px 30px"></div>' : "") + (it.src === "manual" ? '<div class="wins"></div>' : "") +
         '<div class="awPz"><label class="chk"><input type="checkbox" class="pzOn"> 🎁 賞品のスライドを出す（表彰のあと）</label>' +
         (it.prize.on ? '<select class="pzMode" style="margin-left:8px"><option value="same">みんな同じ賞品</option><option value="place">順位ごとに変える</option></select>' +
           (it.prize.mode === "place" ? awPlaceKeys(it).map(n => pzRowHtml(C.awardPrizeKey(it, n), n + "位")).join("") : pzRowHtml(C.awardPrizeKey(it), "")) : "") + "</div>";
@@ -2820,6 +2821,27 @@ body.ad-on{overflow:hidden}
       if (q(".pf")){ q(".pf").value = it.from || ""; q(".pf").onchange = e => { it.from = e.target.value; }; }
       if (q(".pt")){ q(".pt").value = it.to || ""; q(".pt").onchange = e => { it.to = e.target.value; }; }
       if (q(".chx")){ q(".chx").value = it.ch || ""; q(".chx").oninput = e => { it.ch = e.target.value; }; }
+      // コーチング賞：先生ごとに数えたVC（自動）と、手で決めるための選択。下にこの期間のVCの一覧
+      if (q(".awCoach")){
+        const X = awRes[it.id].extra, box = q(".awCoach");
+        const opts = '<option value="">（自動）</option><option value="-">数えない</option>' + X.channels.map(c => '<option value="' + lsEsc(c.name) + '">' + lsEsc(c.name) + "（" + lsEsc(C.vcHm(c.uptime)) + "）</option>").join("");
+        box.innerHTML = '<table class="t" style="font-size:12px;width:auto"><tr><th>先生</th><th>数えるVC</th><th>稼働</th></tr>' +
+          X.teachers.map(t => "<tr><td>" + lsEsc(t.name) + '</td><td><select data-t="' + lsEsc(t.id) + '">' + opts + "</select>" +
+            (t.set ? "" : '<span class="hint"> 自動：' + (t.auto.length ? lsEsc(t.auto.join("・")) : "見つからない") + "</span>") + "</td><td>" + (t.v ? lsEsc(C.vcHm(t.v)) : "—") + "</td></tr>").join("") + "</table>" +
+          '<details style="margin-top:4px"><summary class="hint">この期間のVCの稼働（VC稼働のページと同じ数字）</summary><div class="hint">' +
+          X.channels.map(c => lsEsc(c.name) + " " + lsEsc(C.vcHm(c.uptime))).join("　/　") + "</div></details>";
+        box.querySelectorAll("select[data-t]").forEach(sel => {
+          const tid = sel.dataset.t; sel.value = (it.chMap || {})[tid] || "";
+          sel.onchange = () => {
+            it.chMap = it.chMap || {};
+            if (sel.value) it.chMap[tid] = sel.value; else delete it.chMap[tid];
+            // その場で数え直す（読み直しはしない）
+            if (awD){ const cfg = C.normAwardShow(Object.assign({}, awCfg, { from: $("awFrom").value, to: $("awTo").value }));
+              cfg.items.forEach((x, i) => { x.id = awCfg.items[i].id; }); awRes[it.id] = C.awardList(cfg.items.find(x => x.id === it.id), Object.assign({}, awD, { cfg })); }
+            paintAwItems();
+          };
+        });
+      }
       // 結果を確認したあとなら、いまの結果（1〜5位）と数えた期間を出す
       if (q(".awRes")){
         const R = awRes[it.id];
@@ -2875,7 +2897,7 @@ body.ad-on{overflow:hidden}
     try {
       const cfg = C.normAwardShow(Object.assign({}, awCfg, { from: $("awFrom").value, to: $("awTo").value }));
       cfg.items.forEach((it, i) => { it.id = awCfg.items[i].id; });
-      const D = await C.loadAwardData(cfg);
+      const D = awD = await C.loadAwardData(cfg);
       awRes = {};
       cfg.items.forEach(it => { awRes[it.id] = C.awardList(it, D); });
       paintAwItems();

@@ -2198,6 +2198,8 @@
         places: Math.max(1, Math.min(5, x.places | 0 || 3)),
         // この賞だけの期間（空なら表彰スライド全体の期間）・VC時間のときの「VC名にふくむ言葉」（空なら全部のVC）
         from: ok(x.from) ? x.from : "", to: ok(x.to) ? x.to : "", ch: String(x.ch || "").slice(0, 30),
+        // コーチング賞：先生ごとに数えるVCを手で決めたもの { 先生のID: "VC名" }（"-"＝数えない・無い先生は自動）
+        chMap: (m => { const o = {}; Object.entries(m && typeof m === "object" ? m : {}).slice(0, 60).forEach(([k, v]) => { if (/^u_[\w-]+$/.test(k) && v) o[k] = String(v).slice(0, 60); }); return o; })(x.chMap),
         winners: (Array.isArray(x.winners) ? x.winners : []).slice(0, 5)
           .map(w => ({ id: String((w && w.id) || ""), note: String((w && w.note) || "").slice(0, 40) })).filter(w => w.id),
         // 賞品のスライド（賞の紹介と表彰台のあいだに出す）。画像は大きいので別の文書 award_prize_<賞のID> に置く
@@ -2289,7 +2291,7 @@
       rows.forEach((r, i) => { r.place = i && rows[i - 1].v === r.v ? rows[i - 1].place : i + 1; }); return rows; };
     const vcOf = () => D.vc[P.from + "|" + P.to] || { users: [] };
     const uKey = u => (/^u_/.test(String(u.id)) ? String(u.id) : "u_" + u.id);
-    let list = [], icon = "🏆";
+    let list = [], icon = "🏆", extra = null;
     if (it.src === "manual") {
       icon = "🎖";
       list = it.winners.map((w, i) => ({ id: w.id, name: nameOf(w.id), place: i + 1, show: w.note || "", sub: "", cls: "" }));
@@ -2298,18 +2300,26 @@
       list = rank(Object.entries(D.games).filter(([id, n]) => typeof n === "number" && n > 0 && okWho(it.who, id))
         .map(([id, n]) => ({ id, name: nameOf(id), v: n }))).map(r => Object.assign(r, { show: r.v + "試合", sub: "合宿期間中のTFT", cls: "" }));
     } else if (it.src === "coach") {
-      /* コーチング時間＝その先生の名前のVCの「稼働時間」（誰か1人でもいた実時間・VC稼働のページの右の数字と同じ）
-         先生＝担当の生徒がいる先生 ＋ LPの名簿で生徒以外の人。名前でVCが見つかった先生だけ並べる */
+      /* コーチング時間＝その先生のVCの「稼働時間」（誰か1人でもいた実時間・VC稼働のページの右の数字と同じ）
+         先生＝担当の生徒がいる先生 ＋ LPの名簿で生徒以外の人。
+         VCは名前で自動で探す（vcTeacherChannels）。管理画面で先生ごとに決めたもの（chMap）があればそちらを使う */
       icon = "🎓";
       const chans = vcOf().channels || [], tids = new Set(Object.values((D.album && D.album.mentors) || {}));
       Object.keys(LPM).forEach(id => { if (isStu[id] === false) tids.add(id); });
+      Object.keys(it.chMap || {}).forEach(id => tids.add(id));
       const stuOf = tid => Object.entries((D.album && D.album.mentors) || {}).filter(([, t]) => t === tid).map(([sid]) => nameOf(sid));
-      list = rank([...tids].filter(id => okWho(it.who, id)).map(id => {
-        const hit = vcTeacherChannels(chans, nameOf(id));
-        return { id, name: nameOf(id), v: hit.reduce((n, c) => n + (c.uptime || 0), 0), ch: hit.map(c => c.name) };
-      }).filter(r => r.v > 0))
+      // LPの名簿にいない先生（Riot未登録など）も先生として数える
+      const okT = id => it.who === "all" || (it.who === "stu" ? isStu[id] === true : isStu[id] !== true) || !!(it.chMap && it.chMap[id]);
+      const teachers = [...tids].filter(okT).map(id => {
+        const auto = vcTeacherChannels(chans, nameOf(id)), set = it.chMap && it.chMap[id];
+        const hit = set === "-" ? [] : set ? chans.filter(c => c.name === set) : auto;
+        return { id, name: nameOf(id), v: hit.reduce((n, c) => n + (c.uptime || 0), 0), ch: hit.map(c => c.name), auto: auto.map(c => c.name), set: set || "" };
+      }).sort((a, b) => b.v - a.v || a.name.localeCompare(b.name, "ja"));
+      list = rank(teachers.filter(r => r.v > 0).map(r => Object.assign({}, r)))
         .map(r => { const st = stuOf(r.id);
           return Object.assign(r, { show: vcHm(r.v), sub: "「" + r.ch.join("・") + "」の稼働" + (st.length ? "・担当：" + st.join("・") : ""), cls: "", note: r.ch.join("・") }); });
+      // 管理画面の「結果を確認」で使う：先生ぜんいんと、この期間のVCの一覧
+      extra = { teachers, channels: chans.map(c => ({ name: c.name, uptime: c.uptime })) };
     } else if (it.src === "vc") {
       icon = "🎧";
       const key = String(it.ch || "").trim().toLowerCase();
@@ -2331,7 +2341,7 @@
       });
     }
     if (it.src !== "manual") list = list.filter(x => x.place <= it.places).slice(0, it.places);
-    return { icon, list: list.slice(0, 5), period: P };
+    return { icon, list: list.slice(0, 5), period: P, extra };
   }
 
   /* 賞品の画像（data URL）。1枚ずつ別の文書に置く（表彰スライドの設定の文書が1MBをこえないように） */
